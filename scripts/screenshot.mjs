@@ -146,4 +146,22 @@ await shot("settings.png");
 
 await browser.close();
 server.close();
-console.log("Done.");
+
+// Self-check: no two screenshots may be byte-identical.
+import("node:crypto").then(async ({ createHash }) => {
+  const files = ["popup-dark.png", "popup-light.png", "settings.png"];
+  const hashes = await Promise.all(files.map(async (f) => {
+    const buf = await fs.readFile(path.join(OUT, f));
+    return [f, createHash("sha256").update(buf).digest("hex").slice(0, 12)];
+  }));
+  const seen = new Map();
+  for (const [f, h] of hashes) {
+    if (seen.has(h)) {
+      console.error(`\u2717 duplicate screenshot: ${f} == ${seen.get(h)} (hash ${h})`);
+      process.exit(2);
+    }
+    seen.set(h, f);
+  }
+  console.log("\u2713 all 3 screenshots are visually distinct (" + hashes.map(([f,h]) => `${f.split('.')[0]}:${h}`).join(" ") + ")");
+  console.log("Done.");
+});
