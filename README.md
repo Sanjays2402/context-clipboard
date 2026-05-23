@@ -2,7 +2,19 @@
 
 Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy remembers where it came from — URL, page title, surrounding paragraph — and yes, it captures **images** too.
 
-![status](https://img.shields.io/badge/status-v0.3.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e)
+![status](https://img.shields.io/badge/status-v0.5.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
+
+<p align="center">
+  <img src="screenshots/popup-dark.png" width="230" alt="Dark popup" />
+  <img src="screenshots/popup-light.png" width="230" alt="Light popup" />
+  <img src="screenshots/settings.png" width="230" alt="Settings" />
+</p>
+
+## What's new in v0.5.0
+
+- **Smart field suggestions** — when you focus the same input on the same site, a frosted-glass chip offers the clip you pasted there last time.
+- **Liquid Glass UI** — iOS 18-inspired frosted surfaces, ambient color blobs, cubic-bezier easing.
+- **Phosphor SVG icons** — emoji replaced with stroke-based scalable icons.
 
 ## Features
 
