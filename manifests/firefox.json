@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Context Clipboard",
-  "version": "0.3.0",
-  "description": "Smart clipboard with image capture, OCR, in-page palette, source context, and tag search.",
+  "version": "0.3.1",
+  "description": "Smart clipboard with image capture, in-page palette, source context, and tag search.",
   "permissions": ["contextMenus", "storage", "clipboardWrite", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -19,9 +19,6 @@
       "run_at": "document_idle"
     }
   ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' https://cdn.jsdelivr.net; object-src 'self'"
-  },
   "commands": {
     "open-popup": {
       "suggested_key": {

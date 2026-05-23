@@ -68,6 +68,8 @@ async function buildTarget(target) {
     path.join(outdir, "manifest.json"),
   );
 
+  // Bundle Tesseract is deferred to a future release; OCR is disabled in v0.3.1.
+
   // Icons: copy if present, else generate placeholders.
   const iconSrc = path.join(root, "icons");
   if (existsSync(iconSrc)) {

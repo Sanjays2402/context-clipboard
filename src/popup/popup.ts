@@ -246,26 +246,11 @@ function closeDetail() {
 
 // OCR (runs in popup; CSP allows external script for popup pages) -------
 async function loadTesseract() {
-  if (ocrLoading) return ocrLoading;
-  ocrLoading = (async () => {
-    await new Promise<void>((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js";
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error("Failed to load tesseract.js"));
-      document.head.appendChild(s);
-    });
-    return (window as unknown as { Tesseract: unknown }).Tesseract;
-  })();
-  return ocrLoading;
+  throw new Error("OCR is temporarily disabled in v0.3.1 (returning in v0.4.0)");
 }
 
-async function runOcr(c: ClipItem): Promise<string> {
-  const T = (await loadTesseract()) as unknown as {
-    recognize: (img: string, lang: string) => Promise<{ data: { text: string } }>;
-  };
-  const res = await T.recognize(c.content, "eng");
-  return res.data.text.trim();
+async function runOcr(_c: ClipItem): Promise<string> {
+  throw new Error("OCR temporarily disabled");
 }
 
 // Settings --------------------------------------------------------------
@@ -550,34 +535,7 @@ detailTags.addEventListener("change", async () => {
 });
 
 detailOcr.addEventListener("click", async () => {
-  if (!detailId) return;
-  const c = await getClip(detailId);
-  if (!c) return;
-  detailOcr.textContent = "…";
-  detailOcr.disabled = true;
-  try {
-    const text = await runOcr(c);
-    await new Promise<void>((resolve) => {
-      api.runtime.sendMessage(
-        {
-          type: "cc-rpc",
-          action: "setOcrText",
-          payload: { id: c.id, text },
-        },
-        () => resolve(),
-      );
-    });
-    detailOcrRow.hidden = false;
-    detailOcrText.textContent = text || "(no text found)";
-    toast(text ? "OCR done" : "No text found");
-    await render();
-  } catch (e) {
-    toast("OCR failed", "error");
-    console.error(e);
-  } finally {
-    detailOcr.textContent = "👁";
-    detailOcr.disabled = false;
-  }
+  toast("OCR coming in v0.4.0 — disabled in v0.3.1", "error");
 });
 
 // Settings wiring -------------------------------------------------------
