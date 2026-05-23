@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Context Clipboard</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <input id="search" type="search" placeholder="Search clips, sources, tags…" autocomplete="off" />
+      <div class="filters">
+        <button data-kind="all" class="active">All</button>
+        <button data-kind="text">Text</button>
+        <button data-kind="image">Images</button>
+        <button data-kind="link">Links</button>
+        <button id="pinned-toggle" title="Show pinned only">📌</button>
+      </div>
+    </header>
+    <main id="list"></main>
+    <footer>
+      <span id="count"></span>
+      <button id="clear">Clear unpinned</button>
+    </footer>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
