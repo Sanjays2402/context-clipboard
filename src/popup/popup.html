@@ -8,16 +8,19 @@
   <body data-theme="auto">
     <header>
       <div class="search-row">
-        <input id="search" type="search" placeholder="Search clips, sources, tags, OCR…" autocomplete="off" />
-        <button id="note-btn" class="icon-btn" title="Add note">+</button>
-        <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+        <input id="search" type="search" placeholder="Search clips, sources, tags…" autocomplete="off" />
+        <button id="note-btn" class="icon-btn" title="Add note" data-icon="plus"></button>
+        <button id="settings-btn" class="icon-btn" title="Settings" data-icon="settings"></button>
       </div>
       <div class="filters">
-        <button data-kind="all" class="active">All</button>
-        <button data-kind="text">📝</button>
-        <button data-kind="image">🖼</button>
-        <button data-kind="link">🔗</button>
-        <button id="pinned-toggle" title="Pinned only">📌</button>
+        <button data-kind="all" class="active" title="All clips">
+          <span class="filter-icon" data-icon="all"></span>
+          <span class="filter-label">All</span>
+        </button>
+        <button data-kind="text" title="Text only" data-icon="text"></button>
+        <button data-kind="image" title="Images only" data-icon="image"></button>
+        <button data-kind="link" title="Links only" data-icon="link"></button>
+        <button id="pinned-toggle" title="Pinned only" data-icon="pin"></button>
       </div>
       <div id="tag-chips" class="tag-chips" hidden></div>
     </header>
@@ -30,27 +33,27 @@
 
     <section id="detail" hidden>
       <div class="detail-header">
-        <button id="detail-back" class="icon-btn" title="Back">←</button>
+        <button id="detail-back" class="icon-btn" title="Back" data-icon="back"></button>
         <span class="detail-title">Clip</span>
-        <button id="detail-ocr" class="icon-btn" title="OCR text from image" hidden>👁</button>
-        <button id="detail-pin" class="icon-btn" title="Pin">📌</button>
-        <button id="detail-delete" class="icon-btn" title="Delete">✕</button>
+        <button id="detail-ocr" class="icon-btn" title="OCR text from image" data-icon="eye" hidden></button>
+        <button id="detail-pin" class="icon-btn" title="Pin" data-icon="pin"></button>
+        <button id="detail-delete" class="icon-btn" title="Delete" data-icon="trash"></button>
       </div>
       <div id="detail-body" class="detail-body"></div>
       <div class="detail-meta">
-        <div class="meta-row"><strong>Source:</strong> <a id="detail-url" href="#" target="_blank"></a></div>
-        <div class="meta-row"><strong>Captured:</strong> <span id="detail-time"></span></div>
-        <div class="meta-row"><strong>Hits:</strong> <span id="detail-hits"></span></div>
+        <div class="meta-row"><strong>Source</strong> <a id="detail-url" href="#" target="_blank"></a></div>
+        <div class="meta-row"><strong>Captured</strong> <span id="detail-time"></span></div>
+        <div class="meta-row"><strong>Copies</strong> <span id="detail-hits"></span></div>
         <div class="meta-row">
-          <strong>Tags:</strong>
+          <strong>Tags</strong>
           <input id="detail-tags" type="text" placeholder="comma,separated,tags" />
         </div>
         <div class="meta-row" id="detail-nearby-row">
-          <strong>Context:</strong>
+          <strong>Context</strong>
           <div id="detail-nearby" class="nearby"></div>
         </div>
         <div class="meta-row" id="detail-ocr-row" hidden>
-          <strong>OCR text:</strong>
+          <strong>OCR text</strong>
           <div id="detail-ocr-text" class="nearby"></div>
         </div>
       </div>
@@ -62,7 +65,7 @@
 
     <section id="settings-panel" hidden>
       <div class="detail-header">
-        <button id="settings-back" class="icon-btn" title="Back">←</button>
+        <button id="settings-back" class="icon-btn" title="Back" data-icon="back"></button>
         <span class="detail-title">Settings</span>
       </div>
       <div class="settings-body">
@@ -95,7 +98,7 @@
           <input id="s-palette" type="checkbox" />
         </label>
         <label class="setting">
-          <span>Block list (one host per line, never captures)</span>
+          <span>Block list (one host per line)</span>
           <textarea id="s-block" rows="3" placeholder="bank.com&#10;mail.google.com"></textarea>
         </label>
         <label class="setting">
@@ -118,14 +121,14 @@
         </div>
         <input id="import-file" type="file" accept="application/json" hidden />
         <div class="settings-foot">
-          <span>Context Clipboard · v0.4.0</span>
+          <span>Context Clipboard · v0.4.1</span>
         </div>
       </div>
     </section>
 
     <footer>
       <span id="count"></span>
-      <span class="hint">Shift+Click=MD · ↑↓ nav · ⏎ copy · / search</span>
+      <span class="hint">Shift+Click = MD · ↑↓ nav · ⏎ copy · / search</span>
       <button id="clear">Clear unpinned</button>
     </footer>
 

@@ -125,6 +125,48 @@ body[data-theme="light"] {
   display: none !important;
 }
 
+.icon-btn svg,
+.filters button svg,
+.clip .actions button svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.icon-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.filters button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.filters button[data-kind="all"] svg {
+  width: 14px;
+  height: 14px;
+}
+
+.filter-label {
+  font-weight: 500;
+}
+
+.thumb-icon svg {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.clip .actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 *::-webkit-scrollbar {
   width: 6px;
   height: 6px;

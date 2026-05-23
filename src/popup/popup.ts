@@ -10,6 +10,7 @@ import {
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml } from "../lib/util";
+import { icons, clipKindIcon } from "../lib/icons";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -89,7 +90,7 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
   const thumb =
     c.kind === "image"
       ? `<div class="thumb"><img src="${c.content}" alt="" /></div>`
-      : `<div class="thumb">${c.kind === "link" ? "🔗" : "📝"}</div>`;
+      : `<div class="thumb thumb-icon">${clipKindIcon(c.kind)}</div>`;
   const src = [hostFrom(c.source.url), c.source.title]
     .filter(Boolean)
     .join(" · ");
@@ -112,9 +113,9 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
         ${tags ? `<div class="tags">${tags}</div>` : ""}
       </div>
       <div class="actions">
-        <button class="pin" data-act="pin" title="Pin (P)">📌</button>
-        <button class="copy" data-act="copy" title="Copy (Enter)">⎘</button>
-        <button class="del" data-act="del" title="Delete (Del)">✕</button>
+        <button class="pin" data-act="pin" title="Pin (P)" data-pin-btn>${c.pinned ? icons.pinFilled() : icons.pin()}</button>
+        <button class="copy" data-act="copy" title="Copy (Enter)" data-copy-btn>${icons.copy()}</button>
+        <button class="del" data-act="del" title="Delete (Del)" data-del-btn>${icons.trash()}</button>
       </div>
     </div>
   `;
@@ -235,7 +236,7 @@ async function openDetail(id: string) {
   } else {
     detailOcrRow.hidden = true;
   }
-  detailPin.textContent = c.pinned ? "📌 Pinned" : "📌";
+  detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
   detailEl.hidden = false;
 }
 
@@ -507,7 +508,7 @@ detailDelete.addEventListener("click", async () => {
 detailPin.addEventListener("click", async () => {
   if (!detailId) return;
   const pinned = await togglePin(detailId);
-  detailPin.textContent = pinned ? "📌 Pinned" : "📌";
+  detailPin.innerHTML = pinned ? icons.pinFilled() : icons.pin();
   await render();
 });
 
@@ -535,7 +536,7 @@ detailTags.addEventListener("change", async () => {
 });
 
 detailOcr.addEventListener("click", async () => {
-  toast("OCR coming in v0.4.0 — disabled in v0.3.1", "error");
+  toast("OCR coming in v0.5.0", "error");
 });
 
 // Settings wiring -------------------------------------------------------
@@ -607,6 +608,11 @@ clearAllBtn.addEventListener("click", () => {
 
 // Init ------------------------------------------------------------------
 (async () => {
+  document.querySelectorAll<HTMLElement>("[data-icon]").forEach((el) => {
+    const name = el.dataset.icon as keyof typeof icons;
+    const fn = icons[name];
+    if (typeof fn === "function") el.innerHTML = fn();
+  });
   const s = await getSettings();
   document.body.dataset.theme = s.theme;
   await render();
