@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.chromium-profile/
 *.log
 .DS_Store
 .env
