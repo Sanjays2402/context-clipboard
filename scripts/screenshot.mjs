@@ -31,7 +31,7 @@ const browser = await chromium.launch({
   executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
 });
-const ctx = await browser.newContext({ viewport: { width: 420, height: 640 }, deviceScaleFactor: 2 });
+const ctx = await browser.newContext({ viewport: { width: 420, height: 640 }, deviceScaleFactor: 2, colorScheme: "dark" });
 const page = await ctx.newPage();
 
 // Stub chrome.* APIs the popup uses, before any script runs.
@@ -131,6 +131,8 @@ async function shot(name) {
   console.log("\u2713 " + name);
 }
 
+await page.evaluate(() => { document.body.dataset.theme = "dark"; });
+await page.waitForTimeout(200);
 await shot("popup-dark.png");
 
 await page.evaluate(() => { document.body.dataset.theme = "light"; });
