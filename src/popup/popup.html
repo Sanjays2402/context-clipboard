@@ -8,7 +8,8 @@
   <body data-theme="auto">
     <header>
       <div class="search-row">
-        <input id="search" type="search" placeholder="Search clips, sources, tags…" autocomplete="off" />
+        <input id="search" type="search" placeholder="Search clips, sources, tags, OCR…" autocomplete="off" />
+        <button id="note-btn" class="icon-btn" title="Add note">+</button>
         <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
       </div>
       <div class="filters">
@@ -18,14 +19,20 @@
         <button data-kind="link">🔗</button>
         <button id="pinned-toggle" title="Pinned only">📌</button>
       </div>
+      <div id="tag-chips" class="tag-chips" hidden></div>
     </header>
 
     <main id="list" tabindex="0"></main>
+
+    <div id="drop-zone" class="drop-zone" hidden>
+      <div>Drop image to capture</div>
+    </div>
 
     <section id="detail" hidden>
       <div class="detail-header">
         <button id="detail-back" class="icon-btn" title="Back">←</button>
         <span class="detail-title">Clip</span>
+        <button id="detail-ocr" class="icon-btn" title="OCR text from image" hidden>👁</button>
         <button id="detail-pin" class="icon-btn" title="Pin">📌</button>
         <button id="detail-delete" class="icon-btn" title="Delete">✕</button>
       </div>
@@ -41,6 +48,10 @@
         <div class="meta-row" id="detail-nearby-row">
           <strong>Context:</strong>
           <div id="detail-nearby" class="nearby"></div>
+        </div>
+        <div class="meta-row" id="detail-ocr-row" hidden>
+          <strong>OCR text:</strong>
+          <div id="detail-ocr-text" class="nearby"></div>
         </div>
       </div>
       <div class="detail-actions">
@@ -68,8 +79,28 @@
           <input id="s-capture" type="checkbox" />
         </label>
         <label class="setting toggle">
+          <span>Capture images on copy</span>
+          <input id="s-capture-img" type="checkbox" />
+        </label>
+        <label class="setting toggle">
           <span>Auto-tag clips</span>
           <input id="s-autotag" type="checkbox" />
+        </label>
+        <label class="setting toggle">
+          <span>Auto-OCR new image clips</span>
+          <input id="s-ocr" type="checkbox" />
+        </label>
+        <label class="setting toggle">
+          <span>In-page palette (Cmd+Shift+V overlay)</span>
+          <input id="s-palette" type="checkbox" />
+        </label>
+        <label class="setting">
+          <span>Block list (one host per line, never captures)</span>
+          <textarea id="s-block" rows="3" placeholder="bank.com&#10;mail.google.com"></textarea>
+        </label>
+        <label class="setting">
+          <span>Allow list (if set, only these capture)</span>
+          <textarea id="s-allow" rows="3" placeholder="github.com&#10;stackoverflow.com"></textarea>
         </label>
         <label class="setting">
           <span>Theme</span>
@@ -79,6 +110,7 @@
             <option value="light">Light</option>
           </select>
         </label>
+        <div id="storage-info" class="storage-info"></div>
         <div class="settings-actions">
           <button id="export-btn">Export JSON</button>
           <button id="import-btn">Import JSON</button>
@@ -86,14 +118,14 @@
         </div>
         <input id="import-file" type="file" accept="application/json" hidden />
         <div class="settings-foot">
-          <span>Context Clipboard · v0.2.0</span>
+          <span>Context Clipboard · v0.3.0</span>
         </div>
       </div>
     </section>
 
     <footer>
       <span id="count"></span>
-      <span class="hint">Shift+Click = copy as Markdown · ↑↓ navigate · ⏎ copy</span>
+      <span class="hint">Shift+Click=MD · ↑↓ nav · ⏎ copy · / search</span>
       <button id="clear">Clear unpinned</button>
     </footer>
 

@@ -2,22 +2,27 @@
 
 Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy remembers where it came from — URL, page title, surrounding paragraph — and yes, it captures **images** too.
 
-![status](https://img.shields.io/badge/status-v0.2.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e)
+![status](https://img.shields.io/badge/status-v0.3.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e)
 
 ## Features
 
-- **Captures text + images + links** — normal Ctrl/⌘+C plus right-click "Capture to Context Clipboard"
+- **Text + images + links** — `Ctrl/⌘+C` and right-click "Capture" both work
 - **Page context** — URL, title, favicon, and the surrounding paragraph saved with every clip
-- **Searchable history** — fuzzy search across content, source, tags
-- **Smart dedup** — re-copying the same thing within 60s bumps the timestamp instead of adding a duplicate
-- **Auto-tags** — hostname, `code`, `email`, `url`, `jwt`, `phone`, `long`, etc. detected locally
-- **Pin important clips** — pinned items survive auto-prune and "Clear unpinned"
-- **Paste as Markdown** — `Shift+Click` or `Shift+Enter` to copy with a citation block
-- **Detail view** — click any clip for full content, source link, hit count, editable tags
-- **Keyboard-first** — `↑/↓` navigate, `Enter` copy, `Shift+Enter` markdown, `P` pin, `Del` delete, `/` focus search
-- **Global shortcut** — `Cmd/Ctrl+Shift+V` opens the palette anywhere
-- **Export / Import JSON** — back up your library, restore on a new browser
-- **Settings** — adjust max items, dedup window, toggles, theme (auto/dark/light)
+- **Smart dedup** — re-copying the same content within a configurable window bumps hit count instead of duplicating
+- **In-page command palette** — `Cmd/Ctrl+Shift+V` opens a Spotlight-style overlay on any page; navigate + paste without leaving the tab
+- **Auto-tags** — hostname, `code`, `email`, `url`, `jwt`, `phone`, `long`, `number` detected locally
+- **Tag filter chips** — top tags rendered above the list, click to filter
+- **Image OCR** — extract text from screenshots with Tesseract.js (lazy-loaded), searchable in history
+- **Pin important clips** — survive auto-prune and "Clear unpinned"
+- **Paste as Markdown** — quotes get `>` blockquote with citation, code gets fenced ` ``` ` block, images get `![alt](url)`
+- **Detail view** — full content, hit count, editable tags, source link, context paragraph, OCR text
+- **Keyboard-first** — `↑/↓` navigate, `Enter` copy, `Shift+Enter` markdown, `P` pin, `Del` delete, `/` search, `Esc` back
+- **Drag & drop images** into the popup to capture instantly
+- **Quick notes** — add manual text via the `+` button
+- **Allow / Block lists** — never capture on banking pages, or only capture on your work domains
+- **Storage indicator** — see used / quota with a live bar
+- **Export / Import JSON** — back up, restore, sync between browsers
+- **Themes** — auto / dark / light
 - **Local-only** — IndexedDB, no cloud, no account, no telemetry
 - **Cross-browser** — Chrome / Brave / Edge / Firefox 121+ (MV3)
 
@@ -30,7 +35,7 @@ npm run build         # builds dist/chrome and dist/firefox
 
 ### Chrome / Brave / Edge
 
-1. Open `chrome://extensions` (or `brave://extensions`, `edge://extensions`)
+1. Open `chrome://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked** → select `dist/chrome/`
 
@@ -44,52 +49,52 @@ npm run build         # builds dist/chrome and dist/firefox
 
 | Key | Action |
 |---|---|
-| `Cmd/Ctrl+Shift+V` | Open popup |
+| `Cmd/Ctrl+Shift+V` | Open in-page palette (or popup) |
 | `↑` / `↓` | Navigate clips |
 | `Enter` | Copy active clip |
 | `Shift+Enter` | Copy as Markdown |
 | `P` | Pin / unpin |
 | `Delete` | Delete clip |
 | `/` | Focus search |
-| `Esc` | Close detail / settings |
+| `Esc` | Close detail / settings / palette |
 
-## How it works
+## Architecture
 
-- **Content script** intercepts `copy` events on every page and forwards the selection plus the closest paragraph to the background.
-- **Background service worker** owns the IndexedDB store, dedup logic, and context menu handlers. Images are fetched and stored as data URLs.
-- **Popup** is a single-page UI with list / detail / settings views, all wired through the same DB module.
+- **`content.ts`** intercepts `copy` events on every page (text + images), and renders an isolated **shadow-DOM palette** when summoned by the background.
+- **`background.ts`** owns the IndexedDB store, dedup, context menus, allow/block lists, command shortcut routing, and RPC bus.
+- **`popup/`** is a single-page UI with list + detail + settings views, drag-drop image capture, and on-demand Tesseract.js OCR.
+- **`lib/db.ts`** wraps IDB with search, indexes (`hash`, `lastSeenAt`, `kind`), auto-prune, and full export / import.
 
 ## Project layout
 
 ```
 src/
-├── background.ts         # MV3 service worker
-├── content.ts            # captures Ctrl/Cmd+C with page context
+├── background.ts        # MV3 service worker
+├── content.ts           # copy capture + in-page palette (shadow DOM)
 ├── lib/
-│   ├── db.ts             # IndexedDB store, dedup, export/import
-│   ├── types.ts          # ClipItem, Settings, etc.
-│   └── util.ts           # hash, autoTag, hostFrom, timeAgo
+│   ├── db.ts            # IndexedDB store
+│   ├── types.ts         # ClipItem, Settings
+│   └── util.ts          # hash, autoTag, time/host helpers
 └── popup/
     ├── popup.html
-    ├── popup.css         # dark + light themes
-    └── popup.ts          # list + detail + settings UI
+    ├── popup.css        # dark + light themes
+    └── popup.ts         # list / detail / settings, OCR, drag-drop
 manifests/
-├── chrome.json           # MV3 (Chrome/Brave/Edge)
-└── firefox.json          # MV3 (Firefox 121+)
+├── chrome.json          # MV3 (Chrome/Brave/Edge)
+└── firefox.json         # MV3 (Firefox 121+)
 scripts/
-├── build.mjs             # esbuild → dist/<target>/
-└── make-icons.py         # generates PNG icons (Pillow)
-icons/                    # 16/32/48/128/256 PNGs
+├── build.mjs            # esbuild → dist/<target>/
+└── make-icons.py        # Pillow-generated PNGs
+icons/                   # 16/32/48/128/256
 ```
 
 ## Roadmap
 
-- [ ] LLM auto-tagging via WebGPU / Transformers.js
-- [ ] OCR text from captured images (Tesseract.js)
-- [ ] Cloud sync via GitHub Gist
-- [ ] In-page palette (skip the popup hop)
-- [ ] Per-site capture rules (allow / block list)
+- [ ] Cloud sync via GitHub Gist (optional)
 - [ ] Encrypted export with passphrase
+- [ ] Per-clip privacy redaction (auto-mask emails / tokens)
+- [ ] Chrome Web Store + addons.mozilla.org submission
+- [ ] LLM auto-tagging via WebGPU (Transformers.js)
 
 ## License
 

@@ -31,6 +31,8 @@ export interface ClipItem {
   bytes: number;
   /** Cheap content hash for dedup. */
   hash: string;
+  /** Optional OCR'd text from an image clip. */
+  ocrText?: string;
 }
 
 export interface SearchQuery {
@@ -45,7 +47,14 @@ export interface Settings {
   maxUnpinned: number;
   dedupWindowMs: number;
   captureCopyEvents: boolean;
+  captureImagesOnCopy: boolean;
   enableAutoTags: boolean;
+  enableOcr: boolean;
+  enableInPagePalette: boolean;
+  /** Hostnames where capture is disabled. */
+  blockList: string[];
+  /** If non-empty, capture ONLY on these hostnames. */
+  allowList: string[];
   theme: "auto" | "dark" | "light";
 }
 
@@ -53,6 +62,16 @@ export const DEFAULT_SETTINGS: Settings = {
   maxUnpinned: 500,
   dedupWindowMs: 60_000,
   captureCopyEvents: true,
+  captureImagesOnCopy: true,
   enableAutoTags: true,
+  enableOcr: false,
+  enableInPagePalette: true,
+  blockList: [],
+  allowList: [],
   theme: "auto",
 };
+
+export interface ClipUpdate {
+  ocrText?: string;
+  tags?: string[];
+}

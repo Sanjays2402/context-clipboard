@@ -15,49 +15,68 @@ const api: typeof chrome =
   // @ts-expect-error firefox global
   (typeof browser !== "undefined" ? browser : chrome) as typeof chrome;
 
-const listEl = document.getElementById("list") as HTMLElement;
-const searchEl = document.getElementById("search") as HTMLInputElement;
-const countEl = document.getElementById("count") as HTMLElement;
-const clearBtn = document.getElementById("clear") as HTMLButtonElement;
-const pinnedToggle = document.getElementById("pinned-toggle") as HTMLButtonElement;
-const settingsBtn = document.getElementById("settings-btn") as HTMLButtonElement;
+// Element refs ----------------------------------------------------------
+const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
+  document.getElementById(id) as T;
+
+const listEl = $("list");
+const searchEl = $<HTMLInputElement>("search");
+const countEl = $("count");
+const clearBtn = $<HTMLButtonElement>("clear");
+const pinnedToggle = $<HTMLButtonElement>("pinned-toggle");
+const settingsBtn = $<HTMLButtonElement>("settings-btn");
+const noteBtn = $<HTMLButtonElement>("note-btn");
+const tagChipsEl = $("tag-chips");
+const dropZone = $("drop-zone");
 const filterBtns = document.querySelectorAll<HTMLButtonElement>(
   ".filters button[data-kind]",
 );
 
-const detailEl = document.getElementById("detail") as HTMLElement;
-const detailBack = document.getElementById("detail-back") as HTMLButtonElement;
-const detailPin = document.getElementById("detail-pin") as HTMLButtonElement;
-const detailDelete = document.getElementById("detail-delete") as HTMLButtonElement;
-const detailBody = document.getElementById("detail-body") as HTMLElement;
-const detailUrl = document.getElementById("detail-url") as HTMLAnchorElement;
-const detailTime = document.getElementById("detail-time") as HTMLElement;
-const detailHits = document.getElementById("detail-hits") as HTMLElement;
-const detailTags = document.getElementById("detail-tags") as HTMLInputElement;
-const detailNearby = document.getElementById("detail-nearby") as HTMLElement;
-const detailNearbyRow = document.getElementById("detail-nearby-row") as HTMLElement;
-const detailCopy = document.getElementById("detail-copy") as HTMLButtonElement;
-const detailCopyMd = document.getElementById("detail-copy-md") as HTMLButtonElement;
+const detailEl = $("detail");
+const detailBack = $<HTMLButtonElement>("detail-back");
+const detailPin = $<HTMLButtonElement>("detail-pin");
+const detailDelete = $<HTMLButtonElement>("detail-delete");
+const detailOcr = $<HTMLButtonElement>("detail-ocr");
+const detailBody = $("detail-body");
+const detailUrl = $<HTMLAnchorElement>("detail-url");
+const detailTime = $("detail-time");
+const detailHits = $("detail-hits");
+const detailTags = $<HTMLInputElement>("detail-tags");
+const detailNearby = $("detail-nearby");
+const detailNearbyRow = $("detail-nearby-row");
+const detailOcrRow = $("detail-ocr-row");
+const detailOcrText = $("detail-ocr-text");
+const detailCopy = $<HTMLButtonElement>("detail-copy");
+const detailCopyMd = $<HTMLButtonElement>("detail-copy-md");
 
-const settingsPanel = document.getElementById("settings-panel") as HTMLElement;
-const settingsBack = document.getElementById("settings-back") as HTMLButtonElement;
-const sMax = document.getElementById("s-max") as HTMLInputElement;
-const sDedup = document.getElementById("s-dedup") as HTMLInputElement;
-const sCapture = document.getElementById("s-capture") as HTMLInputElement;
-const sAutoTag = document.getElementById("s-autotag") as HTMLInputElement;
-const sTheme = document.getElementById("s-theme") as HTMLSelectElement;
-const exportBtn = document.getElementById("export-btn") as HTMLButtonElement;
-const importBtn = document.getElementById("import-btn") as HTMLButtonElement;
-const importFile = document.getElementById("import-file") as HTMLInputElement;
-const clearAllBtn = document.getElementById("clear-all-btn") as HTMLButtonElement;
+const settingsPanel = $("settings-panel");
+const settingsBack = $<HTMLButtonElement>("settings-back");
+const sMax = $<HTMLInputElement>("s-max");
+const sDedup = $<HTMLInputElement>("s-dedup");
+const sCapture = $<HTMLInputElement>("s-capture");
+const sCaptureImg = $<HTMLInputElement>("s-capture-img");
+const sAutoTag = $<HTMLInputElement>("s-autotag");
+const sOcr = $<HTMLInputElement>("s-ocr");
+const sPalette = $<HTMLInputElement>("s-palette");
+const sBlock = $<HTMLTextAreaElement>("s-block");
+const sAllow = $<HTMLTextAreaElement>("s-allow");
+const sTheme = $<HTMLSelectElement>("s-theme");
+const storageInfo = $("storage-info");
+const exportBtn = $<HTMLButtonElement>("export-btn");
+const importBtn = $<HTMLButtonElement>("import-btn");
+const importFile = $<HTMLInputElement>("import-file");
+const clearAllBtn = $<HTMLButtonElement>("clear-all-btn");
 
-const toastEl = document.getElementById("toast") as HTMLElement;
+const toastEl = $("toast");
 
+// State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
 let pinnedOnly = false;
+let activeTag: string | null = null;
 let currentClips: ClipItem[] = [];
 let activeIndex = 0;
 let detailId: string | null = null;
+let ocrLoading: Promise<unknown> | null = null;
 
 function toast(msg: string, kind: "ok" | "error" = "ok") {
   toastEl.textContent = msg;
@@ -65,6 +84,7 @@ function toast(msg: string, kind: "ok" | "error" = "ok") {
   setTimeout(() => (toastEl.className = "toast"), 1300);
 }
 
+// Rendering -------------------------------------------------------------
 function renderClip(c: ClipItem, idx: number, active: boolean): string {
   const thumb =
     c.kind === "image"
@@ -77,7 +97,7 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
     c.kind === "image" ? c.preview || "Image" : c.preview || c.content;
   const hits = c.hitCount > 1 ? ` · ×${c.hitCount}` : "";
   const tags = c.tags
-    .slice(0, 3)
+    .slice(0, 4)
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join("");
   return `
@@ -100,29 +120,57 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
   `;
 }
 
+function renderTagChips(allClips: ClipItem[]) {
+  const counts = new Map<string, number>();
+  for (const c of allClips) {
+    for (const t of c.tags) counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  const top = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12);
+  if (top.length === 0) {
+    tagChipsEl.hidden = true;
+    return;
+  }
+  tagChipsEl.hidden = false;
+  tagChipsEl.innerHTML = top
+    .map(
+      ([t, n]) =>
+        `<span class="tag-chip ${t === activeTag ? "active" : ""}" data-tag="${escapeHtml(t)}">${escapeHtml(t)} <em>·${n}</em></span>`,
+    )
+    .join("");
+}
+
 async function render(): Promise<void> {
+  const all = await listClips({ limit: 1000 });
+  renderTagChips(all);
   currentClips = await listClips({
     q: searchEl.value,
     kind: currentKind,
     pinnedOnly,
+    tag: activeTag || undefined,
     limit: 200,
   });
-  if (activeIndex >= currentClips.length) activeIndex = Math.max(0, currentClips.length - 1);
+  if (activeIndex >= currentClips.length)
+    activeIndex = Math.max(0, currentClips.length - 1);
   if (currentClips.length === 0) {
-    listEl.innerHTML = `<div class="empty">No clips yet.<br/>Copy anything, or right-click → "Capture to Context Clipboard".</div>`;
+    listEl.innerHTML = `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
   } else {
-    listEl.innerHTML = currentClips.map((c, i) => renderClip(c, i, i === activeIndex)).join("");
+    listEl.innerHTML = currentClips
+      .map((c, i) => renderClip(c, i, i === activeIndex))
+      .join("");
   }
   countEl.textContent = `${currentClips.length} clip${currentClips.length === 1 ? "" : "s"}`;
 }
 
+// Clipboard helpers -----------------------------------------------------
 async function copyToClipboard(c: ClipItem) {
   try {
     if (c.kind === "image") {
       const res = await fetch(c.content);
       const blob = await res.blob();
       const Item = (window as unknown as { ClipboardItem: new (parts: Record<string, Blob>) => unknown }).ClipboardItem;
-      const clip = (navigator.clipboard as unknown as { write: (items: unknown[]) => Promise<void> });
+      const clip = navigator.clipboard as unknown as { write: (items: unknown[]) => Promise<void> };
       await clip.write([new Item({ [blob.type]: blob })]);
     } else {
       await navigator.clipboard.writeText(c.content);
@@ -134,12 +182,20 @@ async function copyToClipboard(c: ClipItem) {
   }
 }
 
+function looksLikeCode(s: string): boolean {
+  return /\b(function|const|let|var|class|import|export|=>|<\/?\w|def |print\()/.test(
+    s,
+  ) || /\n/.test(s);
+}
+
 async function copyAsMarkdown(c: ClipItem) {
   let md: string;
   if (c.kind === "image") {
     md = `![${c.source.title || "image"}](${c.source.url || ""})`;
   } else if (c.kind === "link") {
     md = `[${c.preview || c.content}](${c.content})`;
+  } else if (c.tags.includes("code") || looksLikeCode(c.content)) {
+    md = "```\n" + c.content + "\n```";
   } else {
     const cite = c.source.url
       ? `\n\n— [${c.source.title || c.source.url}](${c.source.url})`
@@ -150,14 +206,17 @@ async function copyAsMarkdown(c: ClipItem) {
   toast("Copied as Markdown");
 }
 
+// Detail view -----------------------------------------------------------
 async function openDetail(id: string) {
   const c = await getClip(id);
   if (!c) return;
   detailId = c.id;
   if (c.kind === "image") {
     detailBody.innerHTML = `<img src="${c.content}" alt="" />`;
+    detailOcr.hidden = false;
   } else {
     detailBody.innerHTML = `<pre>${escapeHtml(c.content)}</pre>`;
+    detailOcr.hidden = true;
   }
   detailUrl.href = c.source.url || "#";
   detailUrl.textContent = c.source.url || "—";
@@ -170,6 +229,12 @@ async function openDetail(id: string) {
   } else {
     detailNearbyRow.hidden = true;
   }
+  if (c.ocrText) {
+    detailOcrRow.hidden = false;
+    detailOcrText.textContent = c.ocrText;
+  } else {
+    detailOcrRow.hidden = true;
+  }
   detailPin.textContent = c.pinned ? "📌 Pinned" : "📌";
   detailEl.hidden = false;
 }
@@ -179,13 +244,44 @@ function closeDetail() {
   detailId = null;
 }
 
+// OCR (runs in popup; CSP allows external script for popup pages) -------
+async function loadTesseract() {
+  if (ocrLoading) return ocrLoading;
+  ocrLoading = (async () => {
+    await new Promise<void>((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js";
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error("Failed to load tesseract.js"));
+      document.head.appendChild(s);
+    });
+    return (window as unknown as { Tesseract: unknown }).Tesseract;
+  })();
+  return ocrLoading;
+}
+
+async function runOcr(c: ClipItem): Promise<string> {
+  const T = (await loadTesseract()) as unknown as {
+    recognize: (img: string, lang: string) => Promise<{ data: { text: string } }>;
+  };
+  const res = await T.recognize(c.content, "eng");
+  return res.data.text.trim();
+}
+
+// Settings --------------------------------------------------------------
 async function openSettings() {
   const s = await getSettings();
   sMax.value = String(s.maxUnpinned);
   sDedup.value = String(Math.round(s.dedupWindowMs / 1000));
   sCapture.checked = s.captureCopyEvents;
+  sCaptureImg.checked = s.captureImagesOnCopy;
   sAutoTag.checked = s.enableAutoTags;
+  sOcr.checked = s.enableOcr;
+  sPalette.checked = s.enableInPagePalette;
+  sBlock.value = (s.blockList || []).join("\n");
+  sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
+  await renderStorage();
   settingsPanel.hidden = false;
 }
 
@@ -198,15 +294,91 @@ async function saveSettingsFromForm() {
     maxUnpinned: Math.max(50, Number(sMax.value) || 500),
     dedupWindowMs: Math.max(0, (Number(sDedup.value) || 60) * 1000),
     captureCopyEvents: sCapture.checked,
+    captureImagesOnCopy: sCaptureImg.checked,
     enableAutoTags: sAutoTag.checked,
+    enableOcr: sOcr.checked,
+    enableInPagePalette: sPalette.checked,
+    blockList: sBlock.value.split("\n").map((s) => s.trim()).filter(Boolean),
+    allowList: sAllow.value.split("\n").map((s) => s.trim()).filter(Boolean),
     theme: (sTheme.value as Settings["theme"]) || "auto",
   };
   const saved = await saveSettings(next);
   document.body.dataset.theme = saved.theme;
 }
 
-// Event wiring -------------------------------------------------------------
+async function renderStorage() {
+  try {
+    const est = await navigator.storage?.estimate?.();
+    if (!est) {
+      storageInfo.textContent = "Storage info unavailable.";
+      return;
+    }
+    const used = est.usage || 0;
+    const quota = est.quota || 1;
+    const pct = Math.min(100, Math.round((used / quota) * 100));
+    storageInfo.innerHTML = `
+      <strong>Storage:</strong> ${formatBytes(used)} of ${formatBytes(quota)} (${pct}%)
+      <div class="storage-bar"><div style="width:${pct}%"></div></div>
+    `;
+  } catch {
+    storageInfo.textContent = "";
+  }
+}
 
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+// Drag & drop -----------------------------------------------------------
+window.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropZone.hidden = false;
+});
+window.addEventListener("dragleave", (e) => {
+  if (e.target === document.documentElement) dropZone.hidden = true;
+});
+window.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  dropZone.hidden = true;
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+  for (const file of Array.from(files)) {
+    if (!file.type.startsWith("image/")) continue;
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+    await new Promise<void>((resolve) => {
+      api.runtime.sendMessage(
+        {
+          type: "cc-rpc",
+          action: "addImageBlob",
+          payload: { dataUrl, name: file.name },
+        },
+        () => resolve(),
+      );
+    });
+  }
+  toast("Image added");
+  await render();
+});
+
+// Tag chips -------------------------------------------------------------
+tagChipsEl.addEventListener("click", (e) => {
+  const chip = (e.target as HTMLElement).closest(".tag-chip") as HTMLElement | null;
+  if (!chip) return;
+  const t = chip.dataset.tag || null;
+  activeTag = activeTag === t ? null : t;
+  activeIndex = 0;
+  render();
+});
+
+// List events -----------------------------------------------------------
 listEl.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;
   const clipEl = target.closest(".clip") as HTMLElement | null;
@@ -231,7 +403,6 @@ listEl.addEventListener("click", async (e) => {
     else await copyToClipboard(c);
     return;
   }
-  // Click on body → open detail
   if (e.shiftKey) {
     await copyAsMarkdown(c);
   } else if ((e as MouseEvent).altKey || (e as MouseEvent).metaKey) {
@@ -275,8 +446,20 @@ clearBtn.addEventListener("click", async () => {
   toast("Cleared unpinned");
 });
 
-// Keyboard navigation -----------------------------------------------------
+noteBtn.addEventListener("click", async () => {
+  const text = prompt("Add a quick note:");
+  if (!text) return;
+  await new Promise<void>((resolve) => {
+    api.runtime.sendMessage(
+      { type: "cc-rpc", action: "addNote", payload: { text } },
+      () => resolve(),
+    );
+  });
+  toast("Note saved");
+  await render();
+});
 
+// Keyboard --------------------------------------------------------------
 document.addEventListener("keydown", async (e) => {
   if (!detailEl.hidden) {
     if (e.key === "Escape") closeDetail();
@@ -291,7 +474,8 @@ document.addEventListener("keydown", async (e) => {
     return;
   }
   const tag = (e.target as HTMLElement).tagName;
-  const inSearch = tag === "INPUT" && (e.target as HTMLInputElement).type === "search";
+  const inSearch =
+    tag === "INPUT" && (e.target as HTMLInputElement).type === "search";
 
   if (e.key === "ArrowDown") {
     e.preventDefault();
@@ -324,8 +508,7 @@ document.addEventListener("keydown", async (e) => {
   }
 });
 
-// Detail view wiring ------------------------------------------------------
-
+// Detail wiring ---------------------------------------------------------
 detailBack.addEventListener("click", () => closeDetail());
 
 detailDelete.addEventListener("click", async () => {
@@ -357,14 +540,47 @@ detailCopyMd.addEventListener("click", async () => {
 
 detailTags.addEventListener("change", async () => {
   if (!detailId) return;
-  const tags = detailTags.value.split(",").map((t) => t.trim()).filter(Boolean);
+  const tags = detailTags.value
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
   await updateTags(detailId, tags);
   await render();
   toast("Tags saved");
 });
 
-// Settings wiring --------------------------------------------------------
+detailOcr.addEventListener("click", async () => {
+  if (!detailId) return;
+  const c = await getClip(detailId);
+  if (!c) return;
+  detailOcr.textContent = "…";
+  detailOcr.disabled = true;
+  try {
+    const text = await runOcr(c);
+    await new Promise<void>((resolve) => {
+      api.runtime.sendMessage(
+        {
+          type: "cc-rpc",
+          action: "setOcrText",
+          payload: { id: c.id, text },
+        },
+        () => resolve(),
+      );
+    });
+    detailOcrRow.hidden = false;
+    detailOcrText.textContent = text || "(no text found)";
+    toast(text ? "OCR done" : "No text found");
+    await render();
+  } catch (e) {
+    toast("OCR failed", "error");
+    console.error(e);
+  } finally {
+    detailOcr.textContent = "👁";
+    detailOcr.disabled = false;
+  }
+});
 
+// Settings wiring -------------------------------------------------------
 settingsBtn.addEventListener("click", () => openSettings());
 settingsBack.addEventListener("click", async () => {
   await saveSettingsFromForm();
@@ -377,19 +593,22 @@ sTheme.addEventListener("change", () => {
 });
 
 exportBtn.addEventListener("click", () => {
-  api.runtime.sendMessage({ type: "cc-rpc", action: "export" }, (resp: { ok: boolean; data?: unknown }) => {
-    if (!resp?.ok) return toast("Export failed", "error");
-    const blob = new Blob([JSON.stringify(resp.data, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `context-clipboard-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast("Exported");
-  });
+  api.runtime.sendMessage(
+    { type: "cc-rpc", action: "export" },
+    (resp: { ok: boolean; data?: unknown }) => {
+      if (!resp?.ok) return toast("Export failed", "error");
+      const blob = new Blob([JSON.stringify(resp.data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `context-clipboard-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Exported");
+    },
+  );
 });
 
 importBtn.addEventListener("click", () => importFile.click());
@@ -420,15 +639,15 @@ importFile.addEventListener("change", async () => {
 });
 
 clearAllBtn.addEventListener("click", () => {
-  if (!confirm("Delete EVERYTHING, including pinned? This cannot be undone.")) return;
+  if (!confirm("Delete EVERYTHING, including pinned? This cannot be undone."))
+    return;
   api.runtime.sendMessage({ type: "cc-rpc", action: "clearAll" }, () => {
     toast("All clips deleted");
     render();
   });
 });
 
-// Init --------------------------------------------------------------------
-
+// Init ------------------------------------------------------------------
 (async () => {
   const s = await getSettings();
   document.body.dataset.theme = s.theme;

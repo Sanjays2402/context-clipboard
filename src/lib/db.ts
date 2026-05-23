@@ -160,6 +160,7 @@ export async function listClips(q: SearchQuery = {}): Promise<ClipItem[]> {
         c.source.url,
         c.source.nearbyText,
         c.tags.join(" "),
+        c.ocrText,
       ]
         .filter(Boolean)
         .join(" ")

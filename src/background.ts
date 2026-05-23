@@ -8,17 +8,17 @@ import {
   importAll,
   clearUnpinned,
   clearAll,
+  listClips,
+  getClip,
 } from "./lib/db";
 import type { ClipItem, ClipSource } from "./lib/types";
 import { uid, quickHash, hostFrom, autoTag } from "./lib/util";
 
-// Cross-browser shim: Firefox exposes `browser`, Chrome exposes `chrome`.
 const api: typeof chrome =
   // @ts-expect-error firefox global
   (typeof browser !== "undefined" ? browser : chrome) as typeof chrome;
 
 api.runtime.onInstalled.addListener(() => {
-  // Context menus
   api.contextMenus.removeAll(() => {
     api.contextMenus.create({
       id: "cc-capture-image",
@@ -75,27 +75,52 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// Keyboard command: open popup (defined in manifest commands).
 if (api.commands) {
-  api.commands.onCommand.addListener((cmd) => {
-    if (cmd === "open-popup") {
-      // Best-effort: opens the toolbar popup. Some browsers only allow this
-      // when the action button is visible; fallback to opening a new tab.
-      (api.action.openPopup as ((opts?: unknown) => Promise<void>) | undefined)?.()?.catch(
-        () => {
-          api.tabs.create({ url: api.runtime.getURL("popup/popup.html") });
-        },
-      ) ?? api.tabs.create({ url: api.runtime.getURL("popup/popup.html") });
+  api.commands.onCommand.addListener(async (cmd) => {
+    if (cmd !== "open-popup") return;
+    const settings = await getSettings();
+    if (settings.enableInPagePalette) {
+      try {
+        const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id && tab.url && !tab.url.startsWith("chrome://") && !tab.url.startsWith("about:")) {
+          const clips = await listClips({ limit: 50 });
+          const lite = clips.map((c) => ({
+            id: c.id,
+            kind: c.kind,
+            content: c.content,
+            preview: c.preview,
+            source: { url: c.source.url, title: c.source.title },
+          }));
+          await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite });
+          return;
+        }
+      } catch (_e) {
+        // fall through to toolbar popup
+      }
     }
+    // Fallback: open toolbar popup (or a tab if popup API unavailable)
+    type OpenPopupFn = (opts?: unknown) => Promise<void>;
+    const open = (api.action.openPopup as OpenPopupFn | undefined);
+    if (open) {
+      try { await open(); return; } catch (_e) { /* fall back */ }
+    }
+    api.tabs.create({ url: api.runtime.getURL("popup/popup.html") });
   });
 }
 
-// Messages from content script + popup
 api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
   (async () => {
     if (isCopyMsg(msg)) {
       const settings = await getSettings();
       if (!settings.captureCopyEvents) return sendResponse({ ok: false, skipped: true });
+      if (msg.kind === "image" && !settings.captureImagesOnCopy) {
+        return sendResponse({ ok: false, skipped: true });
+      }
+      const host = hostFrom(sender.tab?.url);
+      if (settings.blockList.includes(host)) return sendResponse({ ok: false, blocked: true });
+      if (settings.allowList.length > 0 && !settings.allowList.includes(host)) {
+        return sendResponse({ ok: false, blocked: true });
+      }
       const id = await ingest({
         kind: msg.kind,
         content: msg.content,
@@ -122,7 +147,9 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           return sendResponse({ ok: true, data });
         }
         if (msg.action === "import") {
-          const res = await importAll(msg.payload || {});
+          const res = await importAll(
+            (msg.payload as { clips?: ClipItem[]; settings?: Partial<import("./lib/types").Settings> } | undefined) || {},
+          );
           return sendResponse({ ok: true, ...res });
         }
         if (msg.action === "clearUnpinned") {
@@ -133,6 +160,43 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           await clearAll();
           return sendResponse({ ok: true });
         }
+        if (msg.action === "setOcrText") {
+          const p = msg.payload as { id?: string; text?: string } | undefined;
+          if (!p?.id) return sendResponse({ ok: false, error: "id required" });
+          const c = await getClip(p.id);
+          if (!c) return sendResponse({ ok: false, error: "not found" });
+          c.ocrText = p.text || "";
+          if (c.ocrText.trim()) {
+            c.preview = `${c.preview?.split(" · ")[0] || "Image"} · ${c.ocrText.slice(0, 80)}`;
+            if (!c.tags.includes("ocr")) c.tags.push("ocr");
+          }
+          await putClip(c);
+          return sendResponse({ ok: true });
+        }
+        if (msg.action === "addImageBlob") {
+          // Popup drag-drop: store an image data URL provided by the user.
+          const p = msg.payload as { dataUrl: string; name?: string } | undefined;
+          if (!p?.dataUrl) return sendResponse({ ok: false, error: "dataUrl required" });
+          const id = await ingest({
+            kind: "image",
+            content: p.dataUrl,
+            mime: guessMime(p.dataUrl),
+            preview: `Image: ${p.name || "dropped"}`,
+            source: { title: p.name },
+          });
+          return sendResponse({ ok: true, id });
+        }
+        if (msg.action === "addNote") {
+          const p = msg.payload as { text: string } | undefined;
+          if (!p?.text) return sendResponse({ ok: false, error: "text required" });
+          const id = await ingest({
+            kind: "text",
+            content: p.text,
+            preview: p.text.slice(0, 200),
+            source: { title: "Manual note" },
+          });
+          return sendResponse({ ok: true, id });
+        }
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
         return sendResponse({ ok: false, error: err });
@@ -141,7 +205,7 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
 
     sendResponse({ ok: false });
   })();
-  return true; // async response
+  return true;
 });
 
 interface IngestInput {
@@ -154,7 +218,6 @@ interface IngestInput {
 
 async function ingest(inp: IngestInput): Promise<string> {
   const settings = await getSettings();
-  // Hash: text is content; image uses first 4KB of the data URL (cheap, deterministic).
   const hashInput =
     inp.kind === "image" ? inp.content.slice(0, 4096) : inp.content;
   const hash = quickHash(`${inp.kind}:${hashInput}`);
@@ -166,13 +229,10 @@ async function ingest(inp: IngestInput): Promise<string> {
   if (existing) {
     existing.lastSeenAt = now;
     existing.hitCount = (existing.hitCount || 1) + 1;
-    // Merge tags from new source host if different
     if (settings.enableAutoTags) {
-      const merged = new Set([
-        ...existing.tags,
-        ...autoTag(inp.content, inp.kind, host),
-      ]);
-      existing.tags = Array.from(merged);
+      existing.tags = Array.from(
+        new Set([...existing.tags, ...autoTag(inp.content, inp.kind, host)]),
+      );
     }
     await putClip(existing);
     return existing.id;
@@ -219,6 +279,10 @@ function guessMime(dataUrl: string): string {
   return m ? m[1] : "image/png";
 }
 
+// OCR happens in the popup (CSP-safe). Background only stores the result.
+
+// Message types ------------------------------------------------------------
+
 interface CopyMsg {
   type: "cc-copy";
   kind: "text" | "image";
@@ -229,7 +293,14 @@ interface CopyMsg {
 
 interface RpcMsg {
   type: "cc-rpc";
-  action: "export" | "import" | "clearUnpinned" | "clearAll";
+  action:
+    | "export"
+    | "import"
+    | "clearUnpinned"
+    | "clearAll"
+    | "setOcrText"
+    | "addImageBlob"
+    | "addNote";
   payload?: unknown;
 }
 
