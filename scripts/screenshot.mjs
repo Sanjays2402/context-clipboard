@@ -31,7 +31,7 @@ const browser = await chromium.launch({
   executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
 });
-const ctx = await browser.newContext({ viewport: { width: 460, height: 720 }, deviceScaleFactor: 2 });
+const ctx = await browser.newContext({ viewport: { width: 420, height: 640 }, deviceScaleFactor: 2 });
 const page = await ctx.newPage();
 
 // Stub chrome.* APIs the popup uses, before any script runs.
@@ -117,19 +117,30 @@ await page.evaluate(async () => {
 // Reload so popup.ts reads the seeded clips.
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.waitForTimeout(500);
-await page.screenshot({ path: path.join(OUT, "popup-dark.png") });
-console.log("✓ popup-dark.png");
+// Measure popup root height and clip screenshot to it.
+async function shot(name) {
+  const box = await page.evaluate(() => {
+    const el = document.querySelector(".popup") || document.body;
+    const r = el.getBoundingClientRect();
+    return { x: 0, y: 0, w: Math.ceil(r.right), h: Math.ceil(r.bottom) };
+  });
+  await page.screenshot({
+    path: path.join(OUT, name),
+    clip: { x: box.x, y: box.y, width: box.w, height: box.h },
+  });
+  console.log("\u2713 " + name);
+}
+
+await shot("popup-dark.png");
 
 await page.evaluate(() => { document.body.dataset.theme = "light"; });
 await page.waitForTimeout(200);
-await page.screenshot({ path: path.join(OUT, "popup-light.png") });
-console.log("✓ popup-light.png");
+await shot("popup-light.png");
 
 await page.evaluate(() => { document.body.dataset.theme = "dark"; });
 await page.click("#settings-btn");
 await page.waitForTimeout(400);
-await page.screenshot({ path: path.join(OUT, "settings.png") });
-console.log("✓ settings.png");
+await shot("settings.png");
 
 await browser.close();
 server.close();
