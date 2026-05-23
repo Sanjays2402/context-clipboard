@@ -5,22 +5,100 @@
     <title>Context Clipboard</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
-  <body>
+  <body data-theme="auto">
     <header>
-      <input id="search" type="search" placeholder="Search clips, sources, tags…" autocomplete="off" />
+      <div class="search-row">
+        <input id="search" type="search" placeholder="Search clips, sources, tags…" autocomplete="off" />
+        <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+      </div>
       <div class="filters">
         <button data-kind="all" class="active">All</button>
-        <button data-kind="text">Text</button>
-        <button data-kind="image">Images</button>
-        <button data-kind="link">Links</button>
-        <button id="pinned-toggle" title="Show pinned only">📌</button>
+        <button data-kind="text">📝</button>
+        <button data-kind="image">🖼</button>
+        <button data-kind="link">🔗</button>
+        <button id="pinned-toggle" title="Pinned only">📌</button>
       </div>
     </header>
-    <main id="list"></main>
+
+    <main id="list" tabindex="0"></main>
+
+    <section id="detail" hidden>
+      <div class="detail-header">
+        <button id="detail-back" class="icon-btn" title="Back">←</button>
+        <span class="detail-title">Clip</span>
+        <button id="detail-pin" class="icon-btn" title="Pin">📌</button>
+        <button id="detail-delete" class="icon-btn" title="Delete">✕</button>
+      </div>
+      <div id="detail-body" class="detail-body"></div>
+      <div class="detail-meta">
+        <div class="meta-row"><strong>Source:</strong> <a id="detail-url" href="#" target="_blank"></a></div>
+        <div class="meta-row"><strong>Captured:</strong> <span id="detail-time"></span></div>
+        <div class="meta-row"><strong>Hits:</strong> <span id="detail-hits"></span></div>
+        <div class="meta-row">
+          <strong>Tags:</strong>
+          <input id="detail-tags" type="text" placeholder="comma,separated,tags" />
+        </div>
+        <div class="meta-row" id="detail-nearby-row">
+          <strong>Context:</strong>
+          <div id="detail-nearby" class="nearby"></div>
+        </div>
+      </div>
+      <div class="detail-actions">
+        <button id="detail-copy">Copy</button>
+        <button id="detail-copy-md">Copy as Markdown</button>
+      </div>
+    </section>
+
+    <section id="settings-panel" hidden>
+      <div class="detail-header">
+        <button id="settings-back" class="icon-btn" title="Back">←</button>
+        <span class="detail-title">Settings</span>
+      </div>
+      <div class="settings-body">
+        <label class="setting">
+          <span>Max unpinned items</span>
+          <input id="s-max" type="number" min="50" max="10000" step="50" />
+        </label>
+        <label class="setting">
+          <span>Dedup window (seconds)</span>
+          <input id="s-dedup" type="number" min="0" max="3600" step="5" />
+        </label>
+        <label class="setting toggle">
+          <span>Capture Cmd/Ctrl+C events</span>
+          <input id="s-capture" type="checkbox" />
+        </label>
+        <label class="setting toggle">
+          <span>Auto-tag clips</span>
+          <input id="s-autotag" type="checkbox" />
+        </label>
+        <label class="setting">
+          <span>Theme</span>
+          <select id="s-theme">
+            <option value="auto">Auto</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <div class="settings-actions">
+          <button id="export-btn">Export JSON</button>
+          <button id="import-btn">Import JSON</button>
+          <button id="clear-all-btn" class="danger">Delete everything</button>
+        </div>
+        <input id="import-file" type="file" accept="application/json" hidden />
+        <div class="settings-foot">
+          <span>Context Clipboard · v0.2.0</span>
+        </div>
+      </div>
+    </section>
+
     <footer>
       <span id="count"></span>
+      <span class="hint">Shift+Click = copy as Markdown · ↑↓ navigate · ⏎ copy</span>
       <button id="clear">Clear unpinned</button>
     </footer>
+
+    <div id="toast" class="toast"></div>
+
     <script type="module" src="popup.js"></script>
   </body>
 </html>

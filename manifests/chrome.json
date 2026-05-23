@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Context Clipboard",
-  "version": "0.1.0",
-  "description": "Smart clipboard with source URL, page context, and image capture. Search every copy.",
+  "version": "0.2.0",
+  "description": "Smart clipboard with source URL, page context, image capture, and search. Shift+C reopens history.",
   "permissions": ["contextMenus", "storage", "clipboardWrite"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -20,6 +20,15 @@
       "run_at": "document_idle"
     }
   ],
+  "commands": {
+    "open-popup": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+V",
+        "mac": "Command+Shift+V"
+      },
+      "description": "Open Context Clipboard"
+    }
+  },
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
