@@ -139,7 +139,7 @@ await page.evaluate(() => { document.body.dataset.theme = "light"; });
 await page.waitForTimeout(200);
 await shot("popup-light.png");
 
-await page.evaluate(() => { document.body.dataset.theme = "dark"; });
+await page.evaluate(() => { document.body.dataset.theme = "light"; });
 await page.click("#settings-btn");
 await page.waitForTimeout(400);
 await shot("settings.png");
