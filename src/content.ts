@@ -125,6 +125,319 @@ api.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
 });
 
 let paletteRoot: HTMLElement | null = null;
+let suggestionRoot: HTMLElement | null = null;
+let lastFocusedField: HTMLElement | null = null;
+let lastFieldKey: string | null = null;
+
+// Track "copy from a field" so we can later record the source field key.
+let lastCopiedField: { host: string; fieldKey: string; preview: string } | null =
+  null;
+
+function fieldKeyFor(el: HTMLElement): string | null {
+  if (!isEditable(el)) return null;
+  // Prefer stable, intent-rich attributes.
+  const tag = el.tagName.toLowerCase();
+  const id = el.id || "";
+  const name = (el as HTMLInputElement).name || "";
+  const type = (el as HTMLInputElement).type || "";
+  const ac = el.getAttribute("autocomplete") || "";
+  const aria = el.getAttribute("aria-label") || "";
+  const placeholder = (el as HTMLInputElement).placeholder || "";
+  // First non-empty signal wins.
+  const sig =
+    ac || name || id || aria || placeholder || `${tag}:${type}` || tag;
+  return `${tag}|${sig}`.slice(0, 200);
+}
+
+function isEditable(el: Element | null): boolean {
+  if (!el || !(el instanceof HTMLElement)) return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  if (tag === "TEXTAREA") return !(el as HTMLTextAreaElement).disabled && !(el as HTMLTextAreaElement).readOnly;
+  if (tag === "INPUT") {
+    const t = ((el as HTMLInputElement).type || "text").toLowerCase();
+    const editable = ["text", "search", "url", "email", "tel", "password", "number", ""].includes(t);
+    return editable && !(el as HTMLInputElement).disabled && !(el as HTMLInputElement).readOnly;
+  }
+  return false;
+}
+
+function hostNow(): string {
+  try {
+    return new URL(location.href).hostname.replace(/^www\./, "");
+  } catch {
+    return location.hostname;
+  }
+}
+
+function getFieldValue(el: HTMLElement): string {
+  if (el.isContentEditable) return (el.textContent || "").trim();
+  const v = (el as HTMLInputElement | HTMLTextAreaElement).value;
+  return (v || "").trim();
+}
+
+function setFieldValue(el: HTMLElement, value: string) {
+  if (el.isContentEditable) {
+    el.textContent = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
+  const proto =
+    el.tagName === "TEXTAREA"
+      ? Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value",
+        )
+      : Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+  proto?.set?.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+// On copy: remember the source field so we can record after paste.
+document.addEventListener(
+  "copy",
+  () => {
+    const el = document.activeElement as HTMLElement | null;
+    if (el && isEditable(el)) {
+      const key = fieldKeyFor(el);
+      if (key) {
+        lastCopiedField = {
+          host: hostNow(),
+          fieldKey: key,
+          preview: getFieldValue(el).slice(0, 200),
+        };
+      }
+    }
+  },
+  true,
+);
+
+// On paste: if we have a recent "clip captured" id we can correlate; the
+// background will create the clip from the copy event, and on the next paste
+// into a field we record (host, fieldKey) → clipId mapping.
+document.addEventListener(
+  "paste",
+  async (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target || !isEditable(target)) return;
+    const key = fieldKeyFor(target);
+    if (!key) return;
+    const pasted = e.clipboardData?.getData("text/plain") || "";
+    if (!pasted) return;
+    // Ask background which clip matches this text (the most recent matching hash).
+    try {
+      const resp = await new Promise<{
+        ok: boolean;
+        suggestion?: { clipId: string; preview?: string } | null;
+        clipId?: string;
+      }>((resolve) => {
+        api.runtime.sendMessage(
+          {
+            type: "cc-rpc",
+            action: "findClipByContent",
+            payload: { content: pasted },
+          },
+          (r) => resolve(r),
+        );
+      });
+      const clipId = resp?.clipId;
+      if (!clipId) return;
+      await new Promise<void>((resolve) => {
+        api.runtime.sendMessage(
+          {
+            type: "cc-rpc",
+            action: "recordFieldPaste",
+            payload: {
+              host: hostNow(),
+              fieldKey: key,
+              clipId,
+              preview: pasted.slice(0, 200),
+            },
+          },
+          () => resolve(),
+        );
+      });
+    } catch (_e) {
+      // background may be sleeping; harmless
+    }
+  },
+  true,
+);
+
+// On focus: query background for a suggestion and float a chip near the field.
+document.addEventListener(
+  "focusin",
+  async (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target || !isEditable(target)) return;
+    const key = fieldKeyFor(target);
+    if (!key) return;
+    lastFocusedField = target;
+    lastFieldKey = key;
+    // Don't suggest into fields that already have a value (avoid spam).
+    if (getFieldValue(target).length > 0) return closeSuggestion();
+    try {
+      const resp = await new Promise<{
+        ok: boolean;
+        suggestion?: {
+          clipId: string;
+          kind: string;
+          content: string;
+          preview: string;
+          count: number;
+        } | null;
+      }>((resolve) => {
+        api.runtime.sendMessage(
+          {
+            type: "cc-rpc",
+            action: "getFieldSuggestion",
+            payload: { host: hostNow(), fieldKey: key },
+          },
+          (r) => resolve(r),
+        );
+      });
+      if (!resp?.suggestion) return closeSuggestion();
+      showSuggestion(target, resp.suggestion);
+    } catch {
+      // ignore
+    }
+  },
+  true,
+);
+
+document.addEventListener(
+  "focusout",
+  (e) => {
+    if (e.target === lastFocusedField) {
+      setTimeout(() => {
+        // Allow click on chip before it disappears.
+        if (document.activeElement !== suggestionRoot) closeSuggestion();
+      }, 200);
+    }
+  },
+  true,
+);
+
+function showSuggestion(
+  field: HTMLElement,
+  s: { clipId: string; kind: string; content: string; preview: string; count: number },
+) {
+  closeSuggestion();
+  const root = document.createElement("div");
+  root.id = "__cc_field_suggestion__";
+  root.attachShadow({ mode: "open" });
+  const rect = field.getBoundingClientRect();
+  const top = Math.min(
+    window.innerHeight - 50,
+    window.scrollY + rect.bottom + 6,
+  );
+  const left = window.scrollX + rect.left;
+  const css = `
+    :host { all: initial; }
+    .chip { position: absolute; top: ${top}px; left: ${left}px; z-index: 2147483645; display:flex; align-items:center; gap:8px; padding:6px 8px 6px 12px; background: rgba(20,20,26,0.85); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); color:#f4f4f7; border:1px solid rgba(255,255,255,0.12); border-radius: 999px; font: 12px/1 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif; box-shadow: 0 8px 24px rgba(0,0,0,0.45); cursor: pointer; max-width: 320px; }
+    .dot { width:6px; height:6px; border-radius:50%; background:#ffc933; box-shadow: 0 0 6px rgba(255,201,51,0.7); flex:0 0 6px; }
+    .label { color:#b8b8c2; font-weight:500; }
+    .preview { color:#f4f4f7; max-width: 180px; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; font-weight:500; }
+    .actions { display:flex; gap:2px; margin-left: 4px; }
+    button { background:transparent; border:none; color:#b8b8c2; padding:4px 8px; border-radius: 999px; font-size:11px; cursor:pointer; font-family: inherit; font-weight:600; }
+    button:hover { background: rgba(255,255,255,0.08); color:#fff; }
+    button.primary { background: rgba(255,201,51,0.2); color:#ffc933; }
+    button.primary:hover { background: rgba(255,201,51,0.32); }
+  `;
+  const html = `
+    <div class="chip" role="button" tabindex="0">
+      <span class="dot"></span>
+      <span class="label">Paste</span>
+      <span class="preview">${escapeHtml(s.preview).slice(0, 60)}</span>
+      <div class="actions">
+        <button class="primary" data-act="paste">⏎ Paste</button>
+        <button data-act="dismiss">×</button>
+      </div>
+    </div>
+  `;
+  const style = document.createElement("style");
+  style.textContent = css;
+  root.shadowRoot!.appendChild(style);
+  const wrap = document.createElement("div");
+  wrap.innerHTML = html;
+  root.shadowRoot!.appendChild(wrap);
+  document.documentElement.appendChild(root);
+  suggestionRoot = root;
+
+  const chip = root.shadowRoot!.querySelector(".chip") as HTMLElement;
+  chip.addEventListener("click", (e) => {
+    const t = (e.target as HTMLElement).dataset.act;
+    if (t === "dismiss") {
+      e.stopPropagation();
+      closeSuggestion();
+      return;
+    }
+    // paste
+    if (lastFocusedField) {
+      if (s.kind === "text" || s.kind === "link") {
+        setFieldValue(lastFocusedField, s.content);
+        lastFocusedField.focus();
+      } else {
+        // For images we can't insert into a text field; copy to clipboard instead.
+        navigator.clipboard.writeText(s.content).catch(() => {});
+      }
+      // Record this confirmed paste so the mapping gets stronger.
+      if (lastFieldKey) {
+        api.runtime.sendMessage({
+          type: "cc-rpc",
+          action: "recordFieldPaste",
+          payload: {
+            host: hostNow(),
+            fieldKey: lastFieldKey,
+            clipId: s.clipId,
+            preview: s.preview,
+          },
+        });
+      }
+    }
+    closeSuggestion();
+  });
+
+  // Keyboard: Tab/Enter focuses chip, ⏎ pastes
+  document.addEventListener("keydown", suggestionKeydown, true);
+}
+
+function suggestionKeydown(e: KeyboardEvent) {
+  if (!suggestionRoot) return;
+  if (e.key === "Escape") {
+    closeSuggestion();
+  } else if (
+    e.key === "Enter" &&
+    (e.altKey || e.metaKey) // ⌥⏎ / ⌘⏎ to paste — avoid hijacking forms
+  ) {
+    e.preventDefault();
+    const primary = suggestionRoot.shadowRoot?.querySelector(
+      "button.primary",
+    ) as HTMLButtonElement | null;
+    primary?.click();
+  }
+}
+
+function closeSuggestion() {
+  document.removeEventListener("keydown", suggestionKeydown, true);
+  suggestionRoot?.remove();
+  suggestionRoot = null;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c] as string,
+  );
+}
 
 function openPalette(clips: PaletteClip[]) {
   closePalette();

@@ -10,8 +10,10 @@ import {
   clearAll,
   listClips,
   getClip,
+  putFieldMap,
+  getFieldMap,
 } from "./lib/db";
-import type { ClipItem, ClipSource } from "./lib/types";
+import type { ClipItem, ClipSource, FieldMapEntry } from "./lib/types";
 import { uid, quickHash, hostFrom, autoTag } from "./lib/util";
 
 const api: typeof chrome =
@@ -160,6 +162,54 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           await clearAll();
           return sendResponse({ ok: true });
         }
+        if (msg.action === "findClipByContent") {
+          const p = msg.payload as { content?: string } | undefined;
+          if (!p?.content) return sendResponse({ ok: false });
+          const hash = quickHash(`text:${p.content}`);
+          const item = await findRecentByHash(hash, 10 * 60 * 1000);
+          return sendResponse({ ok: true, clipId: item?.id });
+        }
+        if (msg.action === "recordFieldPaste") {
+          const p = msg.payload as
+            | { host?: string; fieldKey?: string; clipId?: string; preview?: string }
+            | undefined;
+          if (!p?.host || !p?.fieldKey || !p?.clipId)
+            return sendResponse({ ok: false });
+          const id = `${p.host}::${p.fieldKey}`;
+          const existing = await getFieldMap(p.host, p.fieldKey);
+          const entry: FieldMapEntry = {
+            id,
+            host: p.host,
+            fieldKey: p.fieldKey,
+            clipId: p.clipId,
+            preview: (p.preview || "").slice(0, 200),
+            count: (existing?.count || 0) + 1,
+            updatedAt: Date.now(),
+          };
+          await putFieldMap(entry);
+          return sendResponse({ ok: true });
+        }
+        if (msg.action === "getFieldSuggestion") {
+          const p = msg.payload as { host?: string; fieldKey?: string } | undefined;
+          if (!p?.host || !p?.fieldKey) return sendResponse({ ok: false });
+          const settings2 = await getSettings();
+          if (!settings2.enableFieldSuggestions)
+            return sendResponse({ ok: true, suggestion: null });
+          const entry = await getFieldMap(p.host, p.fieldKey);
+          if (!entry) return sendResponse({ ok: true, suggestion: null });
+          const clip = await getClip(entry.clipId);
+          if (!clip) return sendResponse({ ok: true, suggestion: null });
+          return sendResponse({
+            ok: true,
+            suggestion: {
+              clipId: clip.id,
+              kind: clip.kind,
+              content: clip.content,
+              preview: clip.preview || clip.content.slice(0, 100),
+              count: entry.count,
+            },
+          });
+        }
         if (msg.action === "setOcrText") {
           const p = msg.payload as { id?: string; text?: string } | undefined;
           if (!p?.id) return sendResponse({ ok: false, error: "id required" });
@@ -300,7 +350,10 @@ interface RpcMsg {
     | "clearAll"
     | "setOcrText"
     | "addImageBlob"
-    | "addNote";
+    | "addNote"
+    | "recordFieldPaste"
+    | "getFieldSuggestion"
+    | "findClipByContent";
   payload?: unknown;
 }
 

@@ -59,6 +59,7 @@ const sCaptureImg = $<HTMLInputElement>("s-capture-img");
 const sAutoTag = $<HTMLInputElement>("s-autotag");
 const sOcr = $<HTMLInputElement>("s-ocr");
 const sPalette = $<HTMLInputElement>("s-palette");
+const sFields = $<HTMLInputElement>("s-fields");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
 const sTheme = $<HTMLSelectElement>("s-theme");
@@ -264,6 +265,7 @@ async function openSettings() {
   sAutoTag.checked = s.enableAutoTags;
   sOcr.checked = s.enableOcr;
   sPalette.checked = s.enableInPagePalette;
+  sFields.checked = s.enableFieldSuggestions;
   sBlock.value = (s.blockList || []).join("\n");
   sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
@@ -284,6 +286,7 @@ async function saveSettingsFromForm() {
     enableAutoTags: sAutoTag.checked,
     enableOcr: sOcr.checked,
     enableInPagePalette: sPalette.checked,
+    enableFieldSuggestions: sFields.checked,
     blockList: sBlock.value.split("\n").map((s) => s.trim()).filter(Boolean),
     allowList: sAllow.value.split("\n").map((s) => s.trim()).filter(Boolean),
     theme: (sTheme.value as Settings["theme"]) || "auto",

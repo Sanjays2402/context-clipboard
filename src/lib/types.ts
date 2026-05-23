@@ -51,6 +51,7 @@ export interface Settings {
   enableAutoTags: boolean;
   enableOcr: boolean;
   enableInPagePalette: boolean;
+  enableFieldSuggestions: boolean;
   /** Hostnames where capture is disabled. */
   blockList: string[];
   /** If non-empty, capture ONLY on these hostnames. */
@@ -66,10 +67,24 @@ export const DEFAULT_SETTINGS: Settings = {
   enableAutoTags: true,
   enableOcr: false,
   enableInPagePalette: true,
+  enableFieldSuggestions: true,
   blockList: [],
   allowList: [],
   theme: "auto",
 };
+
+export interface FieldMapEntry {
+  /** `${host}::${fieldKey}` */
+  id: string;
+  host: string;
+  fieldKey: string;
+  clipId: string;
+  /** Last value pasted (snippet) for display + fallback. */
+  preview: string;
+  /** How many times we've matched this field. */
+  count: number;
+  updatedAt: number;
+}
 
 export interface ClipUpdate {
   ocrText?: string;

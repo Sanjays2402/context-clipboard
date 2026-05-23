@@ -2,9 +2,10 @@ import type { ClipItem, SearchQuery, Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 
 const DB_NAME = "context-clipboard";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE = "clips";
 const META = "meta";
+const FIELDS = "field_map";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -32,6 +33,11 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(META)) {
         db.createObjectStore(META, { keyPath: "key" });
       }
+      if (!db.objectStoreNames.contains(FIELDS)) {
+        const fs = db.createObjectStore(FIELDS, { keyPath: "id" });
+        fs.createIndex("host", "host");
+        fs.createIndex("updatedAt", "updatedAt");
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -45,6 +51,48 @@ function clipsTx(mode: IDBTransactionMode) {
 
 function metaTx(mode: IDBTransactionMode) {
   return openDB().then((db) => db.transaction(META, mode).objectStore(META));
+}
+
+function fieldsTx(mode: IDBTransactionMode) {
+  return openDB().then((db) =>
+    db.transaction(FIELDS, mode).objectStore(FIELDS),
+  );
+}
+
+export async function putFieldMap(
+  entry: import("./types").FieldMapEntry,
+): Promise<void> {
+  const store = await fieldsTx("readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.put(entry);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getFieldMap(
+  host: string,
+  fieldKey: string,
+): Promise<import("./types").FieldMapEntry | undefined> {
+  const store = await fieldsTx("readonly");
+  return new Promise((resolve, reject) => {
+    const req = store.get(`${host}::${fieldKey}`);
+    req.onsuccess = () =>
+      resolve(req.result as import("./types").FieldMapEntry | undefined);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function listFieldMapsForHost(
+  host: string,
+): Promise<import("./types").FieldMapEntry[]> {
+  const store = await fieldsTx("readonly");
+  return new Promise((resolve, reject) => {
+    const req = store.index("host").getAll(host);
+    req.onsuccess = () =>
+      resolve((req.result as import("./types").FieldMapEntry[]) || []);
+    req.onerror = () => reject(req.error);
+  });
 }
 
 export async function getSettings(): Promise<Settings> {
