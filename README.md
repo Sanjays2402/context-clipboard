@@ -5,10 +5,9 @@ Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy rem
 ![status](https://img.shields.io/badge/status-v0.5.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
 
 <p align="center">
-  <img src="screenshots/popup-dark.png" width="230" alt="Dark popup" />
-  <img src="screenshots/popup-light.png" width="230" alt="Light popup" />
-  <img src="screenshots/settings.png" width="230" alt="Settings" />
+  <img src="screenshots/hero.png" alt="Context Clipboard — dark popup, light popup, settings" />
 </p>
+<p align="center"><sub>Dark popup · Light popup · Settings — captured at 2× from the actual production build</sub></p>
 
 ## What's new in v0.5.0
 
