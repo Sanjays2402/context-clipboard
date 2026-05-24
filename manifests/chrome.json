@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Context Clipboard",
-  "version": "0.5.0",
-  "description": "Smart clipboard with image capture, in-page palette, source context, and tag search.",
-  "permissions": ["contextMenus", "storage", "clipboardWrite", "tabs"],
+  "version": "0.6.0",
+  "description": "Smart clipboard with image capture, in-page palette, source context, side panel, and tag search.",
+  "permissions": ["contextMenus", "storage", "clipboardWrite", "tabs", "sidePanel"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
@@ -12,6 +12,9 @@
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Context Clipboard"
+  },
+  "side_panel": {
+    "default_path": "popup/popup.html"
   },
   "content_scripts": [
     {

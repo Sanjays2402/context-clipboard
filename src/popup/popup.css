@@ -1087,3 +1087,102 @@ footer button:hover {
   text-transform: uppercase;
   font-weight: 600;
 }
+
+/* Bulk select ------------------------------------------------------- */
+.clip.selected {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.select-mark {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: var(--shadow-inset);
+}
+
+.clip.selected .select-mark {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.clip {
+  position: relative;
+}
+
+.bulk-bar {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 50px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 10;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: bulk-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bulk-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+#bulk-count {
+  flex: 1;
+  letter-spacing: 0.02em;
+}
+
+.bulk-bar button {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.bulk-bar button:hover {
+  background: var(--bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.bulk-bar button.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(255, 107, 120, 0.12);
+}
+
+.bulk-bar svg {
+  width: 16px;
+  height: 16px;
+}

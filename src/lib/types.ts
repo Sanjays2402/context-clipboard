@@ -52,6 +52,8 @@ export interface Settings {
   enableOcr: boolean;
   enableInPagePalette: boolean;
   enableFieldSuggestions: boolean;
+  /** When true, the toolbar icon opens the side panel instead of a popup (Chrome only). */
+  enableSidePanel: boolean;
   /** Hostnames where capture is disabled. */
   blockList: string[];
   /** If non-empty, capture ONLY on these hostnames. */
@@ -68,6 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enableOcr: false,
   enableInPagePalette: true,
   enableFieldSuggestions: true,
+  enableSidePanel: false,
   blockList: [],
   allowList: [],
   theme: "auto",

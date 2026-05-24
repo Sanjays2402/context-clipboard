@@ -38,7 +38,34 @@ api.runtime.onInstalled.addListener(() => {
       contexts: ["selection"],
     });
   });
+  void applySidePanelMode();
 });
+
+api.runtime.onStartup?.addListener(() => {
+  void applySidePanelMode();
+});
+
+/**
+ * Side panel mode: when `enableSidePanel` is on (Chrome only), make the
+ * toolbar icon open the side panel instead of a popup. When off, restore
+ * the popup. Firefox has no `sidePanel` API and this is a no-op there.
+ */
+async function applySidePanelMode(): Promise<void> {
+  const sidePanel = (api as unknown as { sidePanel?: { setPanelBehavior: (o: { openPanelOnActionClick: boolean }) => Promise<void> } }).sidePanel;
+  if (!sidePanel || !api.action) return;
+  try {
+    const settings = await getSettings();
+    if (settings.enableSidePanel) {
+      await sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+      await api.action.setPopup({ popup: "" });
+    } else {
+      await sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+      await api.action.setPopup({ popup: "popup/popup.html" });
+    }
+  } catch (e) {
+    console.warn("[context-clipboard] side-panel mode toggle failed", e);
+  }
+}
 
 api.contextMenus.onClicked.addListener(async (info, tab) => {
   const base: ClipSource = {
@@ -160,6 +187,10 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
         }
         if (msg.action === "clearAll") {
           await clearAll();
+          return sendResponse({ ok: true });
+        }
+        if (msg.action === "applySidePanelMode") {
+          await applySidePanelMode();
           return sendResponse({ ok: true });
         }
         if (msg.action === "findClipByContent") {
@@ -353,7 +384,8 @@ interface RpcMsg {
     | "addNote"
     | "recordFieldPaste"
     | "getFieldSuggestion"
-    | "findClipByContent";
+    | "findClipByContent"
+    | "applySidePanelMode";
   payload?: unknown;
 }
 

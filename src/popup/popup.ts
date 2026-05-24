@@ -60,6 +60,7 @@ const sAutoTag = $<HTMLInputElement>("s-autotag");
 const sOcr = $<HTMLInputElement>("s-ocr");
 const sPalette = $<HTMLInputElement>("s-palette");
 const sFields = $<HTMLInputElement>("s-fields");
+const sSidePanel = $<HTMLInputElement>("s-sidepanel");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
 const sTheme = $<HTMLSelectElement>("s-theme");
@@ -68,6 +69,13 @@ const exportBtn = $<HTMLButtonElement>("export-btn");
 const importBtn = $<HTMLButtonElement>("import-btn");
 const importFile = $<HTMLInputElement>("import-file");
 const clearAllBtn = $<HTMLButtonElement>("clear-all-btn");
+
+const bulkBar = $("bulk-bar");
+const bulkCount = $("bulk-count");
+const bulkPin = $<HTMLButtonElement>("bulk-pin");
+const bulkTag = $<HTMLButtonElement>("bulk-tag");
+const bulkDel = $<HTMLButtonElement>("bulk-del");
+const bulkClear = $<HTMLButtonElement>("bulk-clear");
 
 const toastEl = $("toast");
 
@@ -79,6 +87,7 @@ let currentClips: ClipItem[] = [];
 let activeIndex = 0;
 let detailId: string | null = null;
 let ocrLoading: Promise<unknown> | null = null;
+const selectedIds = new Set<string>();
 
 function toast(msg: string, kind: "ok" | "error" = "ok") {
   toastEl.textContent = msg;
@@ -103,7 +112,8 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join("");
   return `
-    <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""}" data-id="${c.id}" data-idx="${idx}">
+    <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}" data-id="${c.id}" data-idx="${idx}">
+      ${selectedIds.size > 0 ? `<div class="select-mark">${selectedIds.has(c.id) ? icons.check() : ""}</div>` : ""}
       ${thumb}
       <div class="body">
         <div class="preview">${escapeHtml(previewText.slice(0, 140))}</div>
@@ -266,6 +276,7 @@ async function openSettings() {
   sOcr.checked = s.enableOcr;
   sPalette.checked = s.enableInPagePalette;
   sFields.checked = s.enableFieldSuggestions;
+  sSidePanel.checked = s.enableSidePanel;
   sBlock.value = (s.blockList || []).join("\n");
   sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
@@ -287,12 +298,17 @@ async function saveSettingsFromForm() {
     enableOcr: sOcr.checked,
     enableInPagePalette: sPalette.checked,
     enableFieldSuggestions: sFields.checked,
+    enableSidePanel: sSidePanel.checked,
     blockList: sBlock.value.split("\n").map((s) => s.trim()).filter(Boolean),
     allowList: sAllow.value.split("\n").map((s) => s.trim()).filter(Boolean),
     theme: (sTheme.value as Settings["theme"]) || "auto",
   };
   const saved = await saveSettings(next);
   document.body.dataset.theme = saved.theme;
+  // Tell background to re-apply Chrome side panel behavior (no-op on Firefox).
+  try {
+    api.runtime.sendMessage({ type: "cc-rpc", action: "applySidePanelMode" });
+  } catch (_e) { /* background may not be ready in side-panel mode boot */ }
 }
 
 async function renderStorage() {
@@ -377,6 +393,18 @@ listEl.addEventListener("click", async (e) => {
   const c = currentClips.find((x) => x.id === id);
   if (!c) return;
 
+  const mouseEvt = e as MouseEvent;
+  const wantsSelect =
+    mouseEvt.metaKey || mouseEvt.ctrlKey || selectedIds.size > 0;
+
+  // In selection mode (or with cmd/ctrl), clicks toggle selection instead
+  // of opening the clip. Action buttons (pin/copy/del) still work directly.
+  if (wantsSelect && !act) {
+    toggleSelected(id);
+    await render();
+    return;
+  }
+
   if (act === "del") {
     await deleteClip(id);
     await render();
@@ -394,7 +422,7 @@ listEl.addEventListener("click", async (e) => {
   }
   if (e.shiftKey) {
     await copyAsMarkdown(c);
-  } else if ((e as MouseEvent).altKey || (e as MouseEvent).metaKey) {
+  } else if (mouseEvt.altKey) {
     await copyToClipboard(c);
   } else {
     await openDetail(id);
@@ -494,6 +522,15 @@ document.addEventListener("keydown", async (e) => {
   } else if (e.key === "/" && !inSearch) {
     e.preventDefault();
     searchEl.focus();
+  } else if (e.key === "Escape" && selectedIds.size > 0) {
+    clearSelection();
+  } else if (e.key.toLowerCase() === "x" && !inSearch) {
+    // Toggle selection on the active clip.
+    const c = currentClips[activeIndex];
+    if (c) {
+      toggleSelected(c.id);
+      await render();
+    }
   }
 });
 
@@ -607,6 +644,74 @@ clearAllBtn.addEventListener("click", () => {
     toast("All clips deleted");
     render();
   });
+});
+
+// Bulk select wiring ---------------------------------------------------
+function updateBulkBar(): void {
+  if (selectedIds.size === 0) {
+    bulkBar.hidden = true;
+    return;
+  }
+  bulkBar.hidden = false;
+  bulkCount.textContent = `${selectedIds.size} selected`;
+}
+
+function toggleSelected(id: string): void {
+  if (selectedIds.has(id)) selectedIds.delete(id);
+  else selectedIds.add(id);
+  updateBulkBar();
+}
+
+function clearSelection(): void {
+  if (selectedIds.size === 0) return;
+  selectedIds.clear();
+  updateBulkBar();
+  void render();
+}
+
+bulkClear.addEventListener("click", () => clearSelection());
+
+bulkDel.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  if (!confirm(`Delete ${ids.length} clip${ids.length === 1 ? "" : "s"}?`))
+    return;
+  for (const id of ids) await deleteClip(id);
+  selectedIds.clear();
+  updateBulkBar();
+  toast(`Deleted ${ids.length}`);
+  await render();
+});
+
+bulkPin.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  // Pin everything that isn't pinned; if all already pinned, unpin all.
+  const items = await Promise.all(ids.map((id) => getClip(id)));
+  const allPinned = items.every((c) => c?.pinned);
+  for (const c of items) {
+    if (!c) continue;
+    if (allPinned ? c.pinned : !c.pinned) await togglePin(c.id);
+  }
+  toast(allPinned ? "Unpinned" : "Pinned");
+  await render();
+});
+
+bulkTag.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  const raw = prompt("Add tag(s) to selection (comma-separated):");
+  if (!raw) return;
+  const newTags = raw.split(",").map((t) => t.trim()).filter(Boolean);
+  if (newTags.length === 0) return;
+  for (const id of ids) {
+    const c = await getClip(id);
+    if (!c) continue;
+    const merged = Array.from(new Set([...c.tags, ...newTags]));
+    await updateTags(id, merged);
+  }
+  toast(`Tagged ${ids.length}`);
+  await render();
 });
 
 // Init ------------------------------------------------------------------

@@ -101,6 +101,10 @@
           <span>Smart field suggestions (auto-fill chip)</span>
           <input id="s-fields" type="checkbox" />
         </label>
+        <label class="setting toggle">
+          <span>Open in side panel (Chrome) instead of popup</span>
+          <input id="s-sidepanel" type="checkbox" />
+        </label>
         <label class="setting">
           <span>Block list (one host per line)</span>
           <textarea id="s-block" rows="3" placeholder="bank.com&#10;mail.google.com"></textarea>
@@ -125,16 +129,24 @@
         </div>
         <input id="import-file" type="file" accept="application/json" hidden />
         <div class="settings-foot">
-          <span>Context Clipboard · v0.5.0</span>
+          <span>Context Clipboard · v0.6.0</span>
         </div>
       </div>
     </section>
 
     <footer>
       <span id="count"></span>
-      <span class="hint">Shift+Click = MD · ↑↓ nav · ⏎ copy · / search</span>
+      <span class="hint">Shift+Click MD · ⌘/Ctrl+Click select · ↑↓ ⏎ / · X select</span>
       <button id="clear">Clear unpinned</button>
     </footer>
+
+    <div id="bulk-bar" class="bulk-bar" hidden>
+      <span id="bulk-count">0 selected</span>
+      <button id="bulk-pin" title="Toggle pin on selection" data-icon="pin"></button>
+      <button id="bulk-tag" title="Add tag to selection" data-icon="tag"></button>
+      <button id="bulk-del" class="danger" title="Delete selection" data-icon="trash"></button>
+      <button id="bulk-clear" title="Clear selection (Esc)" data-icon="close"></button>
+    </div>
 
     <div id="toast" class="toast"></div>
 

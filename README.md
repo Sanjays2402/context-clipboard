@@ -2,12 +2,18 @@
 
 Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy remembers where it came from — URL, page title, surrounding paragraph — and yes, it captures **images** too.
 
-![status](https://img.shields.io/badge/status-v0.5.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
+![status](https://img.shields.io/badge/status-v0.6.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
 
 <p align="center">
   <img src="screenshots/hero-v2.png" alt="Context Clipboard — dark popup, light popup, settings" />
 </p>
 <p align="center"><sub>Dark popup · Light popup · Settings — captured at 2× from the actual production build</sub></p>
+
+## What's new in v0.6.0
+
+- **Side panel mode** — toggle in Settings to open the clipboard in Chrome's side panel instead of a popup. Always-on while you browse.
+- **Bulk select + actions** — Cmd/Ctrl+click clips to select, then pin, tag, or delete in one shot. `X` toggles select on the active clip, `Esc` clears selection.
+- **Chrome Web Store ready** — LICENSE, PRIVACY.md, and per-permission justifications shipped in `docs/store-listing.md`.
 
 ## What's new in v0.5.0
 
