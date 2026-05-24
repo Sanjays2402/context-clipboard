@@ -2,6 +2,8 @@
 
 Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy remembers where it came from — URL, page title, surrounding paragraph — and yes, it captures **images** too.
 
+**Site:** https://sanjays2402.github.io/context-clipboard/
+
 ![status](https://img.shields.io/badge/status-v0.6.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
 
 <p align="center">
