@@ -43,6 +43,34 @@ export function escapeHtml(s: string): string {
   );
 }
 
+const SENSITIVE_ASSIGNMENT_RE =
+  /\b(api[_-]?key|secret|token|password|passwd|pwd|bearer)\b\s*[:=]\s*["']?[^\s,;"']{8,}["']?/gi;
+const JWT_RE = /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/g;
+const COMMON_SECRET_RE =
+  /\b(?:sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|AIza[A-Za-z0-9_-]{20,})\b/g;
+
+function hasMatch(re: RegExp, content: string): boolean {
+  re.lastIndex = 0;
+  return re.test(content);
+}
+
+export function looksSensitive(content: string): boolean {
+  return (
+    hasMatch(SENSITIVE_ASSIGNMENT_RE, content) ||
+    hasMatch(JWT_RE, content) ||
+    hasMatch(COMMON_SECRET_RE, content)
+  );
+}
+
+/** Mask likely secrets in snippets while keeping the full local clip intact. */
+export function redactSensitivePreview(content: string, max = 200): string {
+  return content
+    .replace(SENSITIVE_ASSIGNMENT_RE, (_match, key: string) => `${key}=••••••`)
+    .replace(JWT_RE, "[redacted jwt]")
+    .replace(COMMON_SECRET_RE, "[redacted secret]")
+    .slice(0, max);
+}
+
 /** Heuristic auto-tags. Avoid LLMs; keep this local + instant. */
 export function autoTag(content: string, kind: string, host?: string): string[] {
   const tags = new Set<string>();
@@ -57,6 +85,7 @@ export function autoTag(content: string, kind: string, host?: string): string[] 
     if (/^[\+\d][\d\s\-().]{7,}$/.test(t)) tags.add("phone");
     if (/^[A-F0-9]{32,}$/i.test(t)) tags.add("hash");
     if (/^[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}$/.test(t)) tags.add("jwt");
+    if (looksSensitive(t)) tags.add("secret");
     if (
       /\b(function|const|let|var|class|import|export|=>|<\/?\w|def |print\()/.test(t)
     )
