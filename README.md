@@ -29,7 +29,7 @@ Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy rem
 - **Page context** — URL, title, favicon, and the surrounding paragraph saved with every clip
 - **Smart dedup** — re-copying the same content within a configurable window bumps hit count instead of duplicating
 - **In-page command palette** — `Cmd/Ctrl+Shift+V` opens a Spotlight-style overlay on any page; navigate + paste without leaving the tab
-- **Auto-tags** — hostname, `code`, `email`, `url`, `jwt`, `phone`, `long`, `number` detected locally
+- **Auto-tags** — hostname, `code`, `email`, `url`, `jwt`, `secret`, `phone`, `long`, `number` detected locally
 - **Tag filter chips** — top tags rendered above the list, click to filter
 - **Image OCR** — extract text from screenshots with Tesseract.js (lazy-loaded), searchable in history
 - **Pin important clips** — survive auto-prune and "Clear unpinned"
@@ -43,6 +43,7 @@ Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy rem
 - **Export / Import JSON** — back up, restore, sync between browsers
 - **Themes** — auto / dark / light
 - **Local-only** — IndexedDB, no cloud, no account, no telemetry
+- **Safer previews** — likely secrets are masked in snippets while the full clip stays local
 - **Cross-browser** — Chrome / Brave / Edge / Firefox 121+ (MV3)
 
 ## Install (dev)

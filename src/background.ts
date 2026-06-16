@@ -14,7 +14,7 @@ import {
   getFieldMap,
 } from "./lib/db";
 import type { ClipItem, ClipSource, FieldMapEntry } from "./lib/types";
-import { uid, quickHash, hostFrom, autoTag } from "./lib/util";
+import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview } from "./lib/util";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -95,7 +95,7 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
       await ingest({
         kind: "text",
         content: info.selectionText,
-        preview: info.selectionText.slice(0, 200),
+        preview: redactSensitivePreview(info.selectionText),
         source: base,
       });
     }
@@ -157,7 +157,7 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
         preview:
           msg.kind === "image"
             ? `Image copied from ${sender.tab?.title || "page"}`
-            : msg.content.slice(0, 200),
+            : redactSensitivePreview(msg.content),
         source: {
           url: sender.tab?.url,
           title: sender.tab?.title,
@@ -213,7 +213,7 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
             host: p.host,
             fieldKey: p.fieldKey,
             clipId: p.clipId,
-            preview: (p.preview || "").slice(0, 200),
+            preview: redactSensitivePreview(p.preview || ""),
             count: (existing?.count || 0) + 1,
             updatedAt: Date.now(),
           };
@@ -273,7 +273,7 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           const id = await ingest({
             kind: "text",
             content: p.text,
-            preview: p.text.slice(0, 200),
+            preview: redactSensitivePreview(p.text),
             source: { title: "Manual note" },
           });
           return sendResponse({ ok: true, id });
