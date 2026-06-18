@@ -1,6 +1,6 @@
 {
   "name": "context-clipboard",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Smart clipboard manager for Chrome, Brave, and Firefox. Remembers source URL + context for every copy, including images.",
   "private": true,
   "scripts": {

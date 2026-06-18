@@ -4,12 +4,18 @@ Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy rem
 
 **Site:** https://sanjays2402.github.io/context-clipboard/
 
-![status](https://img.shields.io/badge/status-v0.6.1-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
+![status](https://img.shields.io/badge/status-v0.6.2-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
 
 <p align="center">
   <img src="screenshots/hero-v2.png" alt="Context Clipboard — dark popup, light popup, settings" />
 </p>
 <p align="center"><sub>Dark popup · Light popup · Settings — captured at 2× from the actual production build</sub></p>
+
+## What's new in v0.6.2
+
+- **Per-clip privacy redaction** — hit the shield in the clip detail view to mask emails, phone numbers, Luhn-valid card numbers, US SSNs, JWTs, and common API tokens (`sk-`, `ghp_`, `AIza`, Slack `xoxb-`, ...). The original is kept locally so you can unmask later.
+- **Capture-time auto-redact** — Settings › “Auto-redact PII in captured text.” When on, the original is never stored — redaction is one-way and the unmask button is disabled with a clear hint.
+- **`redacted` tag** added automatically so you can filter the list down to clips that have been scrubbed.
 
 ## What's new in v0.6.1
 
@@ -117,7 +123,8 @@ icons/                   # 16/32/48/128/256
 
 - [ ] Cloud sync via GitHub Gist (optional)
 - [x] Encrypted export with passphrase
-- [ ] Per-clip privacy redaction (auto-mask emails / tokens)
+- [x] Per-clip privacy redaction (auto-mask emails / tokens)
+- [ ] Optional vault-lock (encrypt IndexedDB at rest)
 - [ ] Chrome Web Store + addons.mozilla.org submission
 - [ ] LLM auto-tagging via WebGPU (Transformers.js)
 

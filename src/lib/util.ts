@@ -49,6 +49,31 @@ const JWT_RE = /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/g
 const COMMON_SECRET_RE =
   /\b(?:sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|AIza[A-Za-z0-9_-]{20,})\b/g;
 
+// PII patterns — conservative, won't match common false positives.
+const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+const PHONE_RE =
+  /(?<!\d)(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/g;
+// Card numbers: 13–19 digits separated by space/dash, with Luhn validation
+// applied at match time. Bare regex catches candidates, isCardLikely() filters.
+const CARD_CANDIDATE_RE = /(?<!\d)(?:\d[ -]?){13,19}(?!\d)/g;
+const SSN_RE = /(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)/g;
+
+function luhnOk(digits: string): boolean {
+  let sum = 0;
+  let alt = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let n = digits.charCodeAt(i) - 48;
+    if (n < 0 || n > 9) return false;
+    if (alt) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    alt = !alt;
+  }
+  return sum > 0 && sum % 10 === 0;
+}
+
 function hasMatch(re: RegExp, content: string): boolean {
   re.lastIndex = 0;
   return re.test(content);
@@ -69,6 +94,73 @@ export function redactSensitivePreview(content: string, max = 200): string {
     .replace(JWT_RE, "[redacted jwt]")
     .replace(COMMON_SECRET_RE, "[redacted secret]")
     .slice(0, max);
+}
+
+export interface RedactOptions {
+  /** Mask secrets (assignments, JWTs, sk-/ghp_/AIza tokens). Default true. */
+  secrets?: boolean;
+  /** Mask email addresses. Default true. */
+  emails?: boolean;
+  /** Mask phone numbers. Default true. */
+  phones?: boolean;
+  /** Mask card numbers (Luhn-validated) and US SSNs. Default true. */
+  cards?: boolean;
+}
+
+const REDACT_DEFAULTS: Required<RedactOptions> = {
+  secrets: true,
+  emails: true,
+  phones: true,
+  cards: true,
+};
+
+/**
+ * Aggressively mask PII + secrets in the FULL clip body (not just preview).
+ * Use for per-clip redaction stored in the DB or capture-time redaction.
+ */
+export function redactPii(content: string, opts: RedactOptions = {}): string {
+  const o = { ...REDACT_DEFAULTS, ...opts };
+  let out = content;
+  if (o.secrets) {
+    out = out
+      .replace(SENSITIVE_ASSIGNMENT_RE, (_match, key: string) => `${key}=••••••`)
+      .replace(JWT_RE, "[redacted jwt]")
+      .replace(COMMON_SECRET_RE, "[redacted secret]");
+  }
+  if (o.cards) {
+    // SSN first (smaller, more specific).
+    out = out.replace(SSN_RE, "[redacted ssn]");
+    out = out.replace(CARD_CANDIDATE_RE, (m) => {
+      const digits = m.replace(/\D/g, "");
+      if (digits.length < 13 || digits.length > 19) return m;
+      return luhnOk(digits) ? "[redacted card]" : m;
+    });
+  }
+  if (o.emails) {
+    out = out.replace(EMAIL_RE, "[redacted email]");
+  }
+  if (o.phones) {
+    out = out.replace(PHONE_RE, "[redacted phone]");
+  }
+  return out;
+}
+
+/** True if anything in `content` would be redacted under `opts`. */
+export function hasPii(content: string, opts: RedactOptions = {}): boolean {
+  const o = { ...REDACT_DEFAULTS, ...opts };
+  if (o.secrets && looksSensitive(content)) return true;
+  if (o.emails && hasMatch(EMAIL_RE, content)) return true;
+  if (o.phones && hasMatch(PHONE_RE, content)) return true;
+  if (o.cards) {
+    if (hasMatch(SSN_RE, content)) return true;
+    CARD_CANDIDATE_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = CARD_CANDIDATE_RE.exec(content)) !== null) {
+      const digits = m[0].replace(/\D/g, "");
+      if (digits.length >= 13 && digits.length <= 19 && luhnOk(digits)) return true;
+    }
+  }
+  return false;
 }
 
 /** Heuristic auto-tags. Avoid LLMs; keep this local + instant. */
