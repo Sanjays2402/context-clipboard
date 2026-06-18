@@ -59,6 +59,14 @@ export const icons = {
     svg(
       `<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`,
     ),
+  shield: () =>
+    svg(
+      `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>`,
+    ),
+  shieldOff: () =>
+    svg(
+      `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M3 3l18 18"/>`,
+    ),
   search: () =>
     svg(`<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>`),
   tag: () =>

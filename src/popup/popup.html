@@ -36,6 +36,7 @@
         <button id="detail-back" class="icon-btn" title="Back" data-icon="back"></button>
         <span class="detail-title">Clip</span>
         <button id="detail-ocr" class="icon-btn" title="OCR text from image" data-icon="eye" hidden></button>
+        <button id="detail-redact" class="icon-btn" title="Redact emails / phones / secrets in this clip" data-icon="shield"></button>
         <button id="detail-pin" class="icon-btn" title="Pin" data-icon="pin"></button>
         <button id="detail-delete" class="icon-btn" title="Delete" data-icon="trash"></button>
       </div>
@@ -102,6 +103,10 @@
           <input id="s-fields" type="checkbox" />
         </label>
         <label class="setting toggle">
+          <span>Auto-redact PII in captured text (emails / phones / cards / secrets) — one-way</span>
+          <input id="s-autoredact" type="checkbox" />
+        </label>
+        <label class="setting toggle">
           <span>Open in side panel (Chrome) instead of popup</span>
           <input id="s-sidepanel" type="checkbox" />
         </label>
@@ -137,7 +142,7 @@
         </div>
         <input id="import-file" type="file" accept="application/json" hidden />
         <div class="settings-foot">
-          <span>Context Clipboard · v0.6.1</span>
+          <span>Context Clipboard · v0.6.2</span>
         </div>
       </div>
     </section>

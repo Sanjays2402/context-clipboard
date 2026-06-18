@@ -44,6 +44,7 @@ const detailBack = $<HTMLButtonElement>("detail-back");
 const detailPin = $<HTMLButtonElement>("detail-pin");
 const detailDelete = $<HTMLButtonElement>("detail-delete");
 const detailOcr = $<HTMLButtonElement>("detail-ocr");
+const detailRedact = $<HTMLButtonElement>("detail-redact");
 const detailBody = $("detail-body");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
@@ -67,6 +68,7 @@ const sOcr = $<HTMLInputElement>("s-ocr");
 const sPalette = $<HTMLInputElement>("s-palette");
 const sFields = $<HTMLInputElement>("s-fields");
 const sSidePanel = $<HTMLInputElement>("s-sidepanel");
+const sAutoRedact = $<HTMLInputElement>("s-autoredact");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
 const sTheme = $<HTMLSelectElement>("s-theme");
@@ -257,7 +259,31 @@ async function openDetail(id: string) {
     detailOcrRow.hidden = true;
   }
   detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
+  renderRedactButton(c);
   detailEl.hidden = false;
+}
+
+function renderRedactButton(c: ClipItem) {
+  // Images aren't redactable (binary payload).
+  if (c.kind === "image") {
+    detailRedact.hidden = true;
+    return;
+  }
+  detailRedact.hidden = false;
+  if (c.redacted) {
+    detailRedact.innerHTML = icons.shieldOff();
+    if (c.originalContent != null) {
+      detailRedact.title = "Unmask — restore original content";
+      detailRedact.disabled = false;
+    } else {
+      detailRedact.title = "Redaction is permanent (original was never stored)";
+      detailRedact.disabled = true;
+    }
+  } else {
+    detailRedact.innerHTML = icons.shield();
+    detailRedact.title = "Redact emails / phones / cards / secrets in this clip";
+    detailRedact.disabled = false;
+  }
 }
 
 function closeDetail() {
@@ -286,6 +312,7 @@ async function openSettings() {
   sPalette.checked = s.enableInPagePalette;
   sFields.checked = s.enableFieldSuggestions;
   sSidePanel.checked = s.enableSidePanel;
+  sAutoRedact.checked = s.autoRedactPii;
   sBlock.value = (s.blockList || []).join("\n");
   sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
@@ -308,6 +335,7 @@ async function saveSettingsFromForm() {
     enableInPagePalette: sPalette.checked,
     enableFieldSuggestions: sFields.checked,
     enableSidePanel: sSidePanel.checked,
+    autoRedactPii: sAutoRedact.checked,
     blockList: sBlock.value.split("\n").map((s) => s.trim()).filter(Boolean),
     allowList: sAllow.value.split("\n").map((s) => s.trim()).filter(Boolean),
     theme: (sTheme.value as Settings["theme"]) || "auto",
@@ -559,6 +587,40 @@ detailPin.addEventListener("click", async () => {
   const pinned = await togglePin(detailId);
   detailPin.innerHTML = pinned ? icons.pinFilled() : icons.pin();
   await render();
+});
+
+detailRedact.addEventListener("click", async () => {
+  if (!detailId) return;
+  const c = await getClip(detailId);
+  if (!c) return;
+  if (c.kind === "image") return;
+  const action = c.redacted ? "unredactClip" : "redactClip";
+  if (action === "redactClip") {
+    const confirmMsg =
+      "Redact this clip? Emails, phones, cards, and secrets will be masked. You can unmask later — the original is kept locally.";
+    if (!confirm(confirmMsg)) return;
+  }
+  api.runtime.sendMessage(
+    { type: "cc-rpc", action, payload: { id: detailId } },
+    async (resp: { ok: boolean; restored?: boolean }) => {
+      if (!resp?.ok) return toast("Couldn't update clip", "error");
+      if (action === "unredactClip" && resp.restored === false) {
+        return toast("Original not stored — redaction is permanent", "error");
+      }
+      const updated = await getClip(detailId!);
+      if (updated) {
+        if (updated.kind === "image") {
+          detailBody.innerHTML = `<img src="${updated.content}" alt="" />`;
+        } else {
+          detailBody.innerHTML = `<pre>${escapeHtml(updated.content)}</pre>`;
+        }
+        detailTags.value = updated.tags.join(", ");
+        renderRedactButton(updated);
+      }
+      toast(action === "redactClip" ? "Redacted" : "Restored");
+      await render();
+    },
+  );
 });
 
 detailCopy.addEventListener("click", async () => {

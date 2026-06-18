@@ -33,6 +33,14 @@ export interface ClipItem {
   hash: string;
   /** Optional OCR'd text from an image clip. */
   ocrText?: string;
+  /** True when content has been manually redacted (or captured under auto-redact). */
+  redacted?: boolean;
+  /**
+   * When the user manually redacts a clip, we stash the original here so they
+   * can unmask. When the clip was captured under auto-redact (no original
+   * ever stored), this stays undefined and redaction becomes one-way.
+   */
+  originalContent?: string;
 }
 
 export interface SearchQuery {
@@ -54,6 +62,8 @@ export interface Settings {
   enableFieldSuggestions: boolean;
   /** When true, the toolbar icon opens the side panel instead of a popup (Chrome only). */
   enableSidePanel: boolean;
+  /** Auto-redact PII (emails/phones/cards) in newly captured text clips. */
+  autoRedactPii: boolean;
   /** Hostnames where capture is disabled. */
   blockList: string[];
   /** If non-empty, capture ONLY on these hostnames. */
@@ -71,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enableInPagePalette: true,
   enableFieldSuggestions: true,
   enableSidePanel: false,
+  autoRedactPii: false,
   blockList: [],
   allowList: [],
   theme: "auto",

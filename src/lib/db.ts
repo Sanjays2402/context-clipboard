@@ -1,5 +1,6 @@
 import type { ClipItem, SearchQuery, Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
+import { redactPii, redactSensitivePreview } from "./util";
 
 const DB_NAME = "context-clipboard";
 const DB_VERSION = 3;
@@ -180,6 +181,43 @@ export async function updateTags(id: string, tags: string[]): Promise<void> {
   if (!item) return;
   item.tags = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));
   await putClip(item);
+}
+
+/**
+ * Mask PII/secrets in this clip's stored content.
+ * If the clip has remembered original content (manual redaction), we keep
+ * it stashed so unredactClip() can restore. Image clips are no-ops.
+ */
+export async function redactClip(id: string): Promise<boolean> {
+  const item = await getClip(id);
+  if (!item) return false;
+  if (item.kind === "image") return false;
+  if (item.redacted) return true;
+  item.originalContent = item.content;
+  item.content = redactPii(item.content);
+  item.preview = redactSensitivePreview(item.content);
+  item.redacted = true;
+  if (!item.tags.includes("redacted")) item.tags = [...item.tags, "redacted"];
+  await putClip(item);
+  return true;
+}
+
+/**
+ * Restore the original content if it's still stashed.
+ * Returns false when redaction was one-way (e.g. captured under auto-redact).
+ */
+export async function unredactClip(id: string): Promise<boolean> {
+  const item = await getClip(id);
+  if (!item) return false;
+  if (!item.redacted) return true;
+  if (item.originalContent == null) return false;
+  item.content = item.originalContent;
+  item.preview = redactSensitivePreview(item.content);
+  delete item.originalContent;
+  item.redacted = false;
+  item.tags = item.tags.filter((t) => t !== "redacted");
+  await putClip(item);
+  return true;
 }
 
 export async function listClips(q: SearchQuery = {}): Promise<ClipItem[]> {

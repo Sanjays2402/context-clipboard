@@ -12,9 +12,11 @@ import {
   getClip,
   putFieldMap,
   getFieldMap,
+  redactClip,
+  unredactClip,
 } from "./lib/db";
 import type { ClipItem, ClipSource, FieldMapEntry } from "./lib/types";
-import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview } from "./lib/util";
+import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii } from "./lib/util";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -189,6 +191,18 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           await clearAll();
           return sendResponse({ ok: true });
         }
+        if (msg.action === "redactClip") {
+          const p = msg.payload as { id?: string } | undefined;
+          if (!p?.id) return sendResponse({ ok: false });
+          const ok = await redactClip(p.id);
+          return sendResponse({ ok });
+        }
+        if (msg.action === "unredactClip") {
+          const p = msg.payload as { id?: string } | undefined;
+          if (!p?.id) return sendResponse({ ok: false });
+          const restored = await unredactClip(p.id);
+          return sendResponse({ ok: true, restored });
+        }
         if (msg.action === "applySidePanelMode") {
           await applySidePanelMode();
           return sendResponse({ ok: true });
@@ -323,20 +337,36 @@ async function ingest(inp: IngestInput): Promise<string> {
     ? autoTag(inp.content, inp.kind, host)
     : [];
 
+  // Auto-redact at capture: rewrite content + preview before storing.
+  // One-way — we do NOT stash the original so it never lands on disk.
+  let storedContent = inp.content;
+  let storedPreview = inp.preview;
+  let redacted = false;
+  if (settings.autoRedactPii && inp.kind === "text") {
+    const rewritten = redactPii(inp.content);
+    if (rewritten !== inp.content) {
+      storedContent = rewritten;
+      storedPreview = redactSensitivePreview(rewritten);
+      redacted = true;
+      if (!tags.includes("redacted")) tags.push("redacted");
+    }
+  }
+
   const item: ClipItem = {
     id: uid(),
     kind: inp.kind,
-    content: inp.content,
+    content: storedContent,
     mime: inp.mime,
-    preview: inp.preview,
+    preview: storedPreview,
     source: inp.source,
     pinned: false,
     createdAt: now,
     lastSeenAt: now,
     hitCount: 1,
     tags,
-    bytes: inp.content.length,
+    bytes: storedContent.length,
     hash,
+    ...(redacted ? { redacted: true } : {}),
   };
   await putClip(item);
   await pruneOldUnpinned(settings.maxUnpinned);
@@ -385,7 +415,9 @@ interface RpcMsg {
     | "recordFieldPaste"
     | "getFieldSuggestion"
     | "findClipByContent"
-    | "applySidePanelMode";
+    | "applySidePanelMode"
+    | "redactClip"
+    | "unredactClip";
   payload?: unknown;
 }
 
