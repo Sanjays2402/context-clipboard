@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Context Clipboard",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Smart clipboard with image capture, in-page palette, source context, side panel, and tag search.",
   "permissions": ["contextMenus", "storage", "clipboardWrite", "tabs", "sidePanel"],
   "host_permissions": ["<all_urls>"],

@@ -4,12 +4,16 @@ Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy rem
 
 **Site:** https://sanjays2402.github.io/context-clipboard/
 
-![status](https://img.shields.io/badge/status-v0.6.0-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
+![status](https://img.shields.io/badge/status-v0.6.1-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
 
 <p align="center">
   <img src="screenshots/hero-v2.png" alt="Context Clipboard — dark popup, light popup, settings" />
 </p>
 <p align="center"><sub>Dark popup · Light popup · Settings — captured at 2× from the actual production build</sub></p>
+
+## What's new in v0.6.1
+
+- **Encrypted exports** — Settings › “Encrypt export with passphrase” wraps your JSON in an AES-GCM-256 envelope. Salt + IV are random per-export, key derived from your passphrase via PBKDF2-SHA256 (250k iterations). Import auto-detects encrypted files and prompts for the passphrase.
 
 ## What's new in v0.6.0
 
@@ -43,6 +47,7 @@ Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy rem
 - **Export / Import JSON** — back up, restore, sync between browsers
 - **Themes** — auto / dark / light
 - **Local-only** — IndexedDB, no cloud, no account, no telemetry
+- **Encrypted exports** — optional passphrase wraps the backup file in AES-GCM-256 + PBKDF2
 - **Safer previews** — likely secrets are masked in snippets while the full clip stays local
 - **Cross-browser** — Chrome / Brave / Edge / Firefox 121+ (MV3)
 
@@ -111,7 +116,7 @@ icons/                   # 16/32/48/128/256
 ## Roadmap
 
 - [ ] Cloud sync via GitHub Gist (optional)
-- [ ] Encrypted export with passphrase
+- [x] Encrypted export with passphrase
 - [ ] Per-clip privacy redaction (auto-mask emails / tokens)
 - [ ] Chrome Web Store + addons.mozilla.org submission
 - [ ] LLM auto-tagging via WebGPU (Transformers.js)

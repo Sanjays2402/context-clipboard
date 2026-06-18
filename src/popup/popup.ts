@@ -11,6 +11,12 @@ import {
 import type { ClipItem, ClipKind, Settings } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
+import {
+  encryptJson,
+  decryptJson,
+  isEncryptedEnvelope,
+  type EncryptedEnvelope,
+} from "../lib/crypto";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -69,6 +75,9 @@ const exportBtn = $<HTMLButtonElement>("export-btn");
 const importBtn = $<HTMLButtonElement>("import-btn");
 const importFile = $<HTMLInputElement>("import-file");
 const clearAllBtn = $<HTMLButtonElement>("clear-all-btn");
+const encryptToggle = $<HTMLInputElement>("s-encrypt-export");
+const exportPass = $<HTMLInputElement>("export-pass");
+const encryptPassRow = $("encrypt-pass-row");
 
 const bulkBar = $("bulk-bar");
 const bulkCount = $("bulk-count");
@@ -591,21 +600,53 @@ sTheme.addEventListener("change", () => {
   document.body.dataset.theme = sTheme.value;
 });
 
+encryptToggle.addEventListener("change", () => {
+  encryptPassRow.hidden = !encryptToggle.checked;
+  if (encryptToggle.checked) {
+    setTimeout(() => exportPass.focus(), 0);
+  } else {
+    exportPass.value = "";
+  }
+});
+
 exportBtn.addEventListener("click", () => {
+  const wantEncrypt = encryptToggle.checked;
+  const pass = exportPass.value;
+  if (wantEncrypt && pass.length < 4) {
+    toast("Passphrase must be at least 4 chars", "error");
+    exportPass.focus();
+    return;
+  }
   api.runtime.sendMessage(
     { type: "cc-rpc", action: "export" },
-    (resp: { ok: boolean; data?: unknown }) => {
+    async (resp: { ok: boolean; data?: unknown }) => {
       if (!resp?.ok) return toast("Export failed", "error");
-      const blob = new Blob([JSON.stringify(resp.data, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `context-clipboard-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast("Exported");
+      try {
+        let blobText: string;
+        let suffix = "";
+        if (wantEncrypt) {
+          const env = await encryptJson(resp.data, pass);
+          blobText = JSON.stringify(env, null, 2);
+          suffix = "-encrypted";
+        } else {
+          blobText = JSON.stringify(resp.data, null, 2);
+        }
+        const blob = new Blob([blobText], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `context-clipboard-${new Date().toISOString().slice(0, 10)}${suffix}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast(wantEncrypt ? "Exported (encrypted)" : "Exported");
+        if (wantEncrypt) exportPass.value = "";
+      } catch (e) {
+        console.error(e);
+        toast(
+          e instanceof Error ? e.message : "Encryption failed",
+          "error",
+        );
+      }
     },
   );
 });
@@ -617,7 +658,26 @@ importFile.addEventListener("change", async () => {
   if (!file) return;
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
+    const parsed = JSON.parse(text);
+    let data: unknown = parsed;
+    if (isEncryptedEnvelope(parsed)) {
+      const pass = prompt(
+        "This export is encrypted. Enter the passphrase to restore:",
+      );
+      if (pass == null) {
+        toast("Import cancelled");
+        return;
+      }
+      try {
+        data = await decryptJson(parsed as EncryptedEnvelope, pass);
+      } catch (e) {
+        toast(
+          e instanceof Error ? e.message : "Decryption failed",
+          "error",
+        );
+        return;
+      }
+    }
     api.runtime.sendMessage(
       { type: "cc-rpc", action: "import", payload: data },
       (resp: { ok: boolean; imported?: number; error?: string }) => {
