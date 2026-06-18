@@ -122,6 +122,14 @@
           </select>
         </label>
         <div id="storage-info" class="storage-info"></div>
+        <label class="setting toggle" id="encrypt-toggle-row">
+          <span>Encrypt export with passphrase</span>
+          <input id="s-encrypt-export" type="checkbox" />
+        </label>
+        <label class="setting" id="encrypt-pass-row" hidden>
+          <span>Export passphrase</span>
+          <input id="export-pass" type="password" autocomplete="new-password" placeholder="min 4 chars — you'll need this to restore" />
+        </label>
         <div class="settings-actions">
           <button id="export-btn">Export JSON</button>
           <button id="import-btn">Import JSON</button>
@@ -129,7 +137,7 @@
         </div>
         <input id="import-file" type="file" accept="application/json" hidden />
         <div class="settings-foot">
-          <span>Context Clipboard · v0.6.0</span>
+          <span>Context Clipboard · v0.6.1</span>
         </div>
       </div>
     </section>
