@@ -21,16 +21,26 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 ## Architecture at a glance (read before changing)
 
 - `src/background.ts` — MV3 service worker. RPC bus, context menus, side panel,
-  ingest + dedup, command shortcut, field-suggestion routing.
+  ingest + dedup, command shortcut, field-suggestion routing, TTL GC, trash GC.
 - `src/content.ts` — copy capture + in-page palette + field-suggestion chip,
   all shadow-DOM isolated.
 - `src/popup/popup.ts` — list/detail/settings/bulk UI. Talks to `lib/db` directly
-  and to background via `cc-rpc` for cross-store ops (export/import/redact).
-- `src/lib/db.ts` — IndexedDB (`context-clipboard`, version 3). Stores: `clips`,
-  `meta`, `field_map`. Use `clipsTx`/`metaTx`/`fieldsTx` helpers.
+  and to background via `cc-rpc` for cross-store ops (export/import/redact/
+  forget-host/TTL).
+- `src/lib/db.ts` — IndexedDB (`context-clipboard`, version 4). Stores: `clips`,
+  `meta`, `field_map`, `trash`. Use `clipsTx`/`metaTx`/`fieldsTx`/`trashTx`
+  helpers.
 - `src/lib/util.ts` — hashing, autoTag, redaction regexes (PII + secrets).
-- `src/lib/types.ts` — `ClipItem`, `Settings`, `FieldMapEntry`.
+- `src/lib/types.ts` — `ClipItem`, `Settings`, `FieldMapEntry`. ClipItem now
+  carries optional `template` + `expiresAt` (schema-additive).
+- `src/lib/search.ts` — inline-operator parser + applyQuery. Operators:
+  kind/host/tag/before/after + is:{pinned,redacted,ocr,template,expiring}.
+- `src/lib/templates.ts` — pure `{{token}}` expander. Tokens: date/time/
+  datetime/iso/year/month/day/weekday/host/url/title/clipboard/uuid, with
+  `|fallback` syntax.
+- `src/lib/export.ts` — Markdown + CSV serializers.
 - `src/lib/crypto.ts` — AES-GCM-256 envelopes for encrypted export.
+- `src/lib/icons.ts` — Phosphor-style inline SVGs (mono-stroke).
 
 ## Roadmap (queue — top is next)
 
@@ -45,7 +55,6 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
-- [ ] Snippet templates with `{{date}}` / `{{host}}` placeholders
 - [ ] Per-site capture rules (auto-tag from host, auto-pin, auto-redact)
 - [ ] Image: link back to original `srcUrl` clearly, with re-fetch button
 - [ ] Bigger paragraph context: collapse/expand long nearby text
@@ -61,18 +70,14 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Per-site auto-redact override (force on for `*.bank.com`)
 - [ ] Reveal-once mode for redacted clips (show original, snap back after 10s)
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
-- [ ] "Forget host": delete every clip whose source matches a hostname
 
 ### Data lifecycle
-- [ ] Per-clip TTL: this clip auto-deletes in 24h / 7d
 - [ ] Smart dedup across `lastSeenAt` window groups (right now only same-hash)
 - [ ] Export filter: pick what to export (pinned / by tag / by date range)
 - [ ] Import merge strategy: dedup by hash on import
 
 ### UI polish (real, not cosmetic)
 - [ ] Storage breakdown chart (text vs images vs OCR text)
-- [ ] Detail view: previous/next clip arrows (`[` `]`)
-- [ ] Toast undo for delete (5s window with "Undo")
 
 ### Shipped (autoship)
 - [x] Smart search operators (kind/host/tag/is/before/after) — `c407d53`
@@ -80,6 +85,11 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Quick-filter pill row (pinned / redacted / OCR / images / 24h / top hosts) — `9183ea8`
 - [x] Export as Markdown + CSV — `47f75d9`
 - [x] Image dimensions + byte size in list/detail/export — `76fb6e7`
+- [x] Toast Undo for delete (single/bulk/detail/keyboard) — `62608cf`
+- [x] Detail prev/next clip arrows + `[` `]` keys with position pill — `909c903`
+- [x] Forget host: bulk soft-delete every clip from a hostname — `248f18a`
+- [x] Snippet templates: `{{date}} {{host}} {{url}}` expansion on copy — `6df6a33`
+- [x] Per-clip TTL with auto-expiry to trash — `def72c1`
 
 ## Tick log
 
@@ -87,6 +97,11 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 <!-- TICKS BELOW -->
 
+- **2026-06-19 22:19 PT** — 5/5 shipped. Toast Undo for delete (62608cf),
+  detail prev/next nav with `[`/`]` (909c903), Forget host (248f18a),
+  snippet templates with `{{tokens}}` (6df6a33), per-clip TTL with
+  opportunistic GC (def72c1). tsc + chrome/firefox builds green;
+  11/11 template sanity checks + 13/13 search sanity checks pass.
 - **2026-06-19 21:30 PT** — first tick. Bootstrapped STATE + feature/autoship.
   Shipped 5/5: smart search operators (c407d53), soft-delete trash (1a306bc),
   quick-filter pills (9183ea8), Markdown+CSV export (47f75d9), image dims
