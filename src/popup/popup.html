@@ -261,6 +261,17 @@
 
     <div id="toast" class="toast"></div>
 
+    <!-- Command palette (Cmd/Ctrl+K). Fuzzy-search every action in the
+         popup: filters, bulk ops, export, settings. Keyboard-first; ↑↓
+         + Enter to run; Esc to close. -->
+    <div id="palette" class="palette" hidden role="dialog" aria-modal="true" aria-labelledby="palette-input">
+      <div class="palette-card">
+        <input id="palette-input" class="palette-input" type="text" placeholder="Search actions… (Cmd+K)" autocomplete="off" spellcheck="false" />
+        <div id="palette-list" class="palette-list" role="listbox"></div>
+        <div class="palette-foot"><kbd>↑</kbd><kbd>↓</kbd> navigate · <kbd>Enter</kbd> run · <kbd>Esc</kbd> close</div>
+      </div>
+    </div>
+
     <!-- Keyboard cheatsheet overlay. Toggled with `?` (Shift+/) when no
          input is focused, or by closing with Esc / clicking the backdrop. -->
     <div id="cheatsheet" class="cheatsheet" hidden role="dialog" aria-modal="true" aria-labelledby="cheatsheet-title">
@@ -276,6 +287,7 @@
             <div class="cheatsheet-row"><kbd>Enter</kbd><span>Copy active clip</span></div>
             <div class="cheatsheet-row"><kbd>Shift</kbd>+<kbd>Enter</kbd><span>Copy as Markdown</span></div>
             <div class="cheatsheet-row"><kbd>/</kbd><span>Focus search</span></div>
+            <div class="cheatsheet-row"><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd><span>Command palette</span></div>
             <div class="cheatsheet-row"><kbd>Esc</kbd><span>Clear selection / close panel</span></div>
           </div>
           <div class="cheatsheet-group">

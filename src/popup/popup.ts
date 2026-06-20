@@ -31,6 +31,7 @@ import {
 import { parseQuery, applyQuery, describeQuery } from "../lib/search";
 import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFilter, type ExportFormat, type ExportFilter } from "../lib/export";
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
+import { rankActions, boldedLabel, type PaletteAction } from "../lib/palette";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -142,6 +143,9 @@ const selectAllFilteredBtn = $<HTMLButtonElement>("select-all-filtered");
 const toastEl = $("toast");
 const cheatsheetEl = $("cheatsheet");
 const cheatsheetClose = $<HTMLButtonElement>("cheatsheet-close");
+const paletteEl = $("palette");
+const paletteInput = $<HTMLInputElement>("palette-input");
+const paletteListEl = $("palette-list");
 
 // State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
@@ -1554,8 +1558,496 @@ cheatsheetEl
   .querySelector(".cheatsheet-card")
   ?.addEventListener("click", (e) => e.stopPropagation());
 
+// Command palette (Cmd+K) ----------------------------------------------
+//
+// Fuzzy-search every action in the popup. We build the action list on
+// each open (cheap; ~40 actions) so contextual `available` flags
+// reflect current state (e.g. "Empty trash" hidden when trash is
+// empty, "Clear selection" only when something is selected). The
+// matcher lives in `lib/palette.ts` and is pure so it's testable.
+
+let paletteIndex = 0;
+let paletteResults: ReturnType<typeof rankActions> = [];
+
+function buildPaletteActions(): PaletteAction[] {
+  const hasSelection = selectedIds.size > 0;
+  const hasFilter =
+    !!searchEl.value.trim() ||
+    pinnedOnly ||
+    !!activeTag ||
+    currentKind !== "all";
+  const visible = currentClips.length;
+  const actions: PaletteAction[] = [
+    // Navigation / focus ---------------------------------------------
+    {
+      id: "focus-search",
+      label: "Focus search",
+      hint: "Jump cursor to the search box",
+      group: "Navigate",
+      shortcut: "/",
+      run: () => {
+        closePalette();
+        searchEl.focus();
+      },
+    },
+    {
+      id: "open-cheatsheet",
+      label: "Show keyboard shortcuts",
+      hint: "Open the cheatsheet overlay",
+      group: "Navigate",
+      shortcut: "?",
+      run: () => {
+        closePalette();
+        openCheatsheet();
+      },
+    },
+    {
+      id: "open-settings",
+      label: "Open settings",
+      hint: "Theme, capture, exports, rules",
+      group: "Navigate",
+      run: () => {
+        closePalette();
+        void openSettings();
+      },
+    },
+    {
+      id: "add-note",
+      label: "Add note",
+      hint: "Save a quick text clip",
+      group: "Capture",
+      run: () => {
+        closePalette();
+        noteBtn.click();
+      },
+    },
+    // Kind filters ---------------------------------------------------
+    {
+      id: "filter-all",
+      label: "Show all clips",
+      hint: "Clear kind filter",
+      group: "Filter",
+      keywords: "kind:all reset",
+      available: currentKind !== "all",
+      run: () => {
+        closePalette();
+        applyKindFilter("all");
+      },
+    },
+    {
+      id: "filter-text",
+      label: "Show text only",
+      group: "Filter",
+      keywords: "kind:text",
+      run: () => {
+        closePalette();
+        applyKindFilter("text");
+      },
+    },
+    {
+      id: "filter-image",
+      label: "Show images only",
+      group: "Filter",
+      keywords: "kind:image picture",
+      run: () => {
+        closePalette();
+        applyKindFilter("image");
+      },
+    },
+    {
+      id: "filter-link",
+      label: "Show links only",
+      group: "Filter",
+      keywords: "kind:link url",
+      run: () => {
+        closePalette();
+        applyKindFilter("link");
+      },
+    },
+    {
+      id: "toggle-pinned",
+      label: pinnedOnly ? "Stop filtering to pinned" : "Show pinned only",
+      group: "Filter",
+      keywords: "is:pinned bookmark",
+      run: () => {
+        closePalette();
+        pinnedToggle.click();
+      },
+    },
+    {
+      id: "filter-redacted",
+      label: "Show redacted clips",
+      group: "Filter",
+      keywords: "is:redacted privacy",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:redacted");
+      },
+    },
+    {
+      id: "filter-templates",
+      label: "Show templates",
+      group: "Filter",
+      keywords: "is:template tokens snippets",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:template");
+      },
+    },
+    {
+      id: "filter-expiring",
+      label: "Show expiring clips",
+      group: "Filter",
+      keywords: "is:expiring ttl",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:expiring");
+      },
+    },
+    {
+      id: "filter-24h",
+      label: "Show last 24 hours",
+      group: "Filter",
+      keywords: "after:24h recent today",
+      run: () => {
+        closePalette();
+        appendSearchOp("after:24h");
+      },
+    },
+    {
+      id: "filter-7d",
+      label: "Show last 7 days",
+      group: "Filter",
+      keywords: "after:7d week",
+      run: () => {
+        closePalette();
+        appendSearchOp("after:7d");
+      },
+    },
+    {
+      id: "clear-filters",
+      label: "Clear all filters",
+      hint: "Reset search, kind, pinned, tag",
+      group: "Filter",
+      available: hasFilter,
+      run: () => {
+        closePalette();
+        clearAllFilters();
+      },
+    },
+    // Bulk -----------------------------------------------------------
+    {
+      id: "select-all-visible",
+      label: `Select all visible (${visible})`,
+      group: "Bulk",
+      shortcut: "⌘A",
+      available: visible > 0,
+      run: async () => {
+        closePalette();
+        const n = selectAllVisible();
+        if (n > 0) toast(`Selected ${selectedIds.size}`);
+        await render();
+      },
+    },
+    {
+      id: "clear-selection",
+      label: "Clear selection",
+      group: "Bulk",
+      shortcut: "Esc",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        clearSelection();
+      },
+    },
+    {
+      id: "pin-selection",
+      label: "Toggle pin on selection",
+      group: "Bulk",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        bulkPin.click();
+      },
+    },
+    {
+      id: "tag-selection",
+      label: "Tag selection…",
+      group: "Bulk",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        bulkTag.click();
+      },
+    },
+    {
+      id: "delete-selection",
+      label: "Delete selection",
+      group: "Bulk",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        bulkDel.click();
+      },
+    },
+    {
+      id: "pin-all-filtered",
+      label: `Pin all ${visible} filtered`,
+      hint: "Pins every clip in the current view",
+      group: "Bulk",
+      available: visible > 0,
+      run: async () => {
+        closePalette();
+        await pinAllFiltered(true);
+      },
+    },
+    {
+      id: "unpin-all-filtered",
+      label: `Unpin all ${visible} filtered`,
+      group: "Bulk",
+      available: visible > 0,
+      run: async () => {
+        closePalette();
+        await pinAllFiltered(false);
+      },
+    },
+    {
+      id: "clear-unpinned",
+      label: "Clear all unpinned clips",
+      hint: "Keeps pins, drops the rest",
+      group: "Bulk",
+      run: () => {
+        closePalette();
+        clearBtn.click();
+      },
+    },
+    // Export ---------------------------------------------------------
+    {
+      id: "export-now",
+      label: "Export with current filter",
+      hint: "Uses the settings panel's format",
+      group: "Export",
+      run: () => {
+        closePalette();
+        exportBtn.click();
+      },
+    },
+    {
+      id: "import-json",
+      label: "Import JSON…",
+      group: "Export",
+      run: () => {
+        closePalette();
+        importBtn.click();
+      },
+    },
+  ];
+  return actions;
+}
+
+function openPalette(): void {
+  paletteEl.hidden = false;
+  paletteInput.value = "";
+  paletteIndex = 0;
+  renderPalette();
+  setTimeout(() => paletteInput.focus(), 0);
+}
+
+function closePalette(): void {
+  paletteEl.hidden = true;
+}
+
+function togglePalette(): void {
+  if (paletteEl.hidden) openPalette();
+  else closePalette();
+}
+
+/**
+ * Apply a kind filter from the palette (or any other code path). Mirrors
+ * the click-handler on the filter buttons so all filter changes go
+ * through the same render path.
+ */
+function applyKindFilter(kind: ClipKind | "all"): void {
+  currentKind = kind;
+  filterBtns.forEach((b) => {
+    b.classList.toggle("active", (b.dataset.kind || "all") === kind);
+  });
+  activeIndex = 0;
+  void render();
+}
+
+/**
+ * Append or toggle a search operator into the search box. Different from
+ * the chip's toggleSearchOp in that this version is always *additive* —
+ * the palette's "Show last 24h" should add the operator, not strip it
+ * off if it's already there.
+ */
+function appendSearchOp(op: string): void {
+  const raw = searchEl.value.trim();
+  const re = new RegExp(
+    `(?:^|\\s)${op.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}(?:\\s|$)`,
+  );
+  if (re.test(raw)) {
+    // Already present — just refocus + re-render so user sees the effect.
+    searchEl.focus();
+    return;
+  }
+  searchEl.value = raw ? `${raw} ${op}` : op;
+  activeIndex = 0;
+  void render();
+}
+
+/** Reset every filter (search box, kind, pinned, active tag) and re-render. */
+function clearAllFilters(): void {
+  searchEl.value = "";
+  currentKind = "all";
+  pinnedOnly = false;
+  activeTag = null;
+  pinnedToggle.classList.remove("active");
+  filterBtns.forEach((b) => {
+    b.classList.toggle("active", (b.dataset.kind || "all") === "all");
+  });
+  activeIndex = 0;
+  void render();
+}
+
+/**
+ * Bulk pin or unpin every clip in the current filtered view. Mirrors
+ * the bulk-bar pin action but skips having to manually multi-select
+ * first — the filter IS the selection. Skipped no-ops keep messages
+ * honest (e.g. "Already pinned").
+ */
+async function pinAllFiltered(pin: boolean): Promise<void> {
+  if (currentClips.length === 0) return;
+  const verb = pin ? "Pin" : "Unpin";
+  const targets = currentClips.filter((c) => c.pinned !== pin);
+  if (targets.length === 0) {
+    toast(`Already ${pin ? "pinned" : "unpinned"}`);
+    return;
+  }
+  if (
+    targets.length > 25 &&
+    !confirm(`${verb} ${targets.length} clip${targets.length === 1 ? "" : "s"}?`)
+  ) {
+    return;
+  }
+  for (const c of targets) await togglePin(c.id);
+  toast(`${pin ? "Pinned" : "Unpinned"} ${targets.length}`);
+  await render();
+}
+
+function renderPalette(): void {
+  const actions = buildPaletteActions();
+  paletteResults = rankActions(actions, paletteInput.value);
+  if (paletteResults.length === 0) {
+    paletteListEl.innerHTML = `<div class="palette-empty">No actions match.</div>`;
+    return;
+  }
+  if (paletteIndex >= paletteResults.length) paletteIndex = 0;
+  // Group by `action.group`, preserving the rank order *within* each group.
+  const groups = new Map<string, typeof paletteResults>();
+  for (const m of paletteResults) {
+    const g = m.action.group;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g)!.push(m);
+  }
+  const rows: string[] = [];
+  let flatIdx = 0;
+  for (const [groupName, members] of groups) {
+    rows.push(`<div class="palette-group-head">${escapeHtml(groupName)}</div>`);
+    for (const m of members) {
+      const active = flatIdx === paletteIndex;
+      const labelHtml = boldedLabel(m.action.label, m.hits);
+      const hint = m.action.hint
+        ? `<span class="palette-hint">${escapeHtml(m.action.hint)}</span>`
+        : "";
+      const shortcut = m.action.shortcut
+        ? `<span class="palette-shortcut"><kbd>${escapeHtml(m.action.shortcut)}</kbd></span>`
+        : "";
+      rows.push(
+        `<div class="palette-row${active ? " active" : ""}" data-i="${flatIdx}" role="option">` +
+          `<span class="palette-label">${labelHtml}</span>${hint}${shortcut}` +
+          `</div>`,
+      );
+      flatIdx++;
+    }
+  }
+  paletteListEl.innerHTML = rows.join("");
+  // Scroll active row into view on arrow-nav.
+  const activeEl = paletteListEl.querySelector(".palette-row.active") as HTMLElement | null;
+  if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+}
+
+async function runActiveAction(): Promise<void> {
+  const m = paletteResults[paletteIndex];
+  if (!m) return;
+  try {
+    await m.action.run();
+  } catch (e) {
+    console.error("[context-clipboard] palette action failed", e);
+    toast("Action failed", "error");
+  }
+}
+
+paletteInput.addEventListener("input", () => {
+  paletteIndex = 0;
+  renderPalette();
+});
+
+paletteInput.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    paletteIndex = Math.min(paletteResults.length - 1, paletteIndex + 1);
+    renderPalette();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    paletteIndex = Math.max(0, paletteIndex - 1);
+    renderPalette();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    void runActiveAction();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closePalette();
+  }
+});
+
+paletteListEl.addEventListener("click", (e) => {
+  const row = (e.target as HTMLElement).closest(".palette-row") as HTMLElement | null;
+  if (!row) return;
+  const i = Number(row.dataset.i);
+  if (Number.isFinite(i)) {
+    paletteIndex = i;
+    void runActiveAction();
+  }
+});
+
+paletteEl.addEventListener("click", (e) => {
+  if (e.target === paletteEl) closePalette();
+});
+
+paletteEl
+  .querySelector(".palette-card")
+  ?.addEventListener("click", (e) => e.stopPropagation());
+
 // Keyboard --------------------------------------------------------------
 document.addEventListener("keydown", async (e) => {
+  // Palette takes priority — it has its own input that captures keys, but
+  // we still let Cmd/Ctrl+K toggle it from anywhere (incl. inside the
+  // palette itself, so the same chord closes it).
+  const isPaletteChord =
+    e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey);
+  if (isPaletteChord) {
+    e.preventDefault();
+    togglePalette();
+    return;
+  }
+  if (!paletteEl.hidden) {
+    // Esc + arrows + Enter are handled by the input listener; everything
+    // else falls through to native input behavior. Stop here so the rest
+    // of the global handler doesn't react to typing inside the palette.
+    return;
+  }
   // Cheatsheet is always the first thing we check so `?` works globally,
   // and Esc closes it before any other panel reacts to Esc.
   if (!cheatsheetEl.hidden) {
