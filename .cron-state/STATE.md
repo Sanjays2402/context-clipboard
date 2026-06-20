@@ -52,27 +52,26 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
-- [ ] Image: link back to original `srcUrl` clearly, with re-fetch button
-- [ ] Bigger paragraph context: collapse/expand long nearby text
 - [ ] Manual quick-tag dropdown when adding notes
 
 ### Pasting & flow
 - [ ] Paste-stack mode: queue N clips, paste them in order across multiple inputs
 - [ ] In-page palette: pin pinned clips at top, dim images you can't paste into text
 - [ ] In-page palette: copy as markdown shortcut (`Shift+Enter`)
-- [ ] Right-click menu on text input: "Paste from Context Clipboard"
+- [ ] In-page palette: filter by kind (chip strip inside overlay)
 
 ### Privacy & security
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
-- [ ] Custom redaction patterns (user-defined regex list per site rule)
+- [ ] Custom-pattern test field — paste sample text, see what would redact
 
 ### Data lifecycle
 - [ ] Smart dedup across `lastSeenAt` window groups (right now only same-hash)
-- [ ] Bulk re-tag from search (apply tag to every clip in current filter)
+- [ ] Image auto-recapture: rule-based scheduled re-fetch for tracked images
 
 ### UI polish (real, not cosmetic)
 - [ ] Inline diff for re-captured clips (show what changed vs previous copy)
 - [ ] Per-collection storage breakdown (when collections ship)
+- [ ] Per-site rule edit (click a row to load it back into the form)
 
 ### Shipped (autoship)
 - [x] Smart search operators (kind/host/tag/is/before/after) — `c407d53`
@@ -102,6 +101,11 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Omnibox `cc` keyword for quick capture + recall — `74201a6`
 - [x] Pin all filtered / Unpin all filtered (via Cmd+K palette) — `1c3fb04`
 - [x] Clear all filters (single action via Cmd+K) — `1c3fb04`
+- [x] Tag all filtered (palette command, union-merge) — `7fcbae8`
+- [x] Per-site custom redaction patterns (user-defined regex list) — `a2bc0af`
+- [x] Image re-fetch from source URL with dim refresh — `8688224`
+- [x] Collapsible long nearby context (show more / less) — `d161fe7`
+- [x] Right-click "Paste from Context Clipboard" on editable fields — `757c95e`
 
 ## Tick log
 
@@ -109,6 +113,23 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 <!-- TICKS BELOW -->
 
+- **2026-06-20 15:22 PT** — 5/5 shipped. Tag all filtered: palette
+  command, union-merge across visible window with idempotent skip-
+  count + 25-clip confirm guard (7fcbae8). Per-site custom redaction
+  patterns: new `customPatterns: string[]` on SiteRule, applied
+  AFTER built-in PII during ingest with 32-pattern + 200-char caps,
+  per-line validation in the settings textarea, and `regex ×N` badge
+  on the rule row (a2bc0af, 15/15 applyCustomPatterns sanity pass).
+  Image re-fetch button in detail header: new `refetchImage` RPC pulls
+  fresh data URL from source URL, re-runs dim probe, swaps detail body
+  in place + spinner CSS animation while inflight (8688224, new
+  refresh icon). Collapsible long nearby context (>360 chars) with
+  "Show more (+N)" / "Show less" toggle backed by `data-full` cache,
+  expanded view caps at 280px (d161fe7). Right-click "Paste from
+  Context Clipboard" on editable fields — fourth contextMenu entry
+  with `editable` scope, reuses existing palette message, content
+  script's `pick()` now directly inserts into focused editable
+  fields (757c95e). tsc + chrome/firefox builds green.
 - **2026-06-20 10:00 PT** — 5/5 shipped. Cmd/Ctrl+K command palette
   with fuzzy matcher, action groups (Navigate/Capture/Privacy/Filter/
   Bulk/Sort/Export), and contextual `available` flags (1c3fb04, 11/11
