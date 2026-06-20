@@ -135,6 +135,15 @@
           <span>Export passphrase</span>
           <input id="export-pass" type="password" autocomplete="new-password" placeholder="min 4 chars — you'll need this to restore" />
         </label>
+        <div class="trash-section" id="trash-section">
+          <div class="trash-header">
+            <span class="trash-title">Trash</span>
+            <span class="trash-summary" id="trash-summary">empty</span>
+            <button id="trash-empty" class="danger small" title="Permanently delete all trashed clips">Empty</button>
+          </div>
+          <div class="trash-list" id="trash-list"></div>
+          <div class="trash-foot">Deleted clips live here for 7 days, then disappear forever.</div>
+        </div>
         <div class="settings-actions">
           <button id="export-btn">Export JSON</button>
           <button id="import-btn">Import JSON</button>

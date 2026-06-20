@@ -14,6 +14,7 @@ import {
   getFieldMap,
   redactClip,
   unredactClip,
+  purgeOldTrash,
 } from "./lib/db";
 import type { ClipItem, ClipSource, FieldMapEntry } from "./lib/types";
 import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii } from "./lib/util";
@@ -370,6 +371,9 @@ async function ingest(inp: IngestInput): Promise<string> {
   };
   await putClip(item);
   await pruneOldUnpinned(settings.maxUnpinned);
+  // Opportunistic trash GC — never let trash outlive the retention window.
+  // Free, runs at most once per capture.
+  void purgeOldTrash(7 * 86_400_000).catch(() => {});
   return item.id;
 }
 

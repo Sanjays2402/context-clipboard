@@ -1,12 +1,17 @@
 /// <reference types="chrome" />
 import {
   listClips,
-  deleteClip,
   togglePin,
   getClip,
   updateTags,
   getSettings,
   saveSettings,
+  trashClip,
+  listTrash,
+  restoreClip,
+  emptyTrash,
+  trashCount,
+  type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml } from "../lib/util";
@@ -81,6 +86,9 @@ const clearAllBtn = $<HTMLButtonElement>("clear-all-btn");
 const encryptToggle = $<HTMLInputElement>("s-encrypt-export");
 const exportPass = $<HTMLInputElement>("export-pass");
 const encryptPassRow = $("encrypt-pass-row");
+const trashSummary = $("trash-summary");
+const trashList = $("trash-list");
+const trashEmpty = $<HTMLButtonElement>("trash-empty");
 
 const bulkBar = $("bulk-bar");
 const bulkCount = $("bulk-count");
@@ -328,6 +336,7 @@ async function openSettings() {
   sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
   await renderStorage();
+  await renderTrash();
   settingsPanel.hidden = false;
 }
 
@@ -384,6 +393,68 @@ function formatBytes(n: number): string {
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
+
+// Trash --------------------------------------------------------------------
+
+const TRASH_RETENTION_MS = 7 * 86_400_000;
+
+function trashRow(t: TrashedClip): string {
+  const previewText =
+    t.kind === "image" ? t.preview || "Image" : t.preview || t.content;
+  const left = Math.max(
+    0,
+    Math.ceil((t.deletedAt + TRASH_RETENTION_MS - Date.now()) / 86_400_000),
+  );
+  const src = [hostFrom(t.source.url), t.source.title]
+    .filter(Boolean)
+    .join(" · ");
+  return `
+    <div class="trash-row" data-id="${t.id}">
+      <div class="trash-body">
+        <div class="trash-preview">${escapeHtml(previewText.slice(0, 90))}</div>
+        <div class="trash-meta">${escapeHtml(src || "—")} · deleted ${timeAgo(t.deletedAt)} · ${left}d left</div>
+      </div>
+      <button class="trash-restore" data-act="restore" title="Restore">Restore</button>
+    </div>
+  `;
+}
+
+async function renderTrash(): Promise<void> {
+  const items = await listTrash();
+  trashSummary.textContent =
+    items.length === 0
+      ? "empty"
+      : `${items.length} clip${items.length === 1 ? "" : "s"}`;
+  trashEmpty.disabled = items.length === 0;
+  if (items.length === 0) {
+    trashList.innerHTML = "";
+    return;
+  }
+  trashList.innerHTML = items.slice(0, 50).map(trashRow).join("");
+}
+
+trashList.addEventListener("click", async (e) => {
+  const target = e.target as HTMLElement;
+  const row = target.closest(".trash-row") as HTMLElement | null;
+  if (!row) return;
+  const id = row.dataset.id!;
+  if (target.dataset.act === "restore") {
+    const ok = await restoreClip(id);
+    if (ok) toast("Restored");
+    await renderTrash();
+    await render();
+  }
+});
+
+trashEmpty.addEventListener("click", async () => {
+  const count = await trashCount();
+  if (count === 0) return;
+  if (!confirm(`Permanently delete ${count} clip${count === 1 ? "" : "s"}? This cannot be undone.`))
+    return;
+  const n = await emptyTrash();
+  toast(`Emptied ${n}`);
+  await renderTrash();
+});
 
 // Drag & drop -----------------------------------------------------------
 window.addEventListener("dragover", (e) => {
@@ -454,7 +525,7 @@ listEl.addEventListener("click", async (e) => {
   }
 
   if (act === "del") {
-    await deleteClip(id);
+    await trashClip(id);
     await render();
     return;
   }
@@ -558,7 +629,7 @@ document.addEventListener("keydown", async (e) => {
   } else if ((e.key === "Delete" || e.key === "Backspace") && !inSearch) {
     const c = currentClips[activeIndex];
     if (c) {
-      await deleteClip(c.id);
+      await trashClip(c.id);
       await render();
     }
   } else if (e.key.toLowerCase() === "p" && !inSearch) {
@@ -587,10 +658,11 @@ detailBack.addEventListener("click", () => closeDetail());
 
 detailDelete.addEventListener("click", async () => {
   if (!detailId) return;
-  if (!confirm("Delete this clip?")) return;
-  await deleteClip(detailId);
+  if (!confirm("Move this clip to trash?")) return;
+  await trashClip(detailId);
   closeDetail();
   await render();
+  toast("Moved to trash");
 });
 
 detailPin.addEventListener("click", async () => {
@@ -807,12 +879,12 @@ bulkClear.addEventListener("click", () => clearSelection());
 bulkDel.addEventListener("click", async () => {
   const ids = [...selectedIds];
   if (ids.length === 0) return;
-  if (!confirm(`Delete ${ids.length} clip${ids.length === 1 ? "" : "s"}?`))
+  if (!confirm(`Move ${ids.length} clip${ids.length === 1 ? "" : "s"} to trash?`))
     return;
-  for (const id of ids) await deleteClip(id);
+  for (const id of ids) await trashClip(id);
   selectedIds.clear();
   updateBulkBar();
-  toast(`Deleted ${ids.length}`);
+  toast(`Moved ${ids.length} to trash`);
   await render();
 });
 

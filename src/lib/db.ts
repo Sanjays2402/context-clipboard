@@ -3,10 +3,11 @@ import { DEFAULT_SETTINGS } from "./types";
 import { redactPii, redactSensitivePreview } from "./util";
 
 const DB_NAME = "context-clipboard";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE = "clips";
 const META = "meta";
 const FIELDS = "field_map";
+const TRASH = "trash";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -39,6 +40,10 @@ function openDB(): Promise<IDBDatabase> {
         fs.createIndex("host", "host");
         fs.createIndex("updatedAt", "updatedAt");
       }
+      if (!db.objectStoreNames.contains(TRASH)) {
+        const t = db.createObjectStore(TRASH, { keyPath: "id" });
+        t.createIndex("deletedAt", "deletedAt");
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -58,6 +63,10 @@ function fieldsTx(mode: IDBTransactionMode) {
   return openDB().then((db) =>
     db.transaction(FIELDS, mode).objectStore(FIELDS),
   );
+}
+
+function trashTx(mode: IDBTransactionMode) {
+  return openDB().then((db) => db.transaction(TRASH, mode).objectStore(TRASH));
 }
 
 export async function putFieldMap(
@@ -166,6 +175,108 @@ export async function deleteClip(id: string): Promise<void> {
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
+}
+
+/**
+ * Soft-delete: move a clip into the trash store with a `deletedAt` stamp.
+ * Use this for any user-initiated delete so they can `restoreClip` within
+ * the retention window. Pinned status is preserved; restored clips are
+ * pinned exactly as they were.
+ */
+export async function trashClip(id: string): Promise<boolean> {
+  const item = await getClip(id);
+  if (!item) return false;
+  const t = await trashTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = t.put({ ...item, deletedAt: Date.now() });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+  await deleteClip(id);
+  return true;
+}
+
+export interface TrashedClip extends ClipItem {
+  deletedAt: number;
+}
+
+export async function listTrash(): Promise<TrashedClip[]> {
+  const store = await trashTx("readonly");
+  return new Promise((resolve, reject) => {
+    const req = store.index("deletedAt").openCursor(null, "prev");
+    const out: TrashedClip[] = [];
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) return resolve(out);
+      out.push(cur.value as TrashedClip);
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function restoreClip(id: string): Promise<boolean> {
+  const t = await trashTx("readwrite");
+  const item = await new Promise<TrashedClip | undefined>((resolve, reject) => {
+    const req = t.get(id);
+    req.onsuccess = () => resolve(req.result as TrashedClip | undefined);
+    req.onerror = () => reject(req.error);
+  });
+  if (!item) return false;
+  await new Promise<void>((resolve, reject) => {
+    const req = t.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+  // Strip deletedAt before putting back into the live clips store. Bump
+  // lastSeenAt so it surfaces near the top instead of getting buried.
+  const { deletedAt: _drop, ...rest } = item;
+  void _drop;
+  const restored: ClipItem = { ...rest, lastSeenAt: Date.now() };
+  await putClip(restored);
+  return true;
+}
+
+export async function emptyTrash(): Promise<number> {
+  const all = await listTrash();
+  const t = await trashTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = t.clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+  return all.length;
+}
+
+export async function trashCount(): Promise<number> {
+  const store = await trashTx("readonly");
+  return new Promise((resolve, reject) => {
+    const req = store.count();
+    req.onsuccess = () => resolve(req.result || 0);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Hard-purge trash entries older than `maxAgeMs`. Called opportunistically
+ * (e.g. from the background ingest path so it doesn't need its own alarm).
+ */
+export async function purgeOldTrash(maxAgeMs: number): Promise<number> {
+  const cutoff = Date.now() - maxAgeMs;
+  const all = await listTrash();
+  let n = 0;
+  const t = await trashTx("readwrite");
+  for (const item of all) {
+    if (item.deletedAt < cutoff) {
+      await new Promise<void>((resolve, reject) => {
+        const req = t.delete(item.id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+      n++;
+    }
+  }
+  return n;
 }
 
 export async function togglePin(id: string): Promise<boolean> {
