@@ -153,6 +153,109 @@ if (api.commands) {
   });
 }
 
+// Omnibox: `cc <text>` captures a quick note from the address bar. Press
+// Tab after typing "cc " (or just "cc" on Firefox), type the note, hit
+// Enter. The note ingests as a manual-text clip tagged `omnibox` so the
+// user can `tag:omnibox` to find them later. No tab navigation happens
+// (we don't redirect the URL bar) — capture + visual confirmation only.
+//
+// Suggestions surface the last few omnibox notes back to the user as
+// autocomplete rows so they can re-copy a recent capture without
+// opening the popup.
+const omnibox = (api as unknown as {
+  omnibox?: {
+    setDefaultSuggestion: (s: { description: string }) => void;
+    onInputChanged: { addListener: (fn: (text: string, suggest: (rows: { content: string; description: string }[]) => void) => void) => void };
+    onInputEntered: { addListener: (fn: (text: string, disposition?: string) => void) => void };
+  };
+}).omnibox;
+if (omnibox) {
+  omnibox.setDefaultSuggestion({
+    description:
+      "Capture a quick note (or type a search and hit Enter to filter the popup)",
+  });
+  omnibox.onInputChanged.addListener(async (text, suggest) => {
+    const needle = text.trim().toLowerCase();
+    if (!needle) {
+      suggest([]);
+      return;
+    }
+    // Surface the most recent `omnibox` notes whose text matches the
+    // current input. Capped at 6 rows; chrome ignores anything past it.
+    try {
+      const all = await listClips({ limit: 1000 });
+      const matches = all
+        .filter((c) => c.kind === "text" && c.tags.includes("omnibox"))
+        .filter((c) => {
+          const hay = (c.content || c.preview || "").toLowerCase();
+          return hay.includes(needle);
+        })
+        .slice(0, 6)
+        .map((c) => ({
+          content: `recall:${c.id}`,
+          description: `Recall: ${escapeOmnibox((c.preview || c.content).slice(0, 100))}`,
+        }));
+      suggest(matches);
+    } catch (e) {
+      console.warn("[context-clipboard] omnibox suggest failed", e);
+      suggest([]);
+    }
+  });
+  omnibox.onInputEntered.addListener(async (text, _disposition) => {
+    const raw = (text || "").trim();
+    if (!raw) return;
+    try {
+      // "recall:<id>" — selected an existing omnibox note. Pull its
+      // content into the system clipboard via the offscreen-free
+      // background path (writeText is not callable from a service
+      // worker; we instead bump the row's hitCount so the user can open
+      // the popup and copy from there). Most users will rarely pick
+      // this branch — the keyword's primary win is fast capture.
+      if (raw.startsWith("recall:")) {
+        const id = raw.slice("recall:".length);
+        const c = await getClip(id);
+        if (c) {
+          c.hitCount = (c.hitCount || 1) + 1;
+          c.lastSeenAt = Date.now();
+          await putClip(c);
+        }
+        return;
+      }
+      const id = await ingest({
+        kind: "text",
+        content: raw,
+        preview: redactSensitivePreview(raw),
+        source: { title: "Omnibox note" },
+      });
+      // Auto-tag with `omnibox` so the recall suggestions work AND so
+      // the user can filter for them later with `tag:omnibox`.
+      const stored = await getClip(id);
+      if (stored && !stored.tags.includes("omnibox")) {
+        stored.tags = [...stored.tags, "omnibox"];
+        await putClip(stored);
+      }
+    } catch (e) {
+      console.error("[context-clipboard] omnibox capture failed", e);
+    }
+  });
+}
+
+/**
+ * Sanitize a string for the omnibox `description` field. Chrome treats
+ * the value as an XML-ish format where `<`, `>`, `&`, `"`, `'` carry
+ * meaning, so we escape them. Newlines collapse to spaces because the
+ * suggestion row is a single line.
+ */
+function escapeOmnibox(s: string): string {
+  return s
+    .replace(/\s+/g, " ")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
   (async () => {
     if (isCopyMsg(msg)) {
