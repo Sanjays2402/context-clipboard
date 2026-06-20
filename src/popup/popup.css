@@ -2426,3 +2426,49 @@ kbd {
   height: 16px;
   min-width: 16px;
 }
+
+/* Footer sort dropdown — neutral pill, doesn't compete with the danger
+   "Clear unpinned" or the accent "Select all". Reads "Most recent" by
+   default and bumps to a slight accent border when changed away from it. */
+.sort-mode {
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 22px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23b8b8c2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  transition: all 0.15s;
+}
+
+.sort-mode:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.sort-mode:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.sort-mode.changed {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sort-mode option {
+  background: var(--bg);
+  color: var(--text);
+}

@@ -17,9 +17,11 @@ import {
   listSearchHistory,
   pushSearchHistory,
   clearSearchHistory,
+  getListSort,
+  setListSort,
   type TrashedClip,
 } from "../lib/db";
-import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule } from "../lib/types";
+import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml, highlightHtml } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
@@ -29,6 +31,7 @@ import {
   type EncryptedEnvelope,
 } from "../lib/crypto";
 import { parseQuery, applyQuery, describeQuery } from "../lib/search";
+import { sortClips, sortLabel } from "../lib/sort";
 import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFilter, type ExportFormat, type ExportFilter } from "../lib/export";
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
 import { rankActions, boldedLabel, type PaletteAction } from "../lib/palette";
@@ -139,6 +142,7 @@ const bulkTag = $<HTMLButtonElement>("bulk-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
 const bulkClear = $<HTMLButtonElement>("bulk-clear");
 const selectAllFilteredBtn = $<HTMLButtonElement>("select-all-filtered");
+const sortModeEl = $<HTMLSelectElement>("sort-mode");
 
 const toastEl = $("toast");
 const cheatsheetEl = $("cheatsheet");
@@ -158,6 +162,10 @@ let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
 let savedSearches: SavedSearch[] = [];
 let searchHistory: string[] = [];
+// Active list sort mode (persisted in IDB meta). Defaults to "recent"
+// which preserves the historical behavior — `lastSeenAt desc` with
+// pinned floated to the top.
+let listSort: SortMode = "recent";
 // Debounce timer for recording the search box into history. We wait ~900ms
 // after the last keystroke before persisting so we don't write a row
 // per character.
@@ -582,11 +590,16 @@ async function render(): Promise<void> {
   // disabled (we own it now) and pass only kind/pinned/tag through, then
   // overlay the parsed operators on top.
   const wide = await listClips({ limit: 5000 });
-  currentClips = applyQuery(wide, parsed, {
+  const filtered = applyQuery(wide, parsed, {
     extraPinnedOnly: pinnedOnly,
     extraTag: activeTag,
     extraKind: currentKind,
-  }).slice(0, 200);
+  });
+  // Sort happens AFTER the filter so the sort comparator only sees the
+  // visible window — much smaller, and stable across renders. The
+  // "recent" mode keeps the historical lastSeenAt order; other modes
+  // pivot but always float pinned to the top.
+  currentClips = sortClips(filtered, listSort).slice(0, 200);
   currentNeedle = parsed.freeText;
   if (activeIndex >= currentClips.length)
     activeIndex = Math.max(0, currentClips.length - 1);
@@ -1841,6 +1854,62 @@ function buildPaletteActions(): PaletteAction[] {
         importBtn.click();
       },
     },
+    // Sort -----------------------------------------------------------
+    {
+      id: "sort-recent",
+      label: "Sort: Most recent",
+      group: "Sort",
+      keywords: "lastSeen newest fresh",
+      available: listSort !== "recent",
+      run: async () => {
+        closePalette();
+        await applyListSort("recent");
+      },
+    },
+    {
+      id: "sort-oldest",
+      label: "Sort: Oldest first",
+      group: "Sort",
+      keywords: "archaeology old",
+      available: listSort !== "oldest",
+      run: async () => {
+        closePalette();
+        await applyListSort("oldest");
+      },
+    },
+    {
+      id: "sort-hits",
+      label: "Sort: Most copied",
+      group: "Sort",
+      keywords: "hitCount frequent popular",
+      available: listSort !== "hits",
+      run: async () => {
+        closePalette();
+        await applyListSort("hits");
+      },
+    },
+    {
+      id: "sort-size",
+      label: "Sort: Largest first",
+      group: "Sort",
+      keywords: "bytes big storage",
+      available: listSort !== "size",
+      run: async () => {
+        closePalette();
+        await applyListSort("size");
+      },
+    },
+    {
+      id: "sort-alpha",
+      label: "Sort: A to Z",
+      group: "Sort",
+      keywords: "alphabetical name",
+      available: listSort !== "alpha",
+      run: async () => {
+        closePalette();
+        await applyListSort("alpha");
+      },
+    },
   ];
   return actions;
 }
@@ -1909,6 +1978,25 @@ function clearAllFilters(): void {
   });
   activeIndex = 0;
   void render();
+}
+
+/**
+ * Switch list sort to `mode` and persist it. Single source of truth so
+ * the dropdown and palette stay in sync; updates the dropdown's
+ * `changed` accent + tooltip alongside.
+ */
+async function applyListSort(mode: SortMode): Promise<void> {
+  if (mode === listSort) {
+    toast(`Already ${sortLabel(mode).toLowerCase()}`);
+    return;
+  }
+  listSort = mode;
+  sortModeEl.value = mode;
+  sortModeEl.classList.toggle("changed", mode !== "recent");
+  sortModeEl.title = `Sort: ${sortLabel(mode)}`;
+  await setListSort(mode);
+  await render();
+  toast(`Sort: ${sortLabel(mode)}`);
 }
 
 /**
@@ -2632,8 +2720,27 @@ bulkTag.addEventListener("click", async () => {
   });
   const s = await getSettings();
   document.body.dataset.theme = s.theme;
+  // Restore the persisted sort mode BEFORE the first render so the list
+  // doesn't flash in the wrong order.
+  listSort = await getListSort();
+  sortModeEl.value = listSort;
+  sortModeEl.classList.toggle("changed", listSort !== "recent");
+  sortModeEl.title = `Sort: ${sortLabel(listSort)}`;
   await refreshSavedSearches();
   await refreshSearchHistory();
   await render();
   searchEl.focus();
 })();
+
+sortModeEl.addEventListener("change", async () => {
+  const next = sortModeEl.value as SortMode;
+  listSort = next;
+  sortModeEl.classList.toggle("changed", next !== "recent");
+  sortModeEl.title = `Sort: ${sortLabel(next)}`;
+  await setListSort(next);
+  await render();
+  // Lightweight feedback so the action feels confirmed, especially when
+  // the new ordering doesn't visibly shuffle (e.g. unfiltered list with
+  // few clips already in lastSeenAt order).
+  toast(`Sort: ${sortLabel(next)}`);
+});

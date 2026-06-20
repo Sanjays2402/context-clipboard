@@ -1,5 +1,5 @@
-import type { ClipItem, SearchQuery, Settings, SavedSearch, SiteRule } from "./types";
-import { DEFAULT_SETTINGS } from "./types";
+import type { ClipItem, SearchQuery, Settings, SavedSearch, SiteRule, SortMode } from "./types";
+import { DEFAULT_SETTINGS, SORT_MODES } from "./types";
 import { hostFrom, redactPii, redactSensitivePreview } from "./util";
 
 const DB_NAME = "context-clipboard";
@@ -693,4 +693,35 @@ export async function findSiteRuleFor(host: string): Promise<SiteRule | undefine
   if (!host) return undefined;
   const rules = await listSiteRules();
   return rules.find((r) => matchesHostPattern(r.hostPattern, host));
+}
+
+// List sort mode -----------------------------------------------------------
+//
+// Persisted in `meta` under `list_sort` so the popup remembers what the
+// user picked between opens. `recent` is the cron-baseline default and
+// the fallback whenever the row is missing / corrupt.
+
+const LIST_SORT_KEY = "list_sort";
+
+export async function getListSort(): Promise<SortMode> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(LIST_SORT_KEY);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: string } | undefined;
+      const v = row?.value;
+      resolve(SORT_MODES.includes(v as SortMode) ? (v as SortMode) : "recent");
+    };
+    req.onerror = () => resolve("recent");
+  });
+}
+
+export async function setListSort(mode: SortMode): Promise<void> {
+  const next: SortMode = SORT_MODES.includes(mode) ? mode : "recent";
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: LIST_SORT_KEY, value: next });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
 }

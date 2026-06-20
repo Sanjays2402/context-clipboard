@@ -68,6 +68,22 @@ export interface SearchQuery {
   limit?: number;
 }
 
+/**
+ * Sort modes for the popup list. `recent` (lastSeenAt desc) is the
+ * historical default and stays the cron-baseline behavior. The others
+ * are user-pickable in the footer dropdown and persisted in the
+ * `list_sort` meta row so the popup re-opens to whatever they last
+ * chose.
+ */
+export type SortMode =
+  | "recent" // lastSeenAt desc — surface fresh activity at the top
+  | "oldest" // lastSeenAt asc  — archaeology mode
+  | "hits"   // hitCount desc   — your most-used clips
+  | "size"   // bytes desc      — biggest payloads first
+  | "alpha"; // preview/content lowercase asc — find by name
+
+export const SORT_MODES: SortMode[] = ["recent", "oldest", "hits", "size", "alpha"];
+
 export interface Settings {
   maxUnpinned: number;
   dedupWindowMs: number;
