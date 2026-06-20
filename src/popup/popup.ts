@@ -40,6 +40,7 @@ const pinnedToggle = $<HTMLButtonElement>("pinned-toggle");
 const settingsBtn = $<HTMLButtonElement>("settings-btn");
 const noteBtn = $<HTMLButtonElement>("note-btn");
 const tagChipsEl = $("tag-chips");
+const quickChipsEl = $("quick-chips");
 const dropZone = $("drop-zone");
 const filterBtns = document.querySelectorAll<HTMLButtonElement>(
   ".filters button[data-kind]",
@@ -173,9 +174,108 @@ function renderTagChips(allClips: ClipItem[]) {
     .join("");
 }
 
+/**
+ * Quick-filter pills. Each pill toggles a search operator on/off in the
+ * search box. We compute the host pills from the top hosts in the
+ * currently-loaded set so they stay relevant to what the user actually has.
+ */
+function renderQuickChips(allClips: ClipItem[]) {
+  const raw = searchEl.value;
+  const hasOp = (op: string) => new RegExp(`(?:^|\\s)${op}(?:\\s|$)`).test(raw);
+  const hasHost = (h: string) =>
+    new RegExp(`(?:^|\\s)host:${h.replace(/\./g, "\\.")}(?:\\s|$)`, "i").test(raw);
+
+  const hostCounts = new Map<string, number>();
+  let redacted = 0;
+  let ocr = 0;
+  let images = 0;
+  for (const c of allClips) {
+    const h = hostFrom(c.source.url);
+    if (h) hostCounts.set(h, (hostCounts.get(h) || 0) + 1);
+    if (c.redacted) redacted++;
+    if (c.ocrText) ocr++;
+    if (c.kind === "image") images++;
+  }
+  const topHosts = Array.from(hostCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  type Pill = { label: string; op: string; active: boolean; count?: number; ariaLabel?: string };
+  const pills: Pill[] = [];
+  pills.push({
+    label: "Pinned",
+    op: "is:pinned",
+    active: hasOp("is:pinned"),
+  });
+  if (redacted > 0)
+    pills.push({
+      label: "Redacted",
+      op: "is:redacted",
+      active: hasOp("is:redacted"),
+      count: redacted,
+    });
+  if (ocr > 0)
+    pills.push({
+      label: "OCR",
+      op: "is:ocr",
+      active: hasOp("is:ocr"),
+      count: ocr,
+    });
+  if (images > 0)
+    pills.push({
+      label: "Images",
+      op: "kind:image",
+      active: hasOp("kind:image"),
+      count: images,
+    });
+  pills.push({
+    label: "Last 24h",
+    op: "after:24h",
+    active: hasOp("after:24h"),
+  });
+  for (const [h, n] of topHosts) {
+    pills.push({
+      label: h,
+      op: `host:${h}`,
+      active: hasHost(h),
+      count: n,
+      ariaLabel: `Filter to ${h}`,
+    });
+  }
+
+  if (pills.length === 0) {
+    quickChipsEl.hidden = true;
+    return;
+  }
+  quickChipsEl.hidden = false;
+  quickChipsEl.innerHTML = pills
+    .map(
+      (p) =>
+        `<button class="quick-chip ${p.active ? "active" : ""}" data-op="${escapeHtml(p.op)}" title="${escapeHtml(p.ariaLabel || `Toggle ${p.op}`)}"><span>${escapeHtml(p.label)}</span>${p.count != null ? `<em>${p.count}</em>` : ""}</button>`,
+    )
+    .join("");
+}
+
+function toggleSearchOp(op: string) {
+  const raw = searchEl.value;
+  const re = new RegExp(
+    `(?:^|\\s)${op.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s|$)`,
+  );
+  let next: string;
+  if (re.test(raw)) {
+    next = raw.replace(re, " ").replace(/\s+/g, " ").trim();
+  } else {
+    next = raw.trim() ? `${raw.trim()} ${op}` : op;
+  }
+  searchEl.value = next;
+  activeIndex = 0;
+  void render();
+}
+
 async function render(): Promise<void> {
   const all = await listClips({ limit: 1000 });
   renderTagChips(all);
+  renderQuickChips(all);
   const parsed = parseQuery(searchEl.value);
   // Pull a wide window from IDB then apply parsed filters in-memory. The
   // total clip count is bounded by `maxUnpinned` (default 500) + pinned, so
@@ -500,6 +600,15 @@ tagChipsEl.addEventListener("click", (e) => {
   activeTag = activeTag === t ? null : t;
   activeIndex = 0;
   render();
+});
+
+// Quick-filter pills -----------------------------------------------------
+quickChipsEl.addEventListener("click", (e) => {
+  const chip = (e.target as HTMLElement).closest(".quick-chip") as HTMLElement | null;
+  if (!chip) return;
+  const op = chip.dataset.op;
+  if (!op) return;
+  toggleSearchOp(op);
 });
 
 // List events -----------------------------------------------------------
