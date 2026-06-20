@@ -2472,3 +2472,63 @@ kbd {
   background: var(--bg);
   color: var(--text);
 }
+
+/* Anti-shoulder-surf blur. Activates via `body.blur-on` (set when the
+   `blurPreviews` setting is true). Every clip preview / thumb / detail
+   body / OCR text / nearby context renders blurred by default; hover or
+   focus snaps the focused chunk back to clarity. Pinned thumbs stay
+   blurred too — pinning is not an "always visible" signal.
+
+   We use a *short* blur radius (4px) so silhouettes are visible enough
+   that the user can find the right clip by position, without making
+   the content readable from across the room. The keyboard-active row
+   also unblurs so arrow-nav still works without a mouse. */
+body.blur-on .clip .preview,
+body.blur-on .clip .thumb img,
+body.blur-on .clip .thumb-icon,
+body.blur-on .clip .tags,
+body.blur-on #detail-body,
+body.blur-on #detail-nearby,
+body.blur-on #detail-ocr-text,
+body.blur-on .template-preview,
+body.blur-on .trash-preview {
+  filter: blur(4px);
+  transition: filter 0.18s ease;
+}
+
+body.blur-on .clip:hover .preview,
+body.blur-on .clip:hover .thumb img,
+body.blur-on .clip:hover .thumb-icon,
+body.blur-on .clip:hover .tags,
+body.blur-on .clip.active .preview,
+body.blur-on .clip.active .thumb img,
+body.blur-on .clip.active .thumb-icon,
+body.blur-on .clip.active .tags,
+body.blur-on #detail-body:hover,
+body.blur-on #detail-body:focus-within,
+body.blur-on #detail-nearby:hover,
+body.blur-on #detail-ocr-text:hover,
+body.blur-on .template-preview:hover,
+body.blur-on .trash-row:hover .trash-preview {
+  filter: none;
+}
+
+/* The header gets a tiny "blurred" badge so the user always knows the
+   mode is on. Click-target opens settings. */
+body.blur-on header::after {
+  content: "blurred — hover to read";
+  position: absolute;
+  top: 8px;
+  right: 90px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 2px 7px;
+  border-radius: 999px;
+  pointer-events: none;
+  font-weight: 700;
+}

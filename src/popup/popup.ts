@@ -101,6 +101,7 @@ const sPalette = $<HTMLInputElement>("s-palette");
 const sFields = $<HTMLInputElement>("s-fields");
 const sSidePanel = $<HTMLInputElement>("s-sidepanel");
 const sAutoRedact = $<HTMLInputElement>("s-autoredact");
+const sBlurPreviews = $<HTMLInputElement>("s-blur");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
 const sTheme = $<HTMLSelectElement>("s-theme");
@@ -984,6 +985,7 @@ async function openSettings() {
   sFields.checked = s.enableFieldSuggestions;
   sSidePanel.checked = s.enableSidePanel;
   sAutoRedact.checked = s.autoRedactPii;
+  sBlurPreviews.checked = !!s.blurPreviews;
   sBlock.value = (s.blockList || []).join("\n");
   sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
@@ -1009,16 +1011,27 @@ async function saveSettingsFromForm() {
     enableFieldSuggestions: sFields.checked,
     enableSidePanel: sSidePanel.checked,
     autoRedactPii: sAutoRedact.checked,
+    blurPreviews: sBlurPreviews.checked,
     blockList: sBlock.value.split("\n").map((s) => s.trim()).filter(Boolean),
     allowList: sAllow.value.split("\n").map((s) => s.trim()).filter(Boolean),
     theme: (sTheme.value as Settings["theme"]) || "auto",
   };
   const saved = await saveSettings(next);
   document.body.dataset.theme = saved.theme;
+  applyBlurMode(saved.blurPreviews);
   // Tell background to re-apply Chrome side panel behavior (no-op on Firefox).
   try {
     api.runtime.sendMessage({ type: "cc-rpc", action: "applySidePanelMode" });
   } catch (_e) { /* background may not be ready in side-panel mode boot */ }
+}
+
+/**
+ * Toggle the body-level blur class. Pulled into a single helper so the
+ * setting save path, the initial-load path, and the palette quick-toggle
+ * all flip the same bit. Pure DOM — no IDB write.
+ */
+function applyBlurMode(on: boolean): void {
+  document.body.classList.toggle("blur-on", !!on);
 }
 
 async function renderStorage() {
@@ -1632,6 +1645,22 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         noteBtn.click();
+      },
+    },
+    {
+      id: "toggle-blur",
+      label: document.body.classList.contains("blur-on")
+        ? "Stop blurring previews"
+        : "Blur previews (anti-shoulder-surf)",
+      hint: "Hide clip contents until you hover",
+      group: "Privacy",
+      keywords: "shoulder surf privacy mask",
+      run: async () => {
+        closePalette();
+        const next = !document.body.classList.contains("blur-on");
+        await saveSettings({ blurPreviews: next });
+        applyBlurMode(next);
+        toast(next ? "Blur on" : "Blur off");
       },
     },
     // Kind filters ---------------------------------------------------
@@ -2418,6 +2447,13 @@ sTheme.addEventListener("change", () => {
   document.body.dataset.theme = sTheme.value;
 });
 
+sBlurPreviews.addEventListener("change", () => {
+  // Live preview so the user sees the effect on the (settings panel
+  // hides the list but you can already see the badge appear / the panel
+  // background dim). Settings write still happens on Save/Esc/back.
+  applyBlurMode(sBlurPreviews.checked);
+});
+
 encryptToggle.addEventListener("change", () => {
   encryptPassRow.hidden = !encryptToggle.checked;
   if (encryptToggle.checked) {
@@ -2720,6 +2756,7 @@ bulkTag.addEventListener("click", async () => {
   });
   const s = await getSettings();
   document.body.dataset.theme = s.theme;
+  applyBlurMode(s.blurPreviews);
   // Restore the persisted sort mode BEFORE the first render so the list
   // doesn't flash in the wrong order.
   listSort = await getListSort();

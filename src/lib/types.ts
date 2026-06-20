@@ -97,6 +97,13 @@ export interface Settings {
   enableSidePanel: boolean;
   /** Auto-redact PII (emails/phones/cards) in newly captured text clips. */
   autoRedactPii: boolean;
+  /**
+   * Anti-shoulder-surf: when true, every clip preview + image thumb +
+   * detail body renders blurred by default and only reveals on hover /
+   * focus. Doesn't touch the data — it's a CSS treatment, so unlocking
+   * a single clip is as cheap as moving the mouse.
+   */
+  blurPreviews: boolean;
   /** Hostnames where capture is disabled. */
   blockList: string[];
   /** If non-empty, capture ONLY on these hostnames. */
@@ -115,6 +122,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enableFieldSuggestions: true,
   enableSidePanel: false,
   autoRedactPii: false,
+  blurPreviews: false,
   blockList: [],
   allowList: [],
   theme: "auto",
