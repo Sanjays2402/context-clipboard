@@ -69,6 +69,7 @@ const detailNavPos = $("detail-nav-pos");
 const detailPin = $<HTMLButtonElement>("detail-pin");
 const detailDelete = $<HTMLButtonElement>("detail-delete");
 const detailOcr = $<HTMLButtonElement>("detail-ocr");
+const detailRefetch = $<HTMLButtonElement>("detail-refetch");
 const detailReveal = $<HTMLButtonElement>("detail-reveal");
 const detailRedact = $<HTMLButtonElement>("detail-redact");
 const detailBody = $("detail-body");
@@ -786,9 +787,17 @@ async function openDetail(id: string) {
   if (c.kind === "image") {
     detailBody.innerHTML = `<img src="${c.content}" alt="" />`;
     detailOcr.hidden = false;
+    // Re-fetch is only meaningful when we have an http(s) source to
+    // pull from. `nearbyText` is where context-menu image captures
+    // stash the original srcUrl; copy-event captures drop the src
+    // there too. Falls back to the page URL when neither carries an
+    // http URL.
+    const srcGuess = c.source.nearbyText || c.source.url || "";
+    detailRefetch.hidden = !/^https?:\/\//i.test(srcGuess);
   } else {
     detailBody.innerHTML = `<pre>${highlightHtml(c.content, currentNeedle)}</pre>`;
     detailOcr.hidden = true;
+    detailRefetch.hidden = true;
   }
   detailUrl.href = c.source.url || "#";
   detailUrl.textContent = c.source.url || "—";
@@ -2526,6 +2535,60 @@ detailExpiry.addEventListener("change", async () => {
 detailOcr.addEventListener("click", async () => {
   toast("OCR coming in v0.5.0", "error");
 });
+
+/**
+ * Re-fetch the source image for the open detail clip. The background
+ * does the fetch (service worker has the right fetch context + dimension
+ * probe) and returns the updated clip. We swap the detail body's image
+ * in place and re-render the list so the thumbnail picks up the new
+ * data + dimensions. The button disables briefly to debounce double-clicks
+ * while a slow image is fetching.
+ *
+ * Failure modes (404, network down, CORS) surface as a one-line toast
+ * with the underlying error — no silent no-ops.
+ */
+async function refetchDetailImage(): Promise<void> {
+  if (!detailId) return;
+  const id = detailId;
+  const beforeLabel = detailRefetch.title;
+  detailRefetch.disabled = true;
+  detailRefetch.title = "Re-fetching…";
+  detailRefetch.classList.add("refetching");
+  try {
+    const resp = await new Promise<{ ok: boolean; clip?: ClipItem; error?: string }>(
+      (resolve) => {
+        api.runtime.sendMessage(
+          { type: "cc-rpc", action: "refetchImage", payload: { id } },
+          (r) => resolve(r),
+        );
+      },
+    );
+    if (!resp?.ok || !resp.clip) {
+      toast(resp?.error || "Re-fetch failed", "error");
+      return;
+    }
+    const c = resp.clip;
+    // Swap the body image and update the meta row in place. We don't
+    // call openDetail again because that would scroll-reset the panel
+    // and steal focus.
+    detailBody.innerHTML = `<img src="${c.content}" alt="" />`;
+    detailImageRow.hidden = false;
+    const dims = c.width && c.height ? `${c.width}×${c.height} px` : "unknown size";
+    detailImageInfo.textContent = `${dims} · ${formatBytes(c.bytes)} · ${c.mime || "image/png"}`;
+    toast(
+      c.width && c.height
+        ? `Re-fetched · ${c.width}×${c.height}`
+        : "Re-fetched",
+    );
+    await render();
+  } finally {
+    detailRefetch.disabled = false;
+    detailRefetch.title = beforeLabel;
+    detailRefetch.classList.remove("refetching");
+  }
+}
+
+detailRefetch.addEventListener("click", () => void refetchDetailImage());
 
 // Settings wiring -------------------------------------------------------
 settingsBtn.addEventListener("click", () => openSettings());

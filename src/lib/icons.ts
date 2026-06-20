@@ -75,6 +75,10 @@ export const icons = {
     ),
   search: () =>
     svg(`<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>`),
+  refresh: () =>
+    svg(
+      `<path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/>`,
+    ),
   tag: () =>
     svg(
       `<path d="M20.6 13.4 12 22 2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/>`,

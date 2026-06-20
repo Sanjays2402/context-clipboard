@@ -341,6 +341,17 @@ header {
   transform: translateY(0) scale(0.96);
 }
 
+/* Refetch button spinner — rotate while a re-fetch is inflight so the
+   user sees the action is doing something instead of guessing. */
+.icon-btn.refetching svg {
+  animation: refetch-spin 0.9s linear infinite;
+}
+
+@keyframes refetch-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 .filters {
   display: flex;
   gap: 2px;

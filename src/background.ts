@@ -394,6 +394,53 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
             },
           });
         }
+        if (msg.action === "refetchImage") {
+          // Pull a fresh data URL for an image clip from its original
+          // source URL. Re-runs the dimension probe so changed images
+          // (re-uploads, redirects, server-side resizes) update their
+          // width/height too. Returns the updated clip so the popup
+          // can re-render without an extra round-trip. Local-only by
+          // construction — the only network call goes to the source
+          // host the user already visited.
+          const p = msg.payload as { id?: string } | undefined;
+          if (!p?.id) return sendResponse({ ok: false, error: "id required" });
+          const c = await getClip(p.id);
+          if (!c) return sendResponse({ ok: false, error: "not found" });
+          if (c.kind !== "image") {
+            return sendResponse({ ok: false, error: "not an image clip" });
+          }
+          // We need a source URL — `nearbyText` is where context-menu
+          // captures stash the original `srcUrl`; copy-event captures
+          // also drop the src there.
+          const src = c.source.nearbyText || c.source.url;
+          if (!src || !/^https?:\/\//i.test(src)) {
+            return sendResponse({ ok: false, error: "no fetchable source URL" });
+          }
+          try {
+            const fresh = await fetchAsDataUrl(src);
+            const dims = await imageDims(fresh);
+            c.content = fresh;
+            c.mime = guessMime(fresh);
+            c.bytes = fresh.length;
+            if (dims) {
+              c.width = dims.width;
+              c.height = dims.height;
+              // Refresh inline dims in the preview when it has the
+              // stock format.
+              if (c.preview && /\b\d+×\d+\b/.test(c.preview)) {
+                c.preview = c.preview.replace(/\b\d+×\d+\b/, `${dims.width}×${dims.height}`);
+              } else if (c.preview && !/\b\d+×\d+\b/.test(c.preview)) {
+                c.preview = `${c.preview} · ${dims.width}×${dims.height}`;
+              }
+            }
+            c.lastSeenAt = Date.now();
+            await putClip(c);
+            return sendResponse({ ok: true, clip: c });
+          } catch (e) {
+            const err = e instanceof Error ? e.message : String(e);
+            return sendResponse({ ok: false, error: err });
+          }
+        }
         if (msg.action === "setOcrText") {
           const p = msg.payload as { id?: string; text?: string } | undefined;
           if (!p?.id) return sendResponse({ ok: false, error: "id required" });
@@ -671,6 +718,7 @@ interface RpcMsg {
     | "applySidePanelMode"
     | "redactClip"
     | "unredactClip"
+    | "refetchImage"
     | "listSiteRules"
     | "upsertSiteRule"
     | "removeSiteRule";
