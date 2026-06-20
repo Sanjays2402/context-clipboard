@@ -172,6 +172,18 @@
             <option value="csv">CSV (spreadsheet)</option>
           </select>
         </label>
+        <div class="setting export-filter-setting">
+          <span>Export filter</span>
+          <div class="export-filter-grid">
+            <label class="rule-toggle"><input id="exp-pinned" type="checkbox" /> pinned only</label>
+            <label class="rule-toggle"><input id="exp-skip-images" type="checkbox" /> skip images</label>
+            <label class="rule-toggle"><input id="exp-redacted-only" type="checkbox" /> redacted only</label>
+            <input id="exp-tag" type="text" placeholder="tag (optional)" autocomplete="off" spellcheck="false" />
+            <input id="exp-after" type="date" />
+            <input id="exp-before" type="date" />
+          </div>
+          <div class="export-filter-hint" id="export-filter-hint">All clips will be exported.</div>
+        </div>
         <div class="trash-section" id="trash-section">
           <div class="trash-header">
             <span class="trash-title">Trash</span>

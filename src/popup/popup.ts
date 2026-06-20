@@ -26,7 +26,7 @@ import {
   type EncryptedEnvelope,
 } from "../lib/crypto";
 import { parseQuery, applyQuery, describeQuery } from "../lib/search";
-import { toMarkdown, toCsv, mimeFor, extFor, type ExportFormat } from "../lib/export";
+import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFilter, type ExportFormat, type ExportFilter } from "../lib/export";
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
 
 const api: typeof chrome =
@@ -105,6 +105,13 @@ const encryptToggle = $<HTMLInputElement>("s-encrypt-export");
 const exportPass = $<HTMLInputElement>("export-pass");
 const encryptPassRow = $("encrypt-pass-row");
 const exportFormat = $<HTMLSelectElement>("export-format");
+const expPinned = $<HTMLInputElement>("exp-pinned");
+const expSkipImages = $<HTMLInputElement>("exp-skip-images");
+const expRedactedOnly = $<HTMLInputElement>("exp-redacted-only");
+const expTag = $<HTMLInputElement>("exp-tag");
+const expAfter = $<HTMLInputElement>("exp-after");
+const expBefore = $<HTMLInputElement>("exp-before");
+const exportFilterHint = $("export-filter-hint");
 const trashSummary = $("trash-summary");
 const trashList = $("trash-list");
 const trashEmpty = $<HTMLButtonElement>("trash-empty");
@@ -1546,6 +1553,32 @@ encryptToggle.addEventListener("change", () => {
   }
 });
 
+/**
+ * Read the export filter form into a typed spec. Empty / disabled fields
+ * become undefined so `describeExportFilter` says "All clips" until the
+ * user actually picks something.
+ */
+function readExportFilter(): ExportFilter {
+  return {
+    pinnedOnly: expPinned.checked || undefined,
+    redactedOnly: expRedactedOnly.checked || undefined,
+    skipImages: expSkipImages.checked || undefined,
+    tag: expTag.value.trim() || undefined,
+    afterDate: expAfter.value || undefined,
+    beforeDate: expBefore.value || undefined,
+  };
+}
+
+function updateExportFilterHint(): void {
+  const f = readExportFilter();
+  exportFilterHint.textContent = describeExportFilter(f);
+}
+
+for (const el of [expPinned, expRedactedOnly, expSkipImages, expTag, expAfter, expBefore]) {
+  el.addEventListener("change", updateExportFilterHint);
+  el.addEventListener("input", updateExportFilterHint);
+}
+
 exportBtn.addEventListener("click", () => {
   const format = (exportFormat.value as ExportFormat) || "json";
   const wantEncrypt = encryptToggle.checked && format === "json";
@@ -1558,25 +1591,35 @@ exportBtn.addEventListener("click", () => {
   if (encryptToggle.checked && format !== "json") {
     toast("Encryption is JSON-only; exporting plaintext", "error");
   }
+  const filter = readExportFilter();
   api.runtime.sendMessage(
     { type: "cc-rpc", action: "export" },
     async (resp: { ok: boolean; data?: { clips?: ClipItem[] } & Record<string, unknown> }) => {
       if (!resp?.ok || !resp.data) return toast("Export failed", "error");
       try {
+        const allClips = resp.data.clips || [];
+        const filteredClips = applyExportFilter(allClips, filter);
+        if (filteredClips.length === 0) {
+          toast("Filter matched 0 clips — nothing exported", "error");
+          return;
+        }
+        // Replace the clips in the payload so JSON exports respect the
+        // filter too. Spread to avoid mutating the response from background.
+        const payload = { ...resp.data, clips: filteredClips };
         let blobText: string;
         let suffix = "";
         let mime = mimeFor(format);
         if (format === "markdown") {
-          blobText = toMarkdown(resp.data.clips || []);
+          blobText = toMarkdown(filteredClips);
         } else if (format === "csv") {
-          blobText = toCsv(resp.data.clips || []);
+          blobText = toCsv(filteredClips);
         } else if (wantEncrypt) {
-          const env = await encryptJson(resp.data, pass);
+          const env = await encryptJson(payload, pass);
           blobText = JSON.stringify(env, null, 2);
           suffix = "-encrypted";
           mime = "application/json";
         } else {
-          blobText = JSON.stringify(resp.data, null, 2);
+          blobText = JSON.stringify(payload, null, 2);
         }
         const blob = new Blob([blobText], { type: mime });
         const url = URL.createObjectURL(blob);
@@ -1593,7 +1636,11 @@ exportBtn.addEventListener("click", () => {
               : wantEncrypt
                 ? "Exported (encrypted)"
                 : "Exported JSON";
-        toast(label);
+        const subset =
+          filteredClips.length === allClips.length
+            ? `${filteredClips.length}`
+            : `${filteredClips.length} of ${allClips.length}`;
+        toast(`${label} · ${subset} clip${filteredClips.length === 1 ? "" : "s"}`);
         if (wantEncrypt) exportPass.value = "";
       } catch (e) {
         console.error(e);
