@@ -33,6 +33,10 @@ export interface ClipItem {
   hash: string;
   /** Optional OCR'd text from an image clip. */
   ocrText?: string;
+  /** Image pixel width (kind=image only). */
+  width?: number;
+  /** Image pixel height (kind=image only). */
+  height?: number;
   /** True when content has been manually redacted (or captured under auto-redact). */
   redacted?: boolean;
   /**

@@ -60,6 +60,8 @@ const detailHits = $("detail-hits");
 const detailTags = $<HTMLInputElement>("detail-tags");
 const detailNearby = $("detail-nearby");
 const detailNearbyRow = $("detail-nearby-row");
+const detailImageRow = $("detail-image-row");
+const detailImageInfo = $("detail-image-info");
 const detailOcrRow = $("detail-ocr-row");
 const detailOcrText = $("detail-ocr-text");
 const detailCopy = $<HTMLButtonElement>("detail-copy");
@@ -122,7 +124,7 @@ function toast(msg: string, kind: "ok" | "error" = "ok") {
 function renderClip(c: ClipItem, idx: number, active: boolean): string {
   const thumb =
     c.kind === "image"
-      ? `<div class="thumb"><img src="${c.content}" alt="" /></div>`
+      ? `<div class="thumb"><img src="${c.content}" alt="" />${c.width && c.height ? `<span class="thumb-dims">${c.width}×${c.height}</span>` : ""}</div>`
       : `<div class="thumb thumb-icon">${clipKindIcon(c.kind)}</div>`;
   const src = [hostFrom(c.source.url), c.source.title]
     .filter(Boolean)
@@ -372,6 +374,15 @@ async function openDetail(id: string) {
     detailNearby.textContent = c.source.nearbyText;
   } else {
     detailNearbyRow.hidden = true;
+  }
+  if (c.kind === "image") {
+    detailImageRow.hidden = false;
+    const dims =
+      c.width && c.height ? `${c.width}×${c.height} px` : "unknown size";
+    const mime = c.mime || "image/png";
+    detailImageInfo.textContent = `${dims} · ${formatBytes(c.bytes)} · ${mime}`;
+  } else {
+    detailImageRow.hidden = true;
   }
   if (c.ocrText) {
     detailOcrRow.hidden = false;

@@ -50,7 +50,8 @@ export function toMarkdown(clips: ClipItem[]): string {
     if (src) out.push(`_source:_ <${src}>`);
     out.push("");
     if (c.kind === "image") {
-      const note = c.preview || `Image (${c.mime || "unknown"})`;
+      const dimNote = c.width && c.height ? ` (${c.width}×${c.height})` : "";
+      const note = c.preview || `Image (${c.mime || "unknown"})${dimNote}`;
       out.push(`> ${note}`);
       if (c.ocrText) {
         out.push("");
@@ -111,6 +112,8 @@ export function toCsv(clips: ClipItem[]): string {
     "tags",
     "hit_count",
     "bytes",
+    "image_width",
+    "image_height",
     "created_at",
     "last_seen_at",
     "ocr_text",
@@ -135,6 +138,8 @@ export function toCsv(clips: ClipItem[]): string {
         c.tags.join("|"),
         c.hitCount,
         c.bytes,
+        c.width ?? "",
+        c.height ?? "",
         isoOrEmpty(c.createdAt),
         isoOrEmpty(c.lastSeenAt),
         c.ocrText || "",

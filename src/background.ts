@@ -369,6 +369,18 @@ async function ingest(inp: IngestInput): Promise<string> {
     hash,
     ...(redacted ? { redacted: true } : {}),
   };
+  if (inp.kind === "image") {
+    const dims = await imageDims(inp.content);
+    if (dims) {
+      item.width = dims.width;
+      item.height = dims.height;
+      // Inline dimensions in the preview if it's a stock "Image copied from…"
+      // string. Easy visual cue in the list without taking another row.
+      if (item.preview && !/\b\d+×\d+\b/.test(item.preview)) {
+        item.preview = `${item.preview} · ${dims.width}×${dims.height}`;
+      }
+    }
+  }
   await putClip(item);
   await pruneOldUnpinned(settings.maxUnpinned);
   // Opportunistic trash GC — never let trash outlive the retention window.
@@ -392,6 +404,28 @@ async function fetchAsDataUrl(url: string): Promise<string> {
 function guessMime(dataUrl: string): string {
   const m = /^data:([^;]+);/.exec(dataUrl);
   return m ? m[1] : "image/png";
+}
+
+/**
+ * Decode an image data URL well enough to read its pixel dimensions.
+ * Runs in the service worker context (no DOM), so we use
+ * `createImageBitmap` on a Blob. Returns undefined on failure — the
+ * clip is still useful without dimensions.
+ */
+async function imageDims(
+  dataUrl: string,
+): Promise<{ width: number; height: number } | undefined> {
+  try {
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    if (typeof createImageBitmap !== "function") return undefined;
+    const bmp = await createImageBitmap(blob);
+    const dims = { width: bmp.width, height: bmp.height };
+    bmp.close();
+    return dims;
+  } catch {
+    return undefined;
+  }
 }
 
 // OCR happens in the popup (CSP-safe). Background only stores the result.
