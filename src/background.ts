@@ -48,6 +48,15 @@ api.runtime.onInstalled.addListener(() => {
       title: "Capture selection to Context Clipboard",
       contexts: ["selection"],
     });
+    // Paste-from-Clipboard on any editable field. We don't filter by
+    // input type — Chrome's `editable` context already covers textareas,
+    // text inputs, and contentEditable. Clicking surfaces the in-page
+    // palette so the user can fuzzy-search and pick a clip to paste.
+    api.contextMenus.create({
+      id: "cc-paste-from",
+      title: "Paste from Context Clipboard",
+      contexts: ["editable"],
+    });
   });
   void applySidePanelMode();
 });
@@ -88,9 +97,29 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   const rule = await findSiteRuleFor(host);
   // skipCapture honored for context-menu captures too — otherwise a rule
   // designed to "leave this site alone" would still leak via right-click.
-  if (rule?.skipCapture) return;
+  if (rule?.skipCapture && info.menuItemId !== "cc-paste-from") return;
 
   try {
+    if (info.menuItemId === "cc-paste-from") {
+      // Forward the palette into the page so the user can pick a clip
+      // to paste. We use the SAME message type as the keyboard
+      // shortcut path so the content script's existing palette code
+      // handles it — no second renderer to maintain. Skipped on
+      // chrome:// / about: tabs where content scripts can't run.
+      if (!tab?.id || !tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("about:")) {
+        return;
+      }
+      const clips = await listClips({ limit: 50 });
+      const lite = clips.map((c) => ({
+        id: c.id,
+        kind: c.kind,
+        content: c.content,
+        preview: c.preview,
+        source: { url: c.source.url, title: c.source.title },
+      }));
+      await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite });
+      return;
+    }
     if (info.menuItemId === "cc-capture-image" && info.srcUrl) {
       const dataUrl = await fetchAsDataUrl(info.srcUrl);
       await ingest({

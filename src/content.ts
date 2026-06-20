@@ -529,6 +529,21 @@ function openPalette(clips: PaletteClip[]) {
   }
 
   async function pick(c: PaletteClip) {
+    // If the user opened the palette via right-click on an editable
+    // field, paste the chosen clip directly into that field so the
+    // action mirrors a normal "Paste from menu". Falls back to copying
+    // to the system clipboard otherwise (keyboard-shortcut path).
+    const target = isEditable(lastFocusedField) ? lastFocusedField : null;
+    if (target && (c.kind === "text" || c.kind === "link")) {
+      try {
+        setFieldValue(target, c.content);
+        target.focus();
+        closePalette();
+        return;
+      } catch (e) {
+        console.warn("[context-clipboard] direct-paste failed, falling back to clipboard", e);
+      }
+    }
     try {
       if (c.kind === "image") {
         const res = await fetch(c.content);
