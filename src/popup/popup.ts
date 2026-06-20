@@ -23,6 +23,7 @@ import {
   type EncryptedEnvelope,
 } from "../lib/crypto";
 import { parseQuery, applyQuery, describeQuery } from "../lib/search";
+import { toMarkdown, toCsv, mimeFor, extFor, type ExportFormat } from "../lib/export";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -87,6 +88,7 @@ const clearAllBtn = $<HTMLButtonElement>("clear-all-btn");
 const encryptToggle = $<HTMLInputElement>("s-encrypt-export");
 const exportPass = $<HTMLInputElement>("export-pass");
 const encryptPassRow = $("encrypt-pass-row");
+const exportFormat = $<HTMLSelectElement>("export-format");
 const trashSummary = $("trash-summary");
 const trashList = $("trash-list");
 const trashEmpty = $<HTMLButtonElement>("trash-empty");
@@ -864,40 +866,58 @@ encryptToggle.addEventListener("change", () => {
 });
 
 exportBtn.addEventListener("click", () => {
-  const wantEncrypt = encryptToggle.checked;
+  const format = (exportFormat.value as ExportFormat) || "json";
+  const wantEncrypt = encryptToggle.checked && format === "json";
   const pass = exportPass.value;
   if (wantEncrypt && pass.length < 4) {
     toast("Passphrase must be at least 4 chars", "error");
     exportPass.focus();
     return;
   }
+  if (encryptToggle.checked && format !== "json") {
+    toast("Encryption is JSON-only; exporting plaintext", "error");
+  }
   api.runtime.sendMessage(
     { type: "cc-rpc", action: "export" },
-    async (resp: { ok: boolean; data?: unknown }) => {
-      if (!resp?.ok) return toast("Export failed", "error");
+    async (resp: { ok: boolean; data?: { clips?: ClipItem[] } & Record<string, unknown> }) => {
+      if (!resp?.ok || !resp.data) return toast("Export failed", "error");
       try {
         let blobText: string;
         let suffix = "";
-        if (wantEncrypt) {
+        let mime = mimeFor(format);
+        if (format === "markdown") {
+          blobText = toMarkdown(resp.data.clips || []);
+        } else if (format === "csv") {
+          blobText = toCsv(resp.data.clips || []);
+        } else if (wantEncrypt) {
           const env = await encryptJson(resp.data, pass);
           blobText = JSON.stringify(env, null, 2);
           suffix = "-encrypted";
+          mime = "application/json";
         } else {
           blobText = JSON.stringify(resp.data, null, 2);
         }
-        const blob = new Blob([blobText], { type: "application/json" });
+        const blob = new Blob([blobText], { type: mime });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `context-clipboard-${new Date().toISOString().slice(0, 10)}${suffix}.json`;
+        a.download = `context-clipboard-${new Date().toISOString().slice(0, 10)}${suffix}.${extFor(format, wantEncrypt)}`;
         a.click();
         URL.revokeObjectURL(url);
-        toast(wantEncrypt ? "Exported (encrypted)" : "Exported");
+        const label =
+          format === "markdown"
+            ? "Exported Markdown"
+            : format === "csv"
+              ? "Exported CSV"
+              : wantEncrypt
+                ? "Exported (encrypted)"
+                : "Exported JSON";
+        toast(label);
         if (wantEncrypt) exportPass.value = "";
       } catch (e) {
         console.error(e);
         toast(
-          e instanceof Error ? e.message : "Encryption failed",
+          e instanceof Error ? e.message : "Export failed",
           "error",
         );
       }

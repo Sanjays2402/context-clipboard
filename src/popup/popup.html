@@ -129,12 +129,20 @@
         </label>
         <div id="storage-info" class="storage-info"></div>
         <label class="setting toggle" id="encrypt-toggle-row">
-          <span>Encrypt export with passphrase</span>
+          <span>Encrypt export with passphrase (JSON only)</span>
           <input id="s-encrypt-export" type="checkbox" />
         </label>
         <label class="setting" id="encrypt-pass-row" hidden>
           <span>Export passphrase</span>
           <input id="export-pass" type="password" autocomplete="new-password" placeholder="min 4 chars — you'll need this to restore" />
+        </label>
+        <label class="setting">
+          <span>Export format</span>
+          <select id="export-format">
+            <option value="json">JSON (round-trippable)</option>
+            <option value="markdown">Markdown (human-readable)</option>
+            <option value="csv">CSV (spreadsheet)</option>
+          </select>
         </label>
         <div class="trash-section" id="trash-section">
           <div class="trash-header">
@@ -146,7 +154,7 @@
           <div class="trash-foot">Deleted clips live here for 7 days, then disappear forever.</div>
         </div>
         <div class="settings-actions">
-          <button id="export-btn">Export JSON</button>
+          <button id="export-btn">Export</button>
           <button id="import-btn">Import JSON</button>
           <button id="clear-all-btn" class="danger">Delete everything</button>
         </div>
