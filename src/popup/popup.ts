@@ -14,6 +14,9 @@ import {
   listSavedSearches,
   addSavedSearch,
   removeSavedSearch,
+  listSearchHistory,
+  pushSearchHistory,
+  clearSearchHistory,
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule } from "../lib/types";
@@ -47,6 +50,7 @@ const noteBtn = $<HTMLButtonElement>("note-btn");
 const tagChipsEl = $("tag-chips");
 const quickChipsEl = $("quick-chips");
 const savedSearchesEl = $("saved-searches");
+const searchHistoryEl = $("search-history");
 const saveSearchBtn = $<HTMLButtonElement>("save-search-btn");
 const dropZone = $("drop-zone");
 const filterBtns = document.querySelectorAll<HTMLButtonElement>(
@@ -145,6 +149,11 @@ let detailId: string | null = null;
 let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
 let savedSearches: SavedSearch[] = [];
+let searchHistory: string[] = [];
+// Debounce timer for recording the search box into history. We wait ~900ms
+// after the last keystroke before persisting so we don't write a row
+// per character.
+let historyDebounce: number | null = null;
 // The most recent free-text needle from the search box. We pass it into
 // renderClip + openDetail so matches get highlighted. Cleared when the
 // box empties so the highlight goes away without a re-render.
@@ -468,6 +477,60 @@ async function refreshSavedSearches(): Promise<void> {
   savedSearches = await listSavedSearches();
 }
 
+async function refreshSearchHistory(): Promise<void> {
+  searchHistory = await listSearchHistory();
+}
+
+/**
+ * Render the "Recent" ghost-chip strip just under the saved-searches row.
+ * We dedupe against saved searches (so a query that's both recent AND
+ * saved only shows as the saved chip) and against the current search
+ * box value (the user already sees what they're typing). Hidden when
+ * nothing useful remains so we don't waste vertical space.
+ *
+ * Ghost styling — muted, low-contrast border — telegraphs that these
+ * are auto-tracked vs the bolder bookmarked chips above.
+ */
+function renderSearchHistory(): void {
+  const current = searchEl.value.trim();
+  const savedQueries = new Set(savedSearches.map((s) => s.query));
+  const visible = searchHistory.filter(
+    (q) => q && q !== current && !savedQueries.has(q),
+  );
+  if (visible.length === 0) {
+    searchHistoryEl.hidden = true;
+    searchHistoryEl.innerHTML = "";
+    return;
+  }
+  searchHistoryEl.hidden = false;
+  searchHistoryEl.innerHTML =
+    `<span class="recent-label">Recent</span>` +
+    visible
+      .map(
+        (q) =>
+          `<button class="recent-chip" type="button" data-q="${escapeHtml(q)}" title="${escapeHtml(q)}">${escapeHtml(q.length > 28 ? q.slice(0, 28) + "…" : q)}</button>`,
+      )
+      .join("") +
+    `<button class="recent-clear" type="button" title="Clear recent searches">×</button>`;
+}
+
+/**
+ * Schedule a write to search history. We debounce ~900ms so typing
+ * "github" doesn't store "g", "gi", "git", ... — only the settled value.
+ * Caller responsible for canceling pending writes (e.g. on chip apply).
+ */
+function scheduleHistoryPush(query: string): void {
+  if (historyDebounce != null) clearTimeout(historyDebounce);
+  const value = query.trim();
+  if (!value) return;
+  historyDebounce = setTimeout(async () => {
+    historyDebounce = null;
+    await pushSearchHistory(value);
+    await refreshSearchHistory();
+    renderSearchHistory();
+  }, 900) as unknown as number;
+}
+
 async function handleSaveSearch(): Promise<void> {
   const q = searchEl.value.trim();
   if (!q) return;
@@ -502,6 +565,7 @@ async function render(): Promise<void> {
   renderTagChips(all);
   renderQuickChips(all);
   renderSavedSearches();
+  renderSearchHistory();
   updateSaveSearchButton();
   const parsed = parseQuery(searchEl.value);
   // Pull a wide window from IDB then apply parsed filters in-memory. The
@@ -1268,6 +1332,34 @@ savedSearchesEl.addEventListener("click", async (e) => {
 
 saveSearchBtn.addEventListener("click", () => void handleSaveSearch());
 
+// Search history (recent ghost chips) ----------------------------------
+searchHistoryEl.addEventListener("click", async (e) => {
+  const target = e.target as HTMLElement;
+  if (target.classList.contains("recent-clear")) {
+    await clearSearchHistory();
+    await refreshSearchHistory();
+    renderSearchHistory();
+    return;
+  }
+  const chip = target.closest(".recent-chip") as HTMLElement | null;
+  if (!chip) return;
+  const q = chip.dataset.q || "";
+  if (!q) return;
+  // Cancel any pending debounce so applying a recent chip doesn't queue
+  // a redundant write for the same string the user is now seeing.
+  if (historyDebounce != null) {
+    clearTimeout(historyDebounce);
+    historyDebounce = null;
+  }
+  searchEl.value = q;
+  activeIndex = 0;
+  // Move to front in the history (acts as "I used this again").
+  await pushSearchHistory(q);
+  await refreshSearchHistory();
+  searchEl.focus();
+  await render();
+});
+
 // List events -----------------------------------------------------------
 listEl.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;
@@ -1315,6 +1407,7 @@ listEl.addEventListener("click", async (e) => {
 
 searchEl.addEventListener("input", () => {
   activeIndex = 0;
+  scheduleHistoryPush(searchEl.value);
   render();
 });
 
@@ -1856,6 +1949,7 @@ bulkTag.addEventListener("click", async () => {
   const s = await getSettings();
   document.body.dataset.theme = s.theme;
   await refreshSavedSearches();
+  await refreshSearchHistory();
   await render();
   searchEl.focus();
 })();

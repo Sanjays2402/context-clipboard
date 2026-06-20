@@ -460,6 +460,80 @@ mark.match-hl {
   color: var(--text);
 }
 
+/* Recent search history (ghost chips below saved-searches) — auto-tracked,
+   muted to telegraph that these are ephemeral vs the saved-search chips
+   above them. */
+.search-history {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.search-history::-webkit-scrollbar {
+  display: none;
+}
+
+.recent-label {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  padding-right: 4px;
+  flex: 0 0 auto;
+}
+
+.recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  font-family: inherit;
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.15s ease;
+}
+
+.recent-chip:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  border-style: solid;
+  background: var(--accent-soft);
+}
+
+.recent-clear {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+
+.recent-clear:hover {
+  color: var(--danger);
+  background: var(--glass-hover);
+}
+
 /* Quick-filter pills (above tag chips) */
 .quick-chips {
   display: flex;

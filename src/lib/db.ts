@@ -503,6 +503,8 @@ export async function importAll(data: {
 // rewriting the whole array per change is fine.
 
 const SAVED_SEARCHES_KEY = "saved_searches";
+const SEARCH_HISTORY_KEY = "search_history";
+const SEARCH_HISTORY_MAX = 5;
 
 export async function listSavedSearches(): Promise<SavedSearch[]> {
   const store = await metaTx("readonly");
@@ -562,6 +564,55 @@ export async function removeSavedSearch(id: string): Promise<boolean> {
   if (next.length === list.length) return false;
   await writeSavedSearches(next);
   return true;
+}
+
+// Search history ---------------------------------------------------------
+//
+// Recently-typed queries (most recent first). Distinct from saved
+// searches: history is auto-recorded, ephemeral-feeling, capped at 5,
+// and dedupes against saved searches on read so the user never sees a
+// chip twice. We persist after the user "commits" a query (debounced
+// in the popup) so we don't pollute history with every keystroke.
+
+export async function listSearchHistory(): Promise<string[]> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(SEARCH_HISTORY_KEY);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: string[] } | undefined;
+      resolve(Array.isArray(row?.value) ? row.value.slice(0, SEARCH_HISTORY_MAX) : []);
+    };
+    req.onerror = () => resolve([]);
+  });
+}
+
+async function writeSearchHistory(list: string[]): Promise<void> {
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: SEARCH_HISTORY_KEY, value: list });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Record a query string. No-op for blanks. Moves an existing match to the
+ * front (most recent), keeps the list capped at SEARCH_HISTORY_MAX. Case-
+ * sensitive matching on the trimmed string so "GitHub" and "github" stay
+ * distinct — operators are usually lowercase anyway, but the free-text
+ * portion may legitimately differ.
+ */
+export async function pushSearchHistory(query: string): Promise<void> {
+  const trimmed = query.trim();
+  if (!trimmed) return;
+  const list = await listSearchHistory();
+  const without = list.filter((q) => q !== trimmed);
+  const next = [trimmed, ...without].slice(0, SEARCH_HISTORY_MAX);
+  await writeSearchHistory(next);
+}
+
+export async function clearSearchHistory(): Promise<void> {
+  await writeSearchHistory([]);
 }
 
 // Site rules ---------------------------------------------------------------
