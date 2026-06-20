@@ -516,9 +516,71 @@ async function render(): Promise<void> {
       .map((c, i) => renderClip(c, i, i === activeIndex))
       .join("");
   }
+  renderCountBreakdown(parsed);
+}
+
+/**
+ * Compose the footer count line. When a filter is active (search text,
+ * kind, pinned-only, active tag), we surface a quick breakdown of the
+ * current result set: kind counts, top host, pinned count. That makes
+ * the difference between a 7-clip filter result and a 7-clip empty-state
+ * obvious without scanning the list.
+ *
+ * No breakdown when the list is unfiltered — the bare "N clips" stays
+ * the cleanest state for the default view.
+ */
+function renderCountBreakdown(parsed: ReturnType<typeof parseQuery>): void {
   const desc = describeQuery(parsed);
-  const countText = `${currentClips.length} clip${currentClips.length === 1 ? "" : "s"}`;
-  countEl.textContent = desc ? `${countText} · ${desc}` : countText;
+  const total = currentClips.length;
+  const countText = `${total} clip${total === 1 ? "" : "s"}`;
+
+  const hasFilter =
+    !!desc ||
+    pinnedOnly ||
+    !!activeTag ||
+    currentKind !== "all" ||
+    !!searchEl.value.trim();
+
+  if (!hasFilter || total === 0) {
+    countEl.textContent = desc ? `${countText} · ${desc}` : countText;
+    return;
+  }
+
+  // Build a few quick breakdown bits in this priority order:
+  //   kind counts → pinned count → top host.
+  // We cap at three so the footer line stays scannable.
+  const bits: string[] = [];
+  const byKind: Record<string, number> = { text: 0, image: 0, link: 0 };
+  let pinned = 0;
+  const hostCounts = new Map<string, number>();
+  for (const c of currentClips) {
+    byKind[c.kind] = (byKind[c.kind] || 0) + 1;
+    if (c.pinned) pinned++;
+    const h = hostFrom(c.source.url);
+    if (h) hostCounts.set(h, (hostCounts.get(h) || 0) + 1);
+  }
+  // Kind counts — only include the ones with nonzero hits AND not already
+  // pinned by the filter (e.g. `kind:image` filter → don't echo "12 image").
+  if (!parsed.kind && currentKind === "all") {
+    if (byKind.text > 0 && byKind.text !== total)
+      bits.push(`${byKind.text} text`);
+    if (byKind.image > 0 && byKind.image !== total)
+      bits.push(`${byKind.image} image${byKind.image === 1 ? "" : "s"}`);
+    if (byKind.link > 0 && byKind.link !== total)
+      bits.push(`${byKind.link} link${byKind.link === 1 ? "" : "s"}`);
+  }
+  if (pinned > 0 && pinned !== total && !parsed.pinnedOnly && !pinnedOnly) {
+    bits.push(`${pinned} pinned`);
+  }
+  // Top host — only when it isn't redundant with a host: operator.
+  if (!parsed.host && hostCounts.size > 0) {
+    const [topHost, n] = [...hostCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (n > 1 && n !== total) bits.push(`${n} @${topHost}`);
+  }
+
+  const breakdown = bits.slice(0, 3).join(" · ");
+  const head = desc ? `${countText} · ${desc}` : countText;
+  countEl.textContent = breakdown ? `${head} · ${breakdown}` : head;
 }
 
 // Clipboard helpers -----------------------------------------------------
