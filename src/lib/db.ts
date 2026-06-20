@@ -483,17 +483,53 @@ export async function exportAll(): Promise<{ version: number; clips: ClipItem[];
 export async function importAll(data: {
   clips?: ClipItem[];
   settings?: Partial<Settings>;
-}): Promise<{ imported: number }> {
+}): Promise<{ imported: number; skippedId: number; skippedHash: number }> {
   let imported = 0;
+  let skippedId = 0;
+  let skippedHash = 0;
+  // Build a hash index of the live set ONCE so a 5k-clip import doesn't
+  // do 5k IDB scans. We rebuild it lazily after each insert so a single
+  // import file that contains its own dups also gets deduped against
+  // earlier rows in the same file.
+  const hashIndex = new Map<string, string>(); // hash -> existing clip id
+  for (const live of await listClips({ limit: 1_000_000 })) {
+    if (live.hash) hashIndex.set(live.hash, live.id);
+  }
   for (const c of data.clips ?? []) {
-    // Don't overwrite if id already exists.
+    // 1) Exact id collision — assume the import is a re-export of the
+    // same DB. Skip silently (the existing row is at least as fresh).
     const existing = await getClip(c.id);
-    if (existing) continue;
+    if (existing) {
+      skippedId++;
+      continue;
+    }
+    // 2) Hash collision — same content was captured under a different
+    // id (e.g. on another browser or after a reset). Merge by bumping
+    // hitCount + lastSeenAt on the existing row instead of inserting
+    // a duplicate, so the live list doesn't grow stale dupes.
+    if (c.hash) {
+      const dupId = hashIndex.get(c.hash);
+      if (dupId) {
+        const live = await getClip(dupId);
+        if (live) {
+          live.hitCount = (live.hitCount || 1) + (c.hitCount || 1);
+          live.lastSeenAt = Math.max(live.lastSeenAt, c.lastSeenAt || 0);
+          // Union tags so imported tags don't get dropped.
+          live.tags = Array.from(new Set([...(live.tags || []), ...(c.tags || [])]));
+          // Pin sticks if either side is pinned.
+          live.pinned = live.pinned || !!c.pinned;
+          await putClip(live);
+          skippedHash++;
+          continue;
+        }
+      }
+    }
     await putClip(c);
     imported++;
+    if (c.hash) hashIndex.set(c.hash, c.id);
   }
   if (data.settings) await saveSettings(data.settings);
-  return { imported };
+  return { imported, skippedId, skippedHash };
 }
 
 // Saved searches -----------------------------------------------------------

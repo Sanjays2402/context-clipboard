@@ -2592,9 +2592,22 @@ importFile.addEventListener("change", async () => {
     }
     api.runtime.sendMessage(
       { type: "cc-rpc", action: "import", payload: data },
-      (resp: { ok: boolean; imported?: number; error?: string }) => {
+      (resp: { ok: boolean; imported?: number; skippedId?: number; skippedHash?: number; error?: string }) => {
         if (resp?.ok) {
-          toast(`Imported ${resp.imported || 0}`);
+          const imp = resp.imported || 0;
+          const skipId = resp.skippedId || 0;
+          const skipHash = resp.skippedHash || 0;
+          // Build a concise summary: lead with imported count, then
+          // surface dedup outcomes ONLY when they happened so the
+          // common case ("clean import") stays a one-word toast.
+          const parts = [`Imported ${imp}`];
+          if (skipId > 0 || skipHash > 0) {
+            const dedupBits: string[] = [];
+            if (skipHash > 0) dedupBits.push(`${skipHash} merged`);
+            if (skipId > 0) dedupBits.push(`${skipId} already present`);
+            parts.push(`(${dedupBits.join(" · ")})`);
+          }
+          toast(parts.join(" "));
           render();
         } else {
           toast(resp?.error || "Import failed", "error");
