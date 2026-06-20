@@ -17,7 +17,7 @@ import {
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule } from "../lib/types";
-import { timeAgo, hostFrom, escapeHtml } from "../lib/util";
+import { timeAgo, hostFrom, escapeHtml, highlightHtml } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
   encryptJson,
@@ -145,6 +145,10 @@ let detailId: string | null = null;
 let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
 let savedSearches: SavedSearch[] = [];
+// The most recent free-text needle from the search box. We pass it into
+// renderClip + openDetail so matches get highlighted. Cleared when the
+// box empties so the highlight goes away without a re-render.
+let currentNeedle = "";
 
 /**
  * Show a transient toast. If `action` is provided, render a clickable
@@ -220,7 +224,7 @@ async function trashWithUndo(ids: string[], label?: string): Promise<void> {
 }
 
 // Rendering -------------------------------------------------------------
-function renderClip(c: ClipItem, idx: number, active: boolean): string {
+function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string): string {
   const thumb =
     c.kind === "image"
       ? `<div class="thumb"><img src="${c.content}" alt="" />${c.width && c.height ? `<span class="thumb-dims">${c.width}×${c.height}</span>` : ""}</div>`
@@ -239,12 +243,19 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
     .slice(0, 4)
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join("");
+  // Highlight the free-text needle inside the preview slice. For images we
+  // never highlight (the "preview" is just a placeholder label like "Image").
+  const previewSlice = previewText.slice(0, 140);
+  const previewHtml =
+    c.kind === "image"
+      ? escapeHtml(previewSlice)
+      : highlightHtml(previewSlice, needle);
   return `
     <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}" data-id="${c.id}" data-idx="${idx}">
       ${selectedIds.size > 0 ? `<div class="select-mark">${selectedIds.has(c.id) ? icons.check() : ""}</div>` : ""}
       ${thumb}
       <div class="body">
-        <div class="preview">${escapeHtml(previewText.slice(0, 140))}</div>
+        <div class="preview">${previewHtml}</div>
         <div class="meta">
           <span class="src" title="${escapeHtml(c.source.url || "")}">${escapeHtml(src || "—")}</span>
           <span>· ${timeAgo(c.lastSeenAt)}${hits}${expiry}</span>
@@ -504,6 +515,7 @@ async function render(): Promise<void> {
     extraTag: activeTag,
     extraKind: currentKind,
   }).slice(0, 200);
+  currentNeedle = parsed.freeText;
   if (activeIndex >= currentClips.length)
     activeIndex = Math.max(0, currentClips.length - 1);
   if (currentClips.length === 0) {
@@ -513,7 +525,7 @@ async function render(): Promise<void> {
     listEl.innerHTML = hint;
   } else {
     listEl.innerHTML = currentClips
-      .map((c, i) => renderClip(c, i, i === activeIndex))
+      .map((c, i) => renderClip(c, i, i === activeIndex, currentNeedle))
       .join("");
   }
   renderCountBreakdown(parsed);
@@ -677,7 +689,7 @@ async function openDetail(id: string) {
     detailBody.innerHTML = `<img src="${c.content}" alt="" />`;
     detailOcr.hidden = false;
   } else {
-    detailBody.innerHTML = `<pre>${escapeHtml(c.content)}</pre>`;
+    detailBody.innerHTML = `<pre>${highlightHtml(c.content, currentNeedle)}</pre>`;
     detailOcr.hidden = true;
   }
   detailUrl.href = c.source.url || "#";
@@ -1466,7 +1478,7 @@ detailRedact.addEventListener("click", async () => {
         if (updated.kind === "image") {
           detailBody.innerHTML = `<img src="${updated.content}" alt="" />`;
         } else {
-          detailBody.innerHTML = `<pre>${escapeHtml(updated.content)}</pre>`;
+          detailBody.innerHTML = `<pre>${highlightHtml(updated.content, currentNeedle)}</pre>`;
         }
         detailTags.value = updated.tags.join(", ");
         renderRedactButton(updated);
@@ -1507,7 +1519,7 @@ function endRevealOnce(): void {
       if (updated.kind === "image") {
         detailBody.innerHTML = `<img src="${updated.content}" alt="" />`;
       } else {
-        detailBody.innerHTML = `<pre>${escapeHtml(updated.content)}</pre>`;
+        detailBody.innerHTML = `<pre>${highlightHtml(updated.content, currentNeedle)}</pre>`;
       }
       renderRedactButton(updated);
     });
@@ -1530,7 +1542,7 @@ async function startRevealOnce(): Promise<void> {
   const countdownId = "reveal-countdown";
   detailBody.innerHTML =
     `<div class="reveal-banner"><span class="reveal-dot"></span> Revealed · snaps back in <span id="${countdownId}">10</span>s</div>` +
-    `<pre>${escapeHtml(c.originalContent)}</pre>`;
+    `<pre>${highlightHtml(c.originalContent, currentNeedle)}</pre>`;
   let remaining = Math.ceil(REVEAL_MS / 1000);
   revealInterval = setInterval(() => {
     remaining = Math.max(0, remaining - 1);

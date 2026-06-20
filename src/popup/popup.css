@@ -435,6 +435,31 @@ header {
   opacity: 0.7;
 }
 
+/* Search-match highlight — used by highlightHtml() inside clip previews
+   and detail bodies. Subtle accent tint + bold so it doesn't fight the
+   active-row glow but still pops when scanning a list. */
+mark.match-hl {
+  background: var(--accent-soft);
+  color: var(--text);
+  padding: 0 2px;
+  border-radius: 3px;
+  font-weight: 700;
+  /* Reset browser default that adds black text in some UA stylesheets. */
+  box-shadow: inset 0 -1px 0 var(--accent-glow);
+}
+
+.clip.active mark.match-hl,
+.clip.selected mark.match-hl {
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--bg);
+  box-shadow: none;
+}
+
+.detail-body mark.match-hl {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
 /* Quick-filter pills (above tag chips) */
 .quick-chips {
   display: flex;

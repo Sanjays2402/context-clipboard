@@ -43,6 +43,34 @@ export function escapeHtml(s: string): string {
   );
 }
 
+/** Escape a string so it can be embedded literally in a RegExp. */
+export function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Render `text` as HTML-safe, with case-insensitive occurrences of `needle`
+ * wrapped in `<mark class="match-hl">`. Used by the popup to bold search
+ * matches inside clip previews and detail bodies — readability wins big
+ * when scanning a busy list. Empty / whitespace needles → plain escaped
+ * text (no markup), so callers can pass `parseQuery(...).freeText` without
+ * guarding.
+ *
+ * Both sides go through `escapeHtml` BEFORE the regex search so a needle
+ * like `<script>` matches an escaped `&lt;script&gt;` in the body — and
+ * we never inject raw user input into the DOM.
+ */
+export function highlightHtml(text: string, needle?: string): string {
+  const escaped = escapeHtml(text);
+  const n = (needle || "").trim();
+  if (!n) return escaped;
+  const needleEsc = escapeHtml(n);
+  // If escaping made the needle empty (it shouldn't, but defensive), bail.
+  if (!needleEsc) return escaped;
+  const re = new RegExp(`(${escapeRegex(needleEsc)})`, "gi");
+  return escaped.replace(re, `<mark class="match-hl">$1</mark>`);
+}
+
 const SENSITIVE_ASSIGNMENT_RE =
   /\b(api[_-]?key|secret|token|password|passwd|pwd|bearer)\b\s*[:=]\s*["']?[^\s,;"']{8,}["']?/gi;
 const JWT_RE = /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/g;
