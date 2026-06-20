@@ -245,12 +245,14 @@
 
     <footer>
       <span id="count"></span>
+      <button id="select-all-filtered" class="select-all-btn" type="button" hidden></button>
       <span class="hint">? cheatsheet · Shift+Click MD · ⌘/Ctrl+Click select · ↑↓ ⏎ / · X select · [ ] next/prev</span>
       <button id="clear">Clear unpinned</button>
     </footer>
 
     <div id="bulk-bar" class="bulk-bar" hidden>
       <span id="bulk-count">0 selected</span>
+      <button id="bulk-select-all" title="Select all filtered (⌘/Ctrl+A)" data-icon="check"></button>
       <button id="bulk-pin" title="Toggle pin on selection" data-icon="pin"></button>
       <button id="bulk-tag" title="Add tag to selection" data-icon="tag"></button>
       <button id="bulk-del" class="danger" title="Delete selection" data-icon="trash"></button>
@@ -280,6 +282,7 @@
             <h4>Clip actions</h4>
             <div class="cheatsheet-row"><kbd>P</kbd><span>Pin / unpin active</span></div>
             <div class="cheatsheet-row"><kbd>X</kbd><span>Toggle select on active</span></div>
+            <div class="cheatsheet-row"><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>A</kbd><span>Select all visible</span></div>
             <div class="cheatsheet-row"><kbd>Delete</kbd> / <kbd>⌫</kbd><span>Trash active (with Undo toast)</span></div>
             <div class="cheatsheet-row"><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Click</kbd><span>Toggle select (multi)</span></div>
             <div class="cheatsheet-row"><kbd>Shift</kbd>+<kbd>Click</kbd><span>Copy as Markdown</span></div>

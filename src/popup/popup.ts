@@ -132,10 +132,12 @@ const ruleAddBtn = $<HTMLButtonElement>("rule-add");
 
 const bulkBar = $("bulk-bar");
 const bulkCount = $("bulk-count");
+const bulkSelectAll = $<HTMLButtonElement>("bulk-select-all");
 const bulkPin = $<HTMLButtonElement>("bulk-pin");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
 const bulkClear = $<HTMLButtonElement>("bulk-clear");
+const selectAllFilteredBtn = $<HTMLButtonElement>("select-all-filtered");
 
 const toastEl = $("toast");
 const cheatsheetEl = $("cheatsheet");
@@ -659,6 +661,17 @@ function renderCountBreakdown(parsed: ReturnType<typeof parseQuery>): void {
   const breakdown = bits.slice(0, 3).join(" · ");
   const head = desc ? `${countText} · ${desc}` : countText;
   countEl.textContent = breakdown ? `${head} · ${breakdown}` : head;
+
+  // Surface "Select all (N)" beside the count when a filter is active,
+  // there's something to act on, and the user hasn't already started a
+  // selection (in which case the bulk bar's own select-all is enough).
+  const showSelectAll =
+    hasFilter && total > 0 && selectedIds.size === 0;
+  selectAllFilteredBtn.hidden = !showSelectAll;
+  if (showSelectAll) {
+    selectAllFilteredBtn.textContent = `Select all ${total}`;
+    selectAllFilteredBtn.title = `Add all ${total} filtered clip${total === 1 ? "" : "s"} to selection (⌘/Ctrl+A)`;
+  }
 }
 
 // Clipboard helpers -----------------------------------------------------
@@ -1610,6 +1623,17 @@ document.addEventListener("keydown", async (e) => {
     searchEl.focus();
   } else if (e.key === "Escape" && selectedIds.size > 0) {
     clearSelection();
+  } else if (e.key.toLowerCase() === "a" && (e.metaKey || e.ctrlKey) && !inSearch) {
+    // Select all currently-visible clips. Skipped inside the search box so
+    // it preserves the native text-select-all there. Anywhere else in the
+    // popup, this is the bulk-action accelerator.
+    if (currentClips.length === 0) return;
+    e.preventDefault();
+    const before = selectedIds.size;
+    const added = selectAllVisible();
+    if (added > 0) toast(`Selected ${selectedIds.size}`);
+    else if (before > 0) toast("All visible already selected");
+    await render();
   } else if (e.key.toLowerCase() === "x" && !inSearch) {
     // Toggle selection on the active clip.
     const c = currentClips[activeIndex];
@@ -1986,6 +2010,15 @@ function updateBulkBar(): void {
   }
   bulkBar.hidden = false;
   bulkCount.textContent = `${selectedIds.size} selected`;
+  // Adapt the select-all button to act as a deselect-all when every
+  // currently-visible clip is already in the selection. Tooltip clarifies.
+  const allSelected =
+    currentClips.length > 0 &&
+    currentClips.every((c) => selectedIds.has(c.id));
+  bulkSelectAll.title = allSelected
+    ? "Deselect all visible"
+    : `Select all visible (${currentClips.length})`;
+  bulkSelectAll.classList.toggle("active", allSelected);
 }
 
 function toggleSelected(id: string): void {
@@ -2000,6 +2033,62 @@ function clearSelection(): void {
   updateBulkBar();
   void render();
 }
+
+/**
+ * Select every clip in the current filtered list. Returns the count
+ * selected. Used by the footer "Select all (N)" affordance, the bulk
+ * bar's select-all toggle, and the ⌘/Ctrl+A shortcut.
+ *
+ * Behavior is idempotent additive — items not in the current filter stay
+ * in the selection if they were already there (so applying a filter,
+ * select-all-ing, then changing the filter doesn't silently forget
+ * earlier work).
+ */
+function selectAllVisible(): number {
+  let added = 0;
+  for (const c of currentClips) {
+    if (!selectedIds.has(c.id)) {
+      selectedIds.add(c.id);
+      added++;
+    }
+  }
+  updateBulkBar();
+  return added;
+}
+
+/** Remove every currently-visible clip from the selection. */
+function deselectAllVisible(): number {
+  let removed = 0;
+  for (const c of currentClips) {
+    if (selectedIds.has(c.id)) {
+      selectedIds.delete(c.id);
+      removed++;
+    }
+  }
+  updateBulkBar();
+  return removed;
+}
+
+bulkSelectAll.addEventListener("click", async () => {
+  const allSelected =
+    currentClips.length > 0 &&
+    currentClips.every((c) => selectedIds.has(c.id));
+  if (allSelected) {
+    const n = deselectAllVisible();
+    if (n > 0) toast(`Deselected ${n}`);
+  } else {
+    const n = selectAllVisible();
+    if (n > 0) toast(`Selected ${selectedIds.size}`);
+  }
+  await render();
+});
+
+selectAllFilteredBtn.addEventListener("click", async () => {
+  if (currentClips.length === 0) return;
+  const n = selectAllVisible();
+  if (n > 0) toast(`Selected ${selectedIds.size}`);
+  await render();
+});
 
 bulkClear.addEventListener("click", () => clearSelection());
 

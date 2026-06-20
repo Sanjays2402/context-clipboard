@@ -1355,6 +1355,30 @@ footer button:hover {
   background: rgba(255, 107, 120, 0.08);
 }
 
+/* Footer "Select all N" affordance — only visible when a filter is active
+   AND no selection is in progress. Hover lifts to accent (this isn't
+   destructive like Clear unpinned, so it doesn't go red). */
+.select-all-btn {
+  background: var(--accent-soft) !important;
+  border: 1px solid var(--accent) !important;
+  color: var(--accent) !important;
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.select-all-btn:hover {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
 /* Toast */
 .toast {
   position: fixed;
@@ -2236,6 +2260,19 @@ kbd {
   border-color: var(--danger);
   color: var(--danger);
   background: rgba(255, 107, 120, 0.12);
+}
+
+/* Active state for the select-all toggle inside the bulk bar — fills with
+   accent so the user can tell it's now acting as a deselect-all. */
+.bulk-bar button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.bulk-bar button.active:hover {
+  background: var(--accent-strong);
+  color: var(--bg);
 }
 
 .bulk-bar svg {
