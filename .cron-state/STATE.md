@@ -47,18 +47,18 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Search & navigation
-- [ ] Saved searches / smart folders (user names a query, gets a one-click chip)
 - [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)  <!-- partially covered by quick chips, still keep -->
 - [ ] Fuzzy command palette in popup (`Cmd+K`: actions like "Pin all images", "Clear redacted only")
 - [ ] Jump to host: typing `g github` in search jumps to first github clip
-- [ ] Result count per active filter ("12 in code, 4 in github.com")
+- [ ] Search highlight: bold/inline-highlight needle inside each clip preview
+- [ ] Recently-used search history (last 5 typed queries as ghost chips below the box)
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
-- [ ] Per-site capture rules (auto-tag from host, auto-pin, auto-redact)
 - [ ] Image: link back to original `srcUrl` clearly, with re-fetch button
 - [ ] Bigger paragraph context: collapse/expand long nearby text
 - [ ] Manual quick-tag dropdown when adding notes
+- [ ] Capture from address bar (`omnibox` keyword: `cc <text>` jumps to a note)
 
 ### Pasting & flow
 - [ ] Paste-stack mode: queue N clips, paste them in order across multiple inputs
@@ -67,17 +67,18 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Right-click menu on text input: "Paste from Context Clipboard"
 
 ### Privacy & security
-- [ ] Per-site auto-redact override (force on for `*.bank.com`)
-- [ ] Reveal-once mode for redacted clips (show original, snap back after 10s)
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
+- [ ] Custom redaction patterns (user-defined regex list per site rule)
+- [ ] Anti-shoulder-surf: blur previews until hover (toggle)
 
 ### Data lifecycle
 - [ ] Smart dedup across `lastSeenAt` window groups (right now only same-hash)
-- [ ] Export filter: pick what to export (pinned / by tag / by date range)
 - [ ] Import merge strategy: dedup by hash on import
+- [ ] Bulk re-tag from search (apply tag to every clip in current filter)
 
 ### UI polish (real, not cosmetic)
 - [ ] Storage breakdown chart (text vs images vs OCR text)
+- [ ] Keyboard cheatsheet overlay (press `?` to show)
 
 ### Shipped (autoship)
 - [x] Smart search operators (kind/host/tag/is/before/after) — `c407d53`
@@ -90,6 +91,11 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Forget host: bulk soft-delete every clip from a hostname — `248f18a`
 - [x] Snippet templates: `{{date}} {{host}} {{url}}` expansion on copy — `6df6a33`
 - [x] Per-clip TTL with auto-expiry to trash — `def72c1`
+- [x] Saved searches / smart folders (named queries as chips) — `72b7ed7`
+- [x] Per-site capture rules (auto-tag/pin/redact/skip) — `97f584c`
+- [x] Reveal-once mode for redacted clips (10s with countdown) — `7f37ed1`
+- [x] Export filter (pinned / tag / date range / skip images) — `656d25e`
+- [x] Result count breakdown when filtering — `ad3b2a1`
 
 ## Tick log
 
@@ -97,6 +103,13 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 <!-- TICKS BELOW -->
 
+- **2026-06-20 03:27 PT** — 5/5 shipped. Saved searches as chips with one-click
+  apply (72b7ed7), per-site capture rules with host or `*.host` patterns and
+  auto-tag/pin/redact/skip effects (97f584c), reveal-once for redacted clips
+  with 10s countdown and snap-back (7f37ed1), export filter with pinned/tag/
+  date-range/skip-images and live hint (656d25e), filtered count breakdown
+  in the footer (ad3b2a1). tsc + chrome/firefox builds green; 11/11 export
+  filter sanity checks pass.
 - **2026-06-19 22:19 PT** — 5/5 shipped. Toast Undo for delete (62608cf),
   detail prev/next nav with `[`/`]` (909c903), Forget host (248f18a),
   snippet templates with `{{tokens}}` (6df6a33), per-clip TTL with
