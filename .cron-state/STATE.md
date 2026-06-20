@@ -38,7 +38,7 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Search & navigation
 - [ ] Saved searches / smart folders (user names a query, gets a one-click chip)
-- [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)
+- [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)  <!-- partially covered by quick chips, still keep -->
 - [ ] Fuzzy command palette in popup (`Cmd+K`: actions like "Pin all images", "Clear redacted only")
 - [ ] Jump to host: typing `g github` in search jumps to first github clip
 - [ ] Result count per active filter ("12 in code, 4 in github.com")
@@ -74,8 +74,21 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Detail view: previous/next clip arrows (`[` `]`)
 - [ ] Toast undo for delete (5s window with "Undo")
 
+### Shipped (autoship)
+- [x] Smart search operators (kind/host/tag/is/before/after) — `c407d53`
+- [x] Soft-delete trash with 7-day restore — `1a306bc`
+- [x] Quick-filter pill row (pinned / redacted / OCR / images / 24h / top hosts) — `9183ea8`
+- [x] Export as Markdown + CSV — `47f75d9`
+- [x] Image dimensions + byte size in list/detail/export — `76fb6e7`
+
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-19 21:30 PT** — first tick. Bootstrapped STATE + feature/autoship.
+  Shipped 5/5: smart search operators (c407d53), soft-delete trash (1a306bc),
+  quick-filter pills (9183ea8), Markdown+CSV export (47f75d9), image dims
+  (76fb6e7). tsc + chrome/firefox builds green; 15/15 search sanity tests
+  pass.
