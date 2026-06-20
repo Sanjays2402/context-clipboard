@@ -19,6 +19,7 @@ import {
 } from "./lib/db";
 import type { ClipItem, ClipSource, FieldMapEntry } from "./lib/types";
 import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii } from "./lib/util";
+import { hasTemplateTokens } from "./lib/templates";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -376,6 +377,13 @@ async function ingest(inp: IngestInput): Promise<string> {
     hash,
     ...(redacted ? { redacted: true } : {}),
   };
+  // Template detection (text only): when the captured body contains
+  // {{tokens}}, flag the clip so the popup expands at copy time. Image
+  // and link clips don't carry templates.
+  if (inp.kind === "text" && hasTemplateTokens(storedContent)) {
+    item.template = true;
+    if (!item.tags.includes("template")) item.tags.push("template");
+  }
   if (inp.kind === "image") {
     const dims = await imageDims(inp.content);
     if (dims) {

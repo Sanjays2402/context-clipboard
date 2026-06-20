@@ -24,6 +24,7 @@ import {
 } from "../lib/crypto";
 import { parseQuery, applyQuery, describeQuery } from "../lib/search";
 import { toMarkdown, toCsv, mimeFor, extFor, type ExportFormat } from "../lib/export";
+import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -67,6 +68,8 @@ const detailImageRow = $("detail-image-row");
 const detailImageInfo = $("detail-image-info");
 const detailOcrRow = $("detail-ocr-row");
 const detailOcrText = $("detail-ocr-text");
+const detailTemplateRow = $("detail-template-row");
+const detailTemplateInfo = $("detail-template-info");
 const detailCopy = $<HTMLButtonElement>("detail-copy");
 const detailCopyMd = $<HTMLButtonElement>("detail-copy-md");
 
@@ -197,7 +200,7 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
   const thumb =
     c.kind === "image"
       ? `<div class="thumb"><img src="${c.content}" alt="" />${c.width && c.height ? `<span class="thumb-dims">${c.width}×${c.height}</span>` : ""}</div>`
-      : `<div class="thumb thumb-icon">${clipKindIcon(c.kind)}</div>`;
+      : `<div class="thumb thumb-icon">${clipKindIcon(c.kind)}${c.template ? `<span class="thumb-badge" title="Template — tokens fill in at copy time">T</span>` : ""}</div>`;
   const src = [hostFrom(c.source.url), c.source.title]
     .filter(Boolean)
     .join(" · ");
@@ -265,12 +268,14 @@ function renderQuickChips(allClips: ClipItem[]) {
   let redacted = 0;
   let ocr = 0;
   let images = 0;
+  let templates = 0;
   for (const c of allClips) {
     const h = hostFrom(c.source.url);
     if (h) hostCounts.set(h, (hostCounts.get(h) || 0) + 1);
     if (c.redacted) redacted++;
     if (c.ocrText) ocr++;
     if (c.kind === "image") images++;
+    if (c.template) templates++;
   }
   const topHosts = Array.from(hostCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -283,6 +288,13 @@ function renderQuickChips(allClips: ClipItem[]) {
     op: "is:pinned",
     active: hasOp("is:pinned"),
   });
+  if (templates > 0)
+    pills.push({
+      label: "Templates",
+      op: "is:template",
+      active: hasOp("is:template"),
+      count: templates,
+    });
   if (redacted > 0)
     pills.push({
       label: "Redacted",
@@ -368,7 +380,7 @@ async function render(): Promise<void> {
     activeIndex = Math.max(0, currentClips.length - 1);
   if (currentClips.length === 0) {
     const hint = searchEl.value.trim()
-      ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>after:24h</code>.</small></div>`
+      ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:template</code> / <code>after:24h</code>.</small></div>`
       : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     listEl.innerHTML = hint;
   } else {
@@ -382,6 +394,33 @@ async function render(): Promise<void> {
 }
 
 // Clipboard helpers -----------------------------------------------------
+
+/**
+ * Pull URL/title/host from the currently active tab so templates can
+ * expand `{{url}}` / `{{title}}` / `{{host}}` against the page the user
+ * is actually looking at when they hit Copy. Falls back to the clip's
+ * own source when the popup is opened over chrome:// / extension pages
+ * where tabs.query returns nothing useful.
+ */
+async function gatherTemplateContext(c: ClipItem): Promise<TemplateContext> {
+  let url: string | undefined;
+  let title: string | undefined;
+  try {
+    const [tab] = await new Promise<chrome.tabs.Tab[]>((resolve) => {
+      api.tabs.query({ active: true, currentWindow: true }, (tabs) => resolve(tabs || []));
+    });
+    if (tab?.url && !/^(chrome|about|edge|moz-extension|chrome-extension):/i.test(tab.url)) {
+      url = tab.url;
+      title = tab.title;
+    }
+  } catch {
+    // tabs API may be unavailable (some browsers / contexts) — ignore
+  }
+  if (!url) url = c.source.url;
+  if (!title) title = c.source.title;
+  return { url, title, host: hostFrom(url) || undefined };
+}
+
 async function copyToClipboard(c: ClipItem) {
   try {
     if (c.kind === "image") {
@@ -390,6 +429,18 @@ async function copyToClipboard(c: ClipItem) {
       const Item = (window as unknown as { ClipboardItem: new (parts: Record<string, Blob>) => unknown }).ClipboardItem;
       const clip = navigator.clipboard as unknown as { write: (items: unknown[]) => Promise<void> };
       await clip.write([new Item({ [blob.type]: blob })]);
+    } else if (c.template || (c.kind === "text" && /\{\{[a-zA-Z]/.test(c.content))) {
+      // Expand template against the live active-tab context. We re-check
+      // for tokens inline so older clips imported before the `template`
+      // flag existed still expand correctly.
+      const ctx = await gatherTemplateContext(c);
+      const expanded = expandTemplate(c.content, ctx);
+      await navigator.clipboard.writeText(expanded);
+      const tokens = listTokens(c.content);
+      toast(
+        tokens.length ? `Copied (filled ${tokens.length} token${tokens.length === 1 ? "" : "s"})` : "Copied",
+      );
+      return;
     } else {
       await navigator.clipboard.writeText(c.content);
     }
@@ -461,6 +512,27 @@ async function openDetail(id: string) {
     detailOcrText.textContent = c.ocrText;
   } else {
     detailOcrRow.hidden = true;
+  }
+  // Template tokens — show a preview of how the clip will expand when
+  // copied. Re-runs the expander against current tab context so the
+  // user sees the *real* substitutions, not just the token names.
+  if (c.kind === "text" && (c.template || /\{\{[a-zA-Z]/.test(c.content))) {
+    const tokens = listTokens(c.content);
+    if (tokens.length > 0) {
+      const ctx = await gatherTemplateContext(c);
+      const expanded = expandTemplate(c.content, ctx);
+      const sample = expanded.length > 160 ? `${expanded.slice(0, 160).trim()}…` : expanded;
+      detailTemplateRow.hidden = false;
+      detailTemplateInfo.innerHTML =
+        `<div class="template-tokens">${tokens
+          .map((t) => `<code>{{${escapeHtml(t)}}}</code>`)
+          .join("")}</div>` +
+        `<div class="template-preview" title="Preview of what gets copied (live tab context)">${escapeHtml(sample)}</div>`;
+    } else {
+      detailTemplateRow.hidden = true;
+    }
+  } else {
+    detailTemplateRow.hidden = true;
   }
   detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
   renderRedactButton(c);

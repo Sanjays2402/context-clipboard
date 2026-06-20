@@ -45,6 +45,12 @@ export interface ClipItem {
    * ever stored), this stays undefined and redaction becomes one-way.
    */
   originalContent?: string;
+  /**
+   * True when the clip's content contains `{{tokens}}` and should be
+   * expanded against live tab/date context at copy time. Set on ingest;
+   * cleared by re-ingest if the body changes.
+   */
+  template?: boolean;
 }
 
 export interface SearchQuery {

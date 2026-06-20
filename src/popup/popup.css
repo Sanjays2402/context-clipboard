@@ -161,6 +161,25 @@ body[data-theme="light"] {
   opacity: 0.85;
 }
 
+.clip .thumb .thumb-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 1.5px var(--bg);
+  letter-spacing: 0.04em;
+}
+
 .clip .actions button {
   display: inline-flex;
   align-items: center;
@@ -1100,6 +1119,43 @@ footer button:hover {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.template-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.template-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.template-tokens code {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.template-preview {
+  padding: 9px 12px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 11.5px;
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 80px;
+  overflow-y: auto;
 }
 
 #detail-tags {
