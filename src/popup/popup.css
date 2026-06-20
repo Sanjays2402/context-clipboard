@@ -980,6 +980,24 @@ footer button:hover {
   letter-spacing: -0.01em;
 }
 
+.detail-nav-pos {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 3px 8px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-header .icon-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .detail-body {
   padding: 18px;
   overflow-y: auto;

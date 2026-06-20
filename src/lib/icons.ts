@@ -54,6 +54,8 @@ export const icons = {
       `<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m5 6 1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/>`,
     ),
   back: () => svg(`<path d="m15 18-6-6 6-6"/>`),
+  chevronUp: () => svg(`<path d="m18 15-6-6-6 6"/>`),
+  chevronDown: () => svg(`<path d="m6 9 6 6 6-6"/>`),
   close: () => svg(`<path d="M18 6 6 18M6 6l12 12"/>`),
   eye: () =>
     svg(

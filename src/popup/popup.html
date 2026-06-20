@@ -36,6 +36,9 @@
       <div class="detail-header">
         <button id="detail-back" class="icon-btn" title="Back" data-icon="back"></button>
         <span class="detail-title">Clip</span>
+        <span id="detail-nav-pos" class="detail-nav-pos" hidden></span>
+        <button id="detail-prev" class="icon-btn" title="Previous clip ([)" data-icon="chevronUp"></button>
+        <button id="detail-next" class="icon-btn" title="Next clip (])" data-icon="chevronDown"></button>
         <button id="detail-ocr" class="icon-btn" title="OCR text from image" data-icon="eye" hidden></button>
         <button id="detail-redact" class="icon-btn" title="Redact emails / phones / secrets in this clip" data-icon="shield"></button>
         <button id="detail-pin" class="icon-btn" title="Pin" data-icon="pin"></button>
@@ -171,7 +174,7 @@
 
     <footer>
       <span id="count"></span>
-      <span class="hint">Shift+Click MD · ⌘/Ctrl+Click select · ↑↓ ⏎ / · X select</span>
+      <span class="hint">Shift+Click MD · ⌘/Ctrl+Click select · ↑↓ ⏎ / · X select · [ ] next/prev</span>
       <button id="clear">Clear unpinned</button>
     </footer>
 

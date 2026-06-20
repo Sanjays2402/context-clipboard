@@ -49,6 +49,9 @@ const filterBtns = document.querySelectorAll<HTMLButtonElement>(
 
 const detailEl = $("detail");
 const detailBack = $<HTMLButtonElement>("detail-back");
+const detailPrev = $<HTMLButtonElement>("detail-prev");
+const detailNext = $<HTMLButtonElement>("detail-next");
+const detailNavPos = $("detail-nav-pos");
 const detailPin = $<HTMLButtonElement>("detail-pin");
 const detailDelete = $<HTMLButtonElement>("detail-delete");
 const detailOcr = $<HTMLButtonElement>("detail-ocr");
@@ -459,7 +462,47 @@ async function openDetail(id: string) {
   }
   detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
   renderRedactButton(c);
+  updateDetailNav();
   detailEl.hidden = false;
+}
+
+/**
+ * Refresh the prev/next buttons + position pill based on `detailId`'s
+ * index in the currently-filtered list. When the clip isn't in the list
+ * (e.g. opened from search then filter changed), buttons disable and the
+ * pill hides — we don't try to guess what "next" should mean off-list.
+ */
+function updateDetailNav(): void {
+  const idx = detailId
+    ? currentClips.findIndex((c) => c.id === detailId)
+    : -1;
+  if (idx < 0 || currentClips.length === 0) {
+    detailPrev.disabled = true;
+    detailNext.disabled = true;
+    detailNavPos.hidden = true;
+    return;
+  }
+  detailNavPos.hidden = false;
+  detailNavPos.textContent = `${idx + 1} / ${currentClips.length}`;
+  detailPrev.disabled = idx <= 0;
+  detailNext.disabled = idx >= currentClips.length - 1;
+}
+
+/**
+ * Step to the previous/next clip in the currently-filtered list and
+ * re-open the detail view on it. Keeps `activeIndex` in sync so the
+ * underlying list highlights the same clip when the user closes the
+ * detail. No-op at list boundaries (buttons disable; keys silent).
+ */
+async function stepDetail(direction: -1 | 1): Promise<void> {
+  if (!detailId) return;
+  const idx = currentClips.findIndex((c) => c.id === detailId);
+  if (idx < 0) return;
+  const next = idx + direction;
+  if (next < 0 || next >= currentClips.length) return;
+  const target = currentClips[next];
+  activeIndex = next;
+  await openDetail(target.id);
 }
 
 function renderRedactButton(c: ClipItem) {
@@ -787,6 +830,13 @@ noteBtn.addEventListener("click", async () => {
 document.addEventListener("keydown", async (e) => {
   if (!detailEl.hidden) {
     if (e.key === "Escape") closeDetail();
+    else if (e.key === "[") {
+      e.preventDefault();
+      await stepDetail(-1);
+    } else if (e.key === "]") {
+      e.preventDefault();
+      await stepDetail(1);
+    }
     return;
   }
   if (!settingsPanel.hidden) {
@@ -842,6 +892,9 @@ document.addEventListener("keydown", async (e) => {
 
 // Detail wiring ---------------------------------------------------------
 detailBack.addEventListener("click", () => closeDetail());
+
+detailPrev.addEventListener("click", () => void stepDetail(-1));
+detailNext.addEventListener("click", () => void stepDetail(1));
 
 detailDelete.addEventListener("click", async () => {
   if (!detailId) return;
