@@ -1854,6 +1854,18 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      id: "tag-all-filtered",
+      label: `Tag all ${visible} filtered…`,
+      hint: "Apply tag(s) to every clip in the current view",
+      group: "Bulk",
+      keywords: "label categorize batch tagging",
+      available: visible > 0,
+      run: async () => {
+        closePalette();
+        await tagAllFiltered();
+      },
+    },
+    {
       id: "clear-unpinned",
       label: "Clear all unpinned clips",
       hint: "Keeps pins, drops the rest",
@@ -2050,6 +2062,54 @@ async function pinAllFiltered(pin: boolean): Promise<void> {
   }
   for (const c of targets) await togglePin(c.id);
   toast(`${pin ? "Pinned" : "Unpinned"} ${targets.length}`);
+  await render();
+}
+
+/**
+ * Apply one or more tags to every clip in the current filtered view —
+ * the filter IS the selection. Mirrors the bulk-bar tag action, but
+ * scoped to the visible window so a user who's already narrowed the
+ * list with `host:github.com tag:code` can `palette > Tag all filtered`
+ * and stamp `#review` across the whole batch in one keystroke.
+ *
+ * Tags are merged (union), not replaced — we never strip existing tags.
+ * Skipped if a clip already carries every requested tag.
+ */
+async function tagAllFiltered(): Promise<void> {
+  if (currentClips.length === 0) return;
+  const raw = prompt(
+    `Tag all ${currentClips.length} filtered clip${currentClips.length === 1 ? "" : "s"} (comma-separated):`,
+  );
+  if (!raw) return;
+  const newTags = raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (newTags.length === 0) return;
+  if (
+    currentClips.length > 25 &&
+    !confirm(
+      `Apply ${newTags.length === 1 ? `tag "${newTags[0]}"` : `${newTags.length} tags`} to ${currentClips.length} clips?`,
+    )
+  ) {
+    return;
+  }
+  let updated = 0;
+  const newTagSet = new Set(newTags);
+  for (const c of currentClips) {
+    const before = new Set(c.tags);
+    let changed = false;
+    for (const t of newTagSet) if (!before.has(t)) changed = true;
+    if (!changed) continue;
+    const merged = Array.from(new Set([...c.tags, ...newTags]));
+    await updateTags(c.id, merged);
+    updated++;
+  }
+  if (updated === 0) {
+    toast("Already tagged");
+    return;
+  }
+  toast(`Tagged ${updated}`);
   await render();
 }
 
