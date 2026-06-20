@@ -191,6 +191,63 @@ export function hasPii(content: string, opts: RedactOptions = {}): boolean {
   return false;
 }
 
+/** Cap how many user-supplied regexes we'll compile per capture. */
+const MAX_CUSTOM_PATTERNS = 32;
+/** Cap on individual pattern length so a pathological regex can't eat the worker. */
+const MAX_PATTERN_LEN = 200;
+/** What we substitute for every match. Same string for all patterns — keeps
+ *  the redacted output scannable. */
+const CUSTOM_REPLACEMENT = "[redacted]";
+
+/**
+ * Apply user-supplied regex patterns to `content`. Each pattern is a
+ * regex *source* (no slashes/flags) compiled with `gi`. Invalid patterns
+ * are skipped silently so a single bad entry can't break capture.
+ *
+ * Returns the rewritten string AND a count of how many patterns
+ * actually matched — callers use the count to decide whether the clip
+ * earned the `redacted` flag (and the `redacted` tag).
+ */
+export function applyCustomPatterns(
+  content: string,
+  patterns: string[] | undefined,
+): { content: string; matched: number } {
+  if (!patterns || patterns.length === 0) return { content, matched: 0 };
+  let out = content;
+  let matched = 0;
+  let n = 0;
+  for (const raw of patterns) {
+    if (n++ >= MAX_CUSTOM_PATTERNS) break;
+    const src = (raw || "").trim();
+    if (!src || src.length > MAX_PATTERN_LEN) continue;
+    let re: RegExp;
+    try {
+      re = new RegExp(src, "gi");
+    } catch {
+      continue;
+    }
+    let hitThisPattern = false;
+    out = out.replace(re, () => {
+      hitThisPattern = true;
+      return CUSTOM_REPLACEMENT;
+    });
+    if (hitThisPattern) matched++;
+  }
+  return { content: out, matched };
+}
+
+/** Pure validator for the settings UI. True when `src` compiles as a regex. */
+export function isValidPattern(src: string): boolean {
+  const trimmed = (src || "").trim();
+  if (!trimmed || trimmed.length > MAX_PATTERN_LEN) return false;
+  try {
+    new RegExp(trimmed, "gi");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Heuristic auto-tags. Avoid LLMs; keep this local + instant. */
 export function autoTag(content: string, kind: string, host?: string): string[] {
   const tags = new Set<string>();

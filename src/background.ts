@@ -24,7 +24,7 @@ import {
   removeSiteRule,
 } from "./lib/db";
 import type { ClipItem, ClipSource, FieldMapEntry, SiteRule } from "./lib/types";
-import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii } from "./lib/util";
+import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii, applyCustomPatterns } from "./lib/util";
 import { hasTemplateTokens } from "./lib/templates";
 
 const api: typeof chrome =
@@ -447,6 +447,7 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
             autoPin: p.autoPin,
             autoRedact: p.autoRedact,
             skipCapture: p.skipCapture,
+            customPatterns: p.customPatterns,
           });
           return sendResponse({ ok: true, rule: saved });
         }
@@ -534,6 +535,22 @@ async function ingest(inp: IngestInput, rule?: SiteRule): Promise<string> {
     if (rewritten !== inp.content) {
       storedContent = rewritten;
       storedPreview = redactSensitivePreview(rewritten);
+      redacted = true;
+      if (!tags.includes("redacted")) tags.push("redacted");
+    }
+  }
+  // Per-site custom redaction patterns layer on AFTER built-in PII so
+  // a user can target host-specific stuff (account numbers, ticket
+  // ids, internal IDs) the global PII patterns wouldn't catch. Text
+  // clips only — applying regex to a data URL would corrupt images.
+  if (inp.kind === "text" && rule?.customPatterns?.length) {
+    const { content: rewritten2, matched } = applyCustomPatterns(
+      storedContent,
+      rule.customPatterns,
+    );
+    if (matched > 0 && rewritten2 !== storedContent) {
+      storedContent = rewritten2;
+      storedPreview = redactSensitivePreview(rewritten2);
       redacted = true;
       if (!tags.includes("redacted")) tags.push("redacted");
     }

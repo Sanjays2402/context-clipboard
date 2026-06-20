@@ -184,5 +184,16 @@ export interface SiteRule {
   autoRedact?: boolean;
   /** Don't capture anything from this site at all. */
   skipCapture?: boolean;
+  /**
+   * Extra redaction regexes to apply to text captures from this site,
+   * on top of the built-in PII patterns. Each entry is a JS regex source
+   * (no slashes/flags); the runtime compiles each with `gi` and replaces
+   * matches with `[redacted]`. Invalid entries are skipped silently at
+   * apply time so a bad pattern can't break capture.
+   *
+   * Bounded — `applyCustomPatterns()` caps the loop to keep ingest fast
+   * even if a user pastes 50 patterns in.
+   */
+  customPatterns?: string[];
   createdAt: number;
 }

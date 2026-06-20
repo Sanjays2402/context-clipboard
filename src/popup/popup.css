@@ -1263,6 +1263,25 @@ main:focus {
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
+.site-rule-form textarea {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+  transition: all 0.15s;
+  letter-spacing: 0;
+}
+
+.site-rule-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
 .site-rule-toggles {
   display: flex;
   flex-wrap: wrap;

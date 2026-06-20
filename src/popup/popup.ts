@@ -22,7 +22,7 @@ import {
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
-import { timeAgo, hostFrom, escapeHtml, highlightHtml } from "../lib/util";
+import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
   encryptJson,
@@ -130,6 +130,7 @@ const siteRulesList = $("site-rules-list");
 const siteRulesSummary = $("site-rules-summary");
 const ruleHostInput = $<HTMLInputElement>("rule-host");
 const ruleTagsInput = $<HTMLInputElement>("rule-tags");
+const rulePatternsInput = $<HTMLTextAreaElement>("rule-patterns");
 const rulePinInput = $<HTMLInputElement>("rule-pin");
 const ruleRedactInput = $<HTMLInputElement>("rule-redact");
 const ruleSkipInput = $<HTMLInputElement>("rule-skip");
@@ -1261,6 +1262,12 @@ function ruleBadges(r: SiteRule): string {
   if (r.skipCapture) bits.push(`<span class="rule-badge danger-tone">skip</span>`);
   if (r.autoPin) bits.push(`<span class="rule-badge">pin</span>`);
   if (r.autoRedact) bits.push(`<span class="rule-badge">redact</span>`);
+  const npatterns = r.customPatterns?.length || 0;
+  if (npatterns > 0) {
+    bits.push(
+      `<span class="rule-badge" title="${npatterns} custom redaction pattern${npatterns === 1 ? "" : "s"}: ${escapeHtml(r.customPatterns!.join(" · "))}">regex ×${npatterns}</span>`,
+    );
+  }
   for (const t of r.autoTags ?? []) {
     bits.push(`<span class="rule-badge tag-tone">#${escapeHtml(t)}</span>`);
   }
@@ -1307,8 +1314,28 @@ async function addSiteRuleFromForm(): Promise<void> {
   const skip = ruleSkipInput.checked;
   const pin = rulePinInput.checked;
   const redact = ruleRedactInput.checked;
+  // Custom redaction patterns: one per line. We validate per-line so we
+  // can tell the user *which* line is wrong instead of silently dropping it.
+  const rawPatterns = rulePatternsInput.value
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const patterns: string[] = [];
+  const bad: number[] = [];
+  rawPatterns.forEach((p, i) => {
+    if (isValidPattern(p)) patterns.push(p);
+    else bad.push(i + 1);
+  });
+  if (bad.length > 0) {
+    toast(
+      `Invalid regex on line${bad.length === 1 ? "" : "s"} ${bad.join(", ")}`,
+      "error",
+    );
+    rulePatternsInput.focus();
+    return;
+  }
   // A rule with zero behavior is just visual noise.
-  if (!skip && !pin && !redact && tags.length === 0) {
+  if (!skip && !pin && !redact && tags.length === 0 && patterns.length === 0) {
     toast("Pick at least one effect", "error");
     return;
   }
@@ -1318,6 +1345,7 @@ async function addSiteRuleFromForm(): Promise<void> {
     autoPin: pin,
     autoRedact: redact,
     skipCapture: skip,
+    customPatterns: patterns.length ? patterns : undefined,
   });
   if (!resp.ok) {
     toast(resp.error || "Couldn't save rule", "error");
@@ -1325,10 +1353,14 @@ async function addSiteRuleFromForm(): Promise<void> {
   }
   ruleHostInput.value = "";
   ruleTagsInput.value = "";
+  rulePatternsInput.value = "";
   rulePinInput.checked = false;
   ruleRedactInput.checked = false;
   ruleSkipInput.checked = false;
-  toast(`Rule for ${host} saved`);
+  const detail = patterns.length
+    ? ` (${patterns.length} pattern${patterns.length === 1 ? "" : "s"})`
+    : "";
+  toast(`Rule for ${host} saved${detail}`);
   await renderSiteRules();
 }
 

@@ -685,6 +685,21 @@ export async function upsertSiteRule(
   const idx = rule.id
     ? list.findIndex((r) => r.id === rule.id)
     : list.findIndex((r) => r.hostPattern === pattern);
+  // Patterns are stored as cleaned regex sources (trimmed, dropped if
+  // empty / invalid / too long). We compile each with the same flags
+  // the runtime will use, so a bad pattern fails fast at save time
+  // instead of silently being a no-op forever.
+  const cleanPatterns = (rule.customPatterns ?? [])
+    .map((s) => (s || "").trim())
+    .filter((s) => {
+      if (!s || s.length > 200) return false;
+      try {
+        new RegExp(s, "gi");
+        return true;
+      } catch {
+        return false;
+      }
+    });
   const next: SiteRule = {
     id: rule.id ?? list[idx]?.id ?? `sr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     hostPattern: pattern,
@@ -692,6 +707,7 @@ export async function upsertSiteRule(
     autoPin: !!rule.autoPin,
     autoRedact: !!rule.autoRedact,
     skipCapture: !!rule.skipCapture,
+    customPatterns: cleanPatterns.length ? cleanPatterns : undefined,
     createdAt: idx >= 0 ? list[idx].createdAt : Date.now(),
   };
   const out = idx >= 0 ? [...list] : [...list, next];
