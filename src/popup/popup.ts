@@ -16,7 +16,7 @@ import {
   removeSavedSearch,
   type TrashedClip,
 } from "../lib/db";
-import type { ClipItem, ClipKind, Settings, SavedSearch } from "../lib/types";
+import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
@@ -109,6 +109,14 @@ const trashList = $("trash-list");
 const trashEmpty = $<HTMLButtonElement>("trash-empty");
 const forgetHostInput = $<HTMLInputElement>("forget-host-input");
 const forgetHostBtn = $<HTMLButtonElement>("forget-host-btn");
+const siteRulesList = $("site-rules-list");
+const siteRulesSummary = $("site-rules-summary");
+const ruleHostInput = $<HTMLInputElement>("rule-host");
+const ruleTagsInput = $<HTMLInputElement>("rule-tags");
+const rulePinInput = $<HTMLInputElement>("rule-pin");
+const ruleRedactInput = $<HTMLInputElement>("rule-redact");
+const ruleSkipInput = $<HTMLInputElement>("rule-skip");
+const ruleAddBtn = $<HTMLButtonElement>("rule-add");
 
 const bulkBar = $("bulk-bar");
 const bulkCount = $("bulk-count");
@@ -789,6 +797,7 @@ async function openSettings() {
   sTheme.value = s.theme;
   await renderStorage();
   await renderTrash();
+  await renderSiteRules();
   settingsPanel.hidden = false;
 }
 
@@ -964,6 +973,120 @@ forgetHostInput.addEventListener("keydown", (e) => {
     e.preventDefault();
     void runForgetHost();
   }
+});
+
+// Per-site rules -------------------------------------------------------
+//
+// Rules live in IDB meta; UI is fully driven by the background RPC list so
+// the popup doesn't import the db helper twice. We re-render after every
+// add/remove because the list stays small enough that diffing is overkill.
+
+interface SiteRuleResponse { ok: boolean; rules?: SiteRule[]; rule?: SiteRule; error?: string }
+
+async function rpcSiteRules<T = SiteRuleResponse>(
+  action: "listSiteRules" | "upsertSiteRule" | "removeSiteRule",
+  payload?: unknown,
+): Promise<T> {
+  return new Promise((resolve) => {
+    api.runtime.sendMessage(
+      { type: "cc-rpc", action, payload },
+      (resp: T) => resolve(resp),
+    );
+  });
+}
+
+function ruleBadges(r: SiteRule): string {
+  const bits: string[] = [];
+  if (r.skipCapture) bits.push(`<span class="rule-badge danger-tone">skip</span>`);
+  if (r.autoPin) bits.push(`<span class="rule-badge">pin</span>`);
+  if (r.autoRedact) bits.push(`<span class="rule-badge">redact</span>`);
+  for (const t of r.autoTags ?? []) {
+    bits.push(`<span class="rule-badge tag-tone">#${escapeHtml(t)}</span>`);
+  }
+  return bits.length ? bits.join("") : `<span class="rule-badge muted">(no effect)</span>`;
+}
+
+async function renderSiteRules(): Promise<void> {
+  const resp = await rpcSiteRules("listSiteRules");
+  const rules = resp.rules ?? [];
+  siteRulesSummary.textContent =
+    rules.length === 0 ? "none" : `${rules.length} rule${rules.length === 1 ? "" : "s"}`;
+  if (rules.length === 0) {
+    siteRulesList.innerHTML = "";
+    return;
+  }
+  siteRulesList.innerHTML = rules
+    .map(
+      (r) =>
+        `<div class="site-rule-row" data-id="${escapeHtml(r.id)}">
+          <div class="site-rule-host" title="${escapeHtml(r.hostPattern)}">${escapeHtml(r.hostPattern)}</div>
+          <div class="site-rule-badges">${ruleBadges(r)}</div>
+          <button class="site-rule-del" data-act="del" title="Remove rule">×</button>
+        </div>`,
+    )
+    .join("");
+}
+
+async function addSiteRuleFromForm(): Promise<void> {
+  const host = ruleHostInput.value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  if (!host) {
+    toast("Host required", "error");
+    ruleHostInput.focus();
+    return;
+  }
+  const validHost = /^(\*\.)?[a-z0-9.-]+\.[a-z]{2,}$/i.test(host);
+  if (!validHost) {
+    toast("Use host or *.example.com", "error");
+    return;
+  }
+  const tags = ruleTagsInput.value
+    .split(",")
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  const skip = ruleSkipInput.checked;
+  const pin = rulePinInput.checked;
+  const redact = ruleRedactInput.checked;
+  // A rule with zero behavior is just visual noise.
+  if (!skip && !pin && !redact && tags.length === 0) {
+    toast("Pick at least one effect", "error");
+    return;
+  }
+  const resp = await rpcSiteRules("upsertSiteRule", {
+    hostPattern: host,
+    autoTags: tags,
+    autoPin: pin,
+    autoRedact: redact,
+    skipCapture: skip,
+  });
+  if (!resp.ok) {
+    toast(resp.error || "Couldn't save rule", "error");
+    return;
+  }
+  ruleHostInput.value = "";
+  ruleTagsInput.value = "";
+  rulePinInput.checked = false;
+  ruleRedactInput.checked = false;
+  ruleSkipInput.checked = false;
+  toast(`Rule for ${host} saved`);
+  await renderSiteRules();
+}
+
+ruleAddBtn.addEventListener("click", () => void addSiteRuleFromForm());
+ruleHostInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    void addSiteRuleFromForm();
+  }
+});
+
+siteRulesList.addEventListener("click", async (e) => {
+  const target = e.target as HTMLElement;
+  const row = target.closest(".site-rule-row") as HTMLElement | null;
+  if (!row) return;
+  if (target.dataset.act !== "del") return;
+  const id = row.dataset.id!;
+  await rpcSiteRules("removeSiteRule", { id });
+  await renderSiteRules();
 });
 
 // Drag & drop -----------------------------------------------------------

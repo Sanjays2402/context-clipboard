@@ -18,8 +18,12 @@ import {
   forgetHost,
   setClipExpiry,
   expireDueClips,
+  findSiteRuleFor,
+  listSiteRules,
+  upsertSiteRule,
+  removeSiteRule,
 } from "./lib/db";
-import type { ClipItem, ClipSource, FieldMapEntry } from "./lib/types";
+import type { ClipItem, ClipSource, FieldMapEntry, SiteRule } from "./lib/types";
 import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii } from "./lib/util";
 import { hasTemplateTokens } from "./lib/templates";
 
@@ -80,6 +84,11 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
     title: tab?.title,
     favicon: tab?.favIconUrl,
   };
+  const host = hostFrom(tab?.url);
+  const rule = await findSiteRuleFor(host);
+  // skipCapture honored for context-menu captures too — otherwise a rule
+  // designed to "leave this site alone" would still leak via right-click.
+  if (rule?.skipCapture) return;
 
   try {
     if (info.menuItemId === "cc-capture-image" && info.srcUrl) {
@@ -90,21 +99,21 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
         mime: guessMime(dataUrl),
         preview: `Image from ${base.title || hostFrom(base.url) || "page"}`,
         source: { ...base, nearbyText: info.srcUrl },
-      });
+      }, rule);
     } else if (info.menuItemId === "cc-capture-link" && info.linkUrl) {
       await ingest({
         kind: "link",
         content: info.linkUrl,
         preview: info.selectionText || info.linkUrl,
         source: { ...base, nearbyText: info.selectionText },
-      });
+      }, rule);
     } else if (info.menuItemId === "cc-capture-selection" && info.selectionText) {
       await ingest({
         kind: "text",
         content: info.selectionText,
         preview: redactSensitivePreview(info.selectionText),
         source: base,
-      });
+      }, rule);
     }
   } catch (e) {
     console.error("[context-clipboard] context menu capture failed", e);
@@ -157,6 +166,12 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
       if (settings.allowList.length > 0 && !settings.allowList.includes(host)) {
         return sendResponse({ ok: false, blocked: true });
       }
+      // Site rules: skipCapture wins over everything. The remaining rule
+      // fields layer on inside ingest() via the `rule` parameter.
+      const rule = await findSiteRuleFor(host);
+      if (rule?.skipCapture) {
+        return sendResponse({ ok: false, skipped: true, byRule: true });
+      }
       const id = await ingest({
         kind: msg.kind,
         content: msg.content,
@@ -171,7 +186,7 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           nearbyText: msg.nearbyText,
           favicon: sender.tab?.favIconUrl,
         },
-      });
+      }, rule);
       sendResponse({ ok: true, id });
       return;
     }
@@ -313,6 +328,31 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           });
           return sendResponse({ ok: true, id });
         }
+        if (msg.action === "listSiteRules") {
+          const rules = await listSiteRules();
+          return sendResponse({ ok: true, rules });
+        }
+        if (msg.action === "upsertSiteRule") {
+          const p = msg.payload as Partial<SiteRule> | undefined;
+          if (!p?.hostPattern) {
+            return sendResponse({ ok: false, error: "hostPattern required" });
+          }
+          const saved = await upsertSiteRule({
+            id: p.id,
+            hostPattern: p.hostPattern,
+            autoTags: p.autoTags,
+            autoPin: p.autoPin,
+            autoRedact: p.autoRedact,
+            skipCapture: p.skipCapture,
+          });
+          return sendResponse({ ok: true, rule: saved });
+        }
+        if (msg.action === "removeSiteRule") {
+          const p = msg.payload as { id?: string } | undefined;
+          if (!p?.id) return sendResponse({ ok: false, error: "id required" });
+          const ok = await removeSiteRule(p.id);
+          return sendResponse({ ok });
+        }
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
         return sendResponse({ ok: false, error: err });
@@ -332,7 +372,7 @@ interface IngestInput {
   source: ClipSource;
 }
 
-async function ingest(inp: IngestInput): Promise<string> {
+async function ingest(inp: IngestInput, rule?: SiteRule): Promise<string> {
   const settings = await getSettings();
   const hashInput =
     inp.kind === "image" ? inp.content.slice(0, 4096) : inp.content;
@@ -350,6 +390,18 @@ async function ingest(inp: IngestInput): Promise<string> {
         new Set([...existing.tags, ...autoTag(inp.content, inp.kind, host)]),
       );
     }
+    // Merge site-rule tags on the dedup path too so a rule added after the
+    // first capture starts tagging subsequent hits.
+    if (rule?.autoTags?.length) {
+      existing.tags = Array.from(
+        new Set([
+          ...existing.tags,
+          ...rule.autoTags.map((t) => t.toLowerCase()),
+        ]),
+      );
+    }
+    // autoPin is sticky — once a rule pins, we don't unpin on later hits.
+    if (rule?.autoPin && !existing.pinned) existing.pinned = true;
     await putClip(existing);
     return existing.id;
   }
@@ -357,13 +409,24 @@ async function ingest(inp: IngestInput): Promise<string> {
   const tags = settings.enableAutoTags
     ? autoTag(inp.content, inp.kind, host)
     : [];
+  // Layer site-rule tags on top of auto-tags (and on top of zero tags
+  // when auto-tagging is off). Lowercase + dedupe to match autoTag's shape.
+  if (rule?.autoTags?.length) {
+    for (const t of rule.autoTags) {
+      const lower = t.toLowerCase();
+      if (!tags.includes(lower)) tags.push(lower);
+    }
+  }
 
   // Auto-redact at capture: rewrite content + preview before storing.
   // One-way — we do NOT stash the original so it never lands on disk.
+  // A site rule's autoRedact forces this on regardless of the global toggle.
+  const wantRedact =
+    (settings.autoRedactPii || !!rule?.autoRedact) && inp.kind === "text";
   let storedContent = inp.content;
   let storedPreview = inp.preview;
   let redacted = false;
-  if (settings.autoRedactPii && inp.kind === "text") {
+  if (wantRedact) {
     const rewritten = redactPii(inp.content);
     if (rewritten !== inp.content) {
       storedContent = rewritten;
@@ -380,7 +443,7 @@ async function ingest(inp: IngestInput): Promise<string> {
     mime: inp.mime,
     preview: storedPreview,
     source: inp.source,
-    pinned: false,
+    pinned: !!rule?.autoPin,
     createdAt: now,
     lastSeenAt: now,
     hitCount: 1,
@@ -487,7 +550,10 @@ interface RpcMsg {
     | "findClipByContent"
     | "applySidePanelMode"
     | "redactClip"
-    | "unredactClip";
+    | "unredactClip"
+    | "listSiteRules"
+    | "upsertSiteRule"
+    | "removeSiteRule";
   payload?: unknown;
 }
 

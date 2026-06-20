@@ -195,6 +195,28 @@
             from Trash for 7 days.
           </div>
         </div>
+        <div class="trash-section" id="site-rules-section">
+          <div class="trash-header">
+            <span class="trash-title">Per-site rules</span>
+            <span class="trash-summary" id="site-rules-summary">none</span>
+          </div>
+          <div class="site-rules-list" id="site-rules-list"></div>
+          <div class="site-rule-form">
+            <input id="rule-host" type="text" placeholder="host or *.example.com" autocomplete="off" spellcheck="false" />
+            <input id="rule-tags" type="text" placeholder="tags (comma-sep)" autocomplete="off" spellcheck="false" />
+            <div class="site-rule-toggles">
+              <label class="rule-toggle"><input id="rule-pin" type="checkbox" /> auto-pin</label>
+              <label class="rule-toggle"><input id="rule-redact" type="checkbox" /> auto-redact</label>
+              <label class="rule-toggle"><input id="rule-skip" type="checkbox" /> skip capture</label>
+              <button id="rule-add" class="small" type="button">Add rule</button>
+            </div>
+          </div>
+          <div class="trash-foot">
+            Rules apply when a clip's source matches. First match wins. `*.example.com`
+            matches example.com and any subdomain. Skip-capture short-circuits ingest
+            on that host entirely (more granular than the block list).
+          </div>
+        </div>
         <div class="settings-actions">
           <button id="export-btn">Export</button>
           <button id="import-btn">Import JSON</button>
