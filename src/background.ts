@@ -15,6 +15,7 @@ import {
   redactClip,
   unredactClip,
   purgeOldTrash,
+  forgetHost,
 } from "./lib/db";
 import type { ClipItem, ClipSource, FieldMapEntry } from "./lib/types";
 import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii } from "./lib/util";
@@ -191,6 +192,12 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
         if (msg.action === "clearAll") {
           await clearAll();
           return sendResponse({ ok: true });
+        }
+        if (msg.action === "forgetHost") {
+          const p = msg.payload as { host?: string } | undefined;
+          if (!p?.host) return sendResponse({ ok: false, error: "host required" });
+          const res = await forgetHost(p.host);
+          return sendResponse({ ok: true, ...res });
         }
         if (msg.action === "redactClip") {
           const p = msg.payload as { id?: string } | undefined;
@@ -447,6 +454,7 @@ interface RpcMsg {
     | "import"
     | "clearUnpinned"
     | "clearAll"
+    | "forgetHost"
     | "setOcrText"
     | "addImageBlob"
     | "addNote"

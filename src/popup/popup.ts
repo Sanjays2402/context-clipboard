@@ -97,6 +97,8 @@ const exportFormat = $<HTMLSelectElement>("export-format");
 const trashSummary = $("trash-summary");
 const trashList = $("trash-list");
 const trashEmpty = $<HTMLButtonElement>("trash-empty");
+const forgetHostInput = $<HTMLInputElement>("forget-host-input");
+const forgetHostBtn = $<HTMLButtonElement>("forget-host-btn");
 
 const bulkBar = $("bulk-bar");
 const bulkCount = $("bulk-count");
@@ -677,6 +679,64 @@ trashEmpty.addEventListener("click", async () => {
   const n = await emptyTrash();
   toast(`Emptied ${n}`);
   await renderTrash();
+});
+
+async function runForgetHost(): Promise<void> {
+  const raw = forgetHostInput.value.trim().toLowerCase().replace(/^www\./, "");
+  if (!raw) {
+    toast("Type a hostname first", "error");
+    forgetHostInput.focus();
+    return;
+  }
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(raw)) {
+    toast("Doesn't look like a hostname", "error");
+    return;
+  }
+  // Look up how many clips actually match before we touch anything, so the
+  // confirm message is concrete instead of a guess.
+  const wide = await listClips({ limit: 1_000_000 });
+  const matches = wide.filter((c) => hostFrom(c.source.url) === raw);
+  if (matches.length === 0) {
+    toast(`No clips from ${raw}`, "error");
+    return;
+  }
+  const pinned = matches.filter((c) => c.pinned).length;
+  const willTrash = matches.length - pinned;
+  const summary =
+    pinned > 0
+      ? `Forget ${willTrash} clip${willTrash === 1 ? "" : "s"} from ${raw}? (${pinned} pinned will be skipped.)`
+      : `Forget ${willTrash} clip${willTrash === 1 ? "" : "s"} from ${raw}?`;
+  if (!confirm(summary)) return;
+  const resp = await new Promise<{ ok: boolean; trashed?: number; pinnedSkipped?: number }>(
+    (resolve) => {
+      api.runtime.sendMessage(
+        { type: "cc-rpc", action: "forgetHost", payload: { host: raw } },
+        (r) => resolve(r),
+      );
+    },
+  );
+  if (!resp?.ok) {
+    toast("Forget failed", "error");
+    return;
+  }
+  forgetHostInput.value = "";
+  const trashed = resp.trashed ?? 0;
+  const skipped = resp.pinnedSkipped ?? 0;
+  const msg =
+    skipped > 0
+      ? `Forgot ${trashed} from ${raw} (${skipped} pinned kept)`
+      : `Forgot ${trashed} from ${raw}`;
+  toast(msg);
+  await renderTrash();
+  await render();
+}
+
+forgetHostBtn.addEventListener("click", () => void runForgetHost());
+forgetHostInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    void runForgetHost();
+  }
 });
 
 // Drag & drop -----------------------------------------------------------

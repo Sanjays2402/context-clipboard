@@ -1,6 +1,6 @@
 import type { ClipItem, SearchQuery, Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
-import { redactPii, redactSensitivePreview } from "./util";
+import { hostFrom, redactPii, redactSensitivePreview } from "./util";
 
 const DB_NAME = "context-clipboard";
 const DB_VERSION = 4;
@@ -377,6 +377,44 @@ export async function clearUnpinned(): Promise<number> {
     }
   }
   return n;
+}
+
+/**
+ * "Forget host": soft-delete every clip whose source URL matches `host`
+ * exactly (after `www.` strip). Returns counts so callers can show a
+ * meaningful confirmation. Clips go through the trash path so users get
+ * the same 7-day grace window as any other delete; that's a deliberate
+ * privacy choice — "Empty trash now" is one click away if they want it
+ * gone immediately.
+ *
+ * Match uses `hostFrom(source.url)` so e.g. forget("github.com") catches
+ * `www.github.com` too. Empty/unparseable hosts never match.
+ */
+export async function forgetHost(host: string): Promise<{
+  /** How many clips matched (incl. pinned) before deletion. */
+  matched: number;
+  /** How many were soft-deleted (matched - pinned). */
+  trashed: number;
+  /** Pinned matches we skipped — the caller can decide to unpin first. */
+  pinnedSkipped: number;
+}> {
+  const target = host.toLowerCase().replace(/^www\./, "").trim();
+  if (!target) return { matched: 0, trashed: 0, pinnedSkipped: 0 };
+  const all = await listClips({ limit: 1_000_000 });
+  let matched = 0;
+  let trashed = 0;
+  let pinnedSkipped = 0;
+  for (const c of all) {
+    if (hostFrom(c.source.url) !== target) continue;
+    matched++;
+    if (c.pinned) {
+      pinnedSkipped++;
+      continue;
+    }
+    const ok = await trashClip(c.id);
+    if (ok) trashed++;
+  }
+  return { matched, trashed, pinnedSkipped };
 }
 
 export async function clearAll(): Promise<void> {

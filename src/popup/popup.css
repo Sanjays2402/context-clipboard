@@ -795,6 +795,30 @@ main:focus {
   line-height: 1.5;
 }
 
+.forget-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.forget-row input[type="text"] {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.forget-row input[type="text"]:focus {
+  outline: none;
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255, 107, 120, 0.18);
+}
+
 /* Footer */
 footer {
   padding: 10px 12px;
