@@ -994,16 +994,72 @@ async function saveSettingsFromForm() {
 async function renderStorage() {
   try {
     const est = await navigator.storage?.estimate?.();
-    if (!est) {
-      storageInfo.textContent = "Storage info unavailable.";
-      return;
+    const used = est?.usage || 0;
+    const quota = est?.quota || 0;
+    // Walk the clip set ourselves to attribute bytes to text / image / link
+    // / OCR / trash. `bytes` is set at capture time and tracks both the
+    // body and a tiny envelope estimate — close enough for a UX bar that
+    // tells the user where their storage actually went. We don't try to
+    // round-trip against navigator.storage.estimate (that's quota+meta+
+    // tombstones, not just clips).
+    const [clips, trash] = await Promise.all([
+      listClips({ limit: 1_000_000 }),
+      listTrash(),
+    ]);
+    let textBytes = 0;
+    let imageBytes = 0;
+    let linkBytes = 0;
+    let ocrBytes = 0;
+    for (const c of clips) {
+      if (c.kind === "image") imageBytes += c.bytes || 0;
+      else if (c.kind === "link") linkBytes += c.bytes || 0;
+      else textBytes += c.bytes || 0;
+      if (c.ocrText) ocrBytes += c.ocrText.length;
     }
-    const used = est.usage || 0;
-    const quota = est.quota || 1;
-    const pct = Math.min(100, Math.round((used / quota) * 100));
+    let trashBytes = 0;
+    for (const t of trash) trashBytes += t.bytes || 0;
+    const clipsTotal = textBytes + imageBytes + linkBytes + ocrBytes;
+    // The denominator for the segment bar is the clip+trash subtotal (so
+    // bars always sum to 100%); the bottom line still shows quota usage
+    // for context.
+    const segTotal = clipsTotal + trashBytes;
+
+    type Seg = { label: string; bytes: number; tone: string };
+    const segs: Seg[] = [
+      { label: "Text", bytes: textBytes, tone: "text" },
+      { label: "Images", bytes: imageBytes, tone: "image" },
+      { label: "Links", bytes: linkBytes, tone: "link" },
+      { label: "OCR", bytes: ocrBytes, tone: "ocr" },
+      { label: "Trash", bytes: trashBytes, tone: "trash" },
+    ].filter((s) => s.bytes > 0);
+
+    const segBar = segTotal > 0
+      ? segs
+          .map(
+            (s) =>
+              `<span class="storage-seg seg-${s.tone}" style="flex:${s.bytes};" title="${escapeHtml(s.label)}: ${formatBytes(s.bytes)} (${Math.round((s.bytes / segTotal) * 100)}%)"></span>`,
+          )
+          .join("")
+      : `<span class="storage-seg seg-empty" style="flex:1;"></span>`;
+
+    const legend = segs.length
+      ? segs
+          .map(
+            (s) =>
+              `<span class="storage-legend"><span class="legend-dot dot-${s.tone}"></span>${escapeHtml(s.label)} <em>${formatBytes(s.bytes)}</em></span>`,
+          )
+          .join("")
+      : `<span class="storage-legend muted">No clips yet</span>`;
+
+    const quotaLine = quota
+      ? `<strong>Storage:</strong> ${formatBytes(used)} of ${formatBytes(quota)} (${Math.round((used / quota) * 100)}%)`
+      : `<strong>Storage:</strong> ${formatBytes(used)}`;
+
     storageInfo.innerHTML = `
-      <strong>Storage:</strong> ${formatBytes(used)} of ${formatBytes(quota)} (${pct}%)
-      <div class="storage-bar"><div style="width:${pct}%"></div></div>
+      ${quotaLine}
+      <div class="storage-segbar" role="img" aria-label="Storage breakdown by clip kind">${segBar}</div>
+      <div class="storage-legends">${legend}</div>
+      <div class="storage-foot">Clips ${formatBytes(clipsTotal)} · Trash ${formatBytes(trashBytes)} · ${clips.length} live · ${trash.length} trashed</div>
     `;
   } catch {
     storageInfo.textContent = "";

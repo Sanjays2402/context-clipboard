@@ -2015,6 +2015,82 @@ kbd {
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
+/* Storage breakdown — stacked segment bar split by clip kind, with a
+   colored-dot legend below. Each segment uses `flex: <bytes>` so widths
+   are proportional with no JS math. Tooltips on each segment show label +
+   bytes + percent for users who want the exact number. */
+.storage-segbar {
+  margin-top: 10px;
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  background: var(--bg);
+  gap: 1px;
+}
+
+.storage-seg {
+  height: 100%;
+  min-width: 2px;
+}
+
+.seg-text { background: var(--accent); }
+.seg-image { background: #6f87ff; }
+.seg-link { background: #4cc3a8; }
+.seg-ocr { background: #c178f5; }
+.seg-trash { background: var(--muted); }
+.seg-empty { background: var(--border); }
+
+.storage-legends {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+
+.storage-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.storage-legend em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 10px;
+}
+
+.storage-legend.muted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.dot-text { background: var(--accent); }
+.dot-image { background: #6f87ff; }
+.dot-link { background: #4cc3a8; }
+.dot-ocr { background: #c178f5; }
+.dot-trash { background: var(--muted); }
+
+.storage-foot {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
 .settings-actions {
   display: flex;
   flex-direction: column;
