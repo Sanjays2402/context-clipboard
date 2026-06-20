@@ -138,6 +138,8 @@ const bulkDel = $<HTMLButtonElement>("bulk-del");
 const bulkClear = $<HTMLButtonElement>("bulk-clear");
 
 const toastEl = $("toast");
+const cheatsheetEl = $("cheatsheet");
+const cheatsheetClose = $<HTMLButtonElement>("cheatsheet-close");
 
 // State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
@@ -1453,8 +1455,53 @@ noteBtn.addEventListener("click", async () => {
   await render();
 });
 
+// Keyboard cheatsheet --------------------------------------------------
+//
+// `?` toggles a modal listing every shortcut + search operator. Esc and
+// backdrop click close. Open works from anywhere (including inside the
+// search input) because `?` requires Shift+/ which is non-destructive in
+// a text field — we preventDefault so it doesn't insert.
+
+function openCheatsheet(): void {
+  cheatsheetEl.hidden = false;
+}
+
+function closeCheatsheet(): void {
+  cheatsheetEl.hidden = true;
+}
+
+function toggleCheatsheet(): void {
+  if (cheatsheetEl.hidden) openCheatsheet();
+  else closeCheatsheet();
+}
+
+cheatsheetClose.addEventListener("click", () => closeCheatsheet());
+cheatsheetEl.addEventListener("click", (e) => {
+  // Backdrop click (the dim layer is the dialog root itself; the card stops
+  // propagation via its own listener).
+  if (e.target === cheatsheetEl) closeCheatsheet();
+});
+cheatsheetEl
+  .querySelector(".cheatsheet-card")
+  ?.addEventListener("click", (e) => e.stopPropagation());
+
 // Keyboard --------------------------------------------------------------
 document.addEventListener("keydown", async (e) => {
+  // Cheatsheet is always the first thing we check so `?` works globally,
+  // and Esc closes it before any other panel reacts to Esc.
+  if (!cheatsheetEl.hidden) {
+    if (e.key === "Escape" || e.key === "?") {
+      e.preventDefault();
+      closeCheatsheet();
+    }
+    return;
+  }
+  if (e.key === "?") {
+    // Shift+/ is harmless to swallow even inside the search box.
+    e.preventDefault();
+    toggleCheatsheet();
+    return;
+  }
   if (!detailEl.hidden) {
     if (e.key === "Escape") closeDetail();
     else if (e.key === "[") {

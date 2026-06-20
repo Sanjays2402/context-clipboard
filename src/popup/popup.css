@@ -1396,6 +1396,128 @@ footer button:hover {
   pointer-events: auto;
 }
 
+/* Keyboard cheatsheet overlay — rendered above everything else; soft
+   dim backdrop with a glass card. Layout is two columns on the popup
+   width, packed for scan-readability. */
+.cheatsheet {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 30px 14px;
+  overflow-y: auto;
+  animation: cheatsheet-fade 0.18s ease-out;
+}
+
+@keyframes cheatsheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.cheatsheet-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--glass-elevated);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cheatsheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--glass);
+}
+
+.cheatsheet-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cheatsheet-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+  padding: 14px;
+}
+
+.cheatsheet-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cheatsheet-group h4 {
+  margin: 0 0 2px 0;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--accent);
+}
+
+.cheatsheet-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  flex-wrap: wrap;
+}
+
+.cheatsheet-row span {
+  color: var(--text);
+  font-weight: 500;
+  margin-left: auto;
+  padding-left: 6px;
+  text-align: right;
+  flex: 1 1 auto;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--glass-strong);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.cheatsheet-foot {
+  padding: 8px 14px 11px;
+  border-top: 1px solid var(--border);
+  background: var(--glass);
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
 .toast .toast-text {
   display: inline-block;
 }

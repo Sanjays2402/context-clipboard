@@ -245,7 +245,7 @@
 
     <footer>
       <span id="count"></span>
-      <span class="hint">Shift+Click MD · ⌘/Ctrl+Click select · ↑↓ ⏎ / · X select · [ ] next/prev</span>
+      <span class="hint">? cheatsheet · Shift+Click MD · ⌘/Ctrl+Click select · ↑↓ ⏎ / · X select · [ ] next/prev</span>
       <button id="clear">Clear unpinned</button>
     </footer>
 
@@ -258,6 +258,51 @@
     </div>
 
     <div id="toast" class="toast"></div>
+
+    <!-- Keyboard cheatsheet overlay. Toggled with `?` (Shift+/) when no
+         input is focused, or by closing with Esc / clicking the backdrop. -->
+    <div id="cheatsheet" class="cheatsheet" hidden role="dialog" aria-modal="true" aria-labelledby="cheatsheet-title">
+      <div class="cheatsheet-card">
+        <div class="cheatsheet-header">
+          <span id="cheatsheet-title" class="cheatsheet-title">Keyboard shortcuts</span>
+          <button id="cheatsheet-close" class="icon-btn" title="Close (Esc)" data-icon="close"></button>
+        </div>
+        <div class="cheatsheet-body">
+          <div class="cheatsheet-group">
+            <h4>Navigate</h4>
+            <div class="cheatsheet-row"><kbd>↑</kbd> / <kbd>↓</kbd><span>Move selection</span></div>
+            <div class="cheatsheet-row"><kbd>Enter</kbd><span>Copy active clip</span></div>
+            <div class="cheatsheet-row"><kbd>Shift</kbd>+<kbd>Enter</kbd><span>Copy as Markdown</span></div>
+            <div class="cheatsheet-row"><kbd>/</kbd><span>Focus search</span></div>
+            <div class="cheatsheet-row"><kbd>Esc</kbd><span>Clear selection / close panel</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>Clip actions</h4>
+            <div class="cheatsheet-row"><kbd>P</kbd><span>Pin / unpin active</span></div>
+            <div class="cheatsheet-row"><kbd>X</kbd><span>Toggle select on active</span></div>
+            <div class="cheatsheet-row"><kbd>Delete</kbd> / <kbd>⌫</kbd><span>Trash active (with Undo toast)</span></div>
+            <div class="cheatsheet-row"><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Click</kbd><span>Toggle select (multi)</span></div>
+            <div class="cheatsheet-row"><kbd>Shift</kbd>+<kbd>Click</kbd><span>Copy as Markdown</span></div>
+            <div class="cheatsheet-row"><kbd>Alt</kbd>+<kbd>Click</kbd><span>Copy without opening detail</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>In detail view</h4>
+            <div class="cheatsheet-row"><kbd>[</kbd> / <kbd>]</kbd><span>Previous / next clip</span></div>
+            <div class="cheatsheet-row"><kbd>Esc</kbd><span>Back to list</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>Search operators</h4>
+            <div class="cheatsheet-row"><kbd>kind:image</kbd><span>image / text / link</span></div>
+            <div class="cheatsheet-row"><kbd>host:github.com</kbd><span>match exact host</span></div>
+            <div class="cheatsheet-row"><kbd>tag:code</kbd><span>repeat to AND tags</span></div>
+            <div class="cheatsheet-row"><kbd>is:pinned</kbd><span>pinned / redacted / ocr / template / expiring</span></div>
+            <div class="cheatsheet-row"><kbd>after:24h</kbd><span>last 24h (units: s/m/h/d/w)</span></div>
+            <div class="cheatsheet-row"><kbd>before:7d</kbd><span>older than 7d</span></div>
+          </div>
+        </div>
+        <div class="cheatsheet-foot">Press <kbd>?</kbd> anytime to open · <kbd>Esc</kbd> to close</div>
+      </div>
+    </div>
 
     <script type="module" src="popup.js"></script>
   </body>
