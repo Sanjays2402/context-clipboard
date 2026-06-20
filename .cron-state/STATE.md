@@ -48,7 +48,6 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Search & navigation
 - [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)  <!-- partially covered by quick chips, still keep -->
-- [ ] Fuzzy command palette in popup (`Cmd+K`: actions like "Pin all images", "Clear redacted only")
 - [ ] Jump to host: typing `g github` in search jumps to first github clip
 
 ### Capture & enrichment
@@ -56,7 +55,6 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Image: link back to original `srcUrl` clearly, with re-fetch button
 - [ ] Bigger paragraph context: collapse/expand long nearby text
 - [ ] Manual quick-tag dropdown when adding notes
-- [ ] Capture from address bar (`omnibox` keyword: `cc <text>` jumps to a note)
 
 ### Pasting & flow
 - [ ] Paste-stack mode: queue N clips, paste them in order across multiple inputs
@@ -67,14 +65,10 @@ Status: ` ` open / `~` in-progress / `x` shipped
 ### Privacy & security
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
 - [ ] Custom redaction patterns (user-defined regex list per site rule)
-- [ ] Anti-shoulder-surf: blur previews until hover (toggle)
 
 ### Data lifecycle
 - [ ] Smart dedup across `lastSeenAt` window groups (right now only same-hash)
-- [ ] Import merge strategy: dedup by hash on import
 - [ ] Bulk re-tag from search (apply tag to every clip in current filter)
-- [ ] Pin-all-filtered: one-click pin every clip in current view (mirror of bulk-delete-all)
-- [ ] Sort options for the list (oldest first, by hit count, by size)
 
 ### UI polish (real, not cosmetic)
 - [ ] Inline diff for re-captured clips (show what changed vs previous copy)
@@ -101,6 +95,13 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Keyboard cheatsheet overlay (press `?`) — `6a033f0`
 - [x] Storage breakdown — text / image / link / OCR / trash segments — `82a97a0`
 - [x] Select all filtered (footer btn + bulk-bar toggle + Cmd/Ctrl+A) — `54a2c1a`
+- [x] Cmd/Ctrl+K command palette — fuzzy action launcher — `1c3fb04`
+- [x] List sort options (recent/oldest/hits/size/A-Z) — `3d2bce9`
+- [x] Anti-shoulder-surf blur (hover-to-reveal previews) — `7b57e89`
+- [x] Import dedup by content hash with merge — `57d3fa4`
+- [x] Omnibox `cc` keyword for quick capture + recall — `74201a6`
+- [x] Pin all filtered / Unpin all filtered (via Cmd+K palette) — `1c3fb04`
+- [x] Clear all filters (single action via Cmd+K) — `1c3fb04`
 
 ## Tick log
 
@@ -108,6 +109,21 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 <!-- TICKS BELOW -->
 
+- **2026-06-20 10:00 PT** — 5/5 shipped. Cmd/Ctrl+K command palette
+  with fuzzy matcher, action groups (Navigate/Capture/Privacy/Filter/
+  Bulk/Sort/Export), and contextual `available` flags (1c3fb04, 11/11
+  palette sanity). Footer sort dropdown with five modes
+  (recent/oldest/hits/size/alpha), persisted in IDB meta, integrated
+  into the palette (3d2bce9, 13/13 sort sanity). Anti-shoulder-surf
+  blur — `blurPreviews` setting + body-level CSS blur with hover-to-
+  reveal, accent badge in the header (7b57e89). Import dedup-by-hash
+  with hitCount/tag/pin merging on collision; toast surfaces
+  `Imported N (X merged · Y already present)` (57d3fa4, 14/14 dedup
+  sanity against an in-process IDB shim). Omnibox `cc` keyword for
+  address-bar quick capture + autocomplete recall of past omnibox
+  notes (74201a6). tsc + chrome/firefox builds green; 11 template +
+  11 export + 9 highlight + 13 sort + 11 palette + 14 import-dedup
+  sanity pass.
 - **2026-06-20 06:58 PT** — 5/5 shipped. Search-needle highlight in previews
   + detail (ec7fb3f, 9/9 sanity), recent search history as auto-tracked
   ghost chips with 900ms debounce (f01d4fc), keyboard cheatsheet overlay
