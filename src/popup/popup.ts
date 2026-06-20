@@ -806,7 +806,27 @@ async function openDetail(id: string) {
   detailTags.value = c.tags.join(", ");
   if (c.source.nearbyText) {
     detailNearbyRow.hidden = false;
-    detailNearby.textContent = c.source.nearbyText;
+    // Long nearby context (paragraphs around a copy) used to push the
+    // rest of the meta row off-screen. We now render the first ~360
+    // chars collapsed by default with a "Show more" toggle; the full
+    // text lives in `data-full` so the toggle is a pure DOM swap, no
+    // re-fetch. Threshold tuned so single-sentence quotes never get
+    // collapsed (they fit comfortably in one line).
+    const COLLAPSE_AT = 360;
+    const full = c.source.nearbyText;
+    if (full.length <= COLLAPSE_AT) {
+      detailNearby.textContent = full;
+      detailNearby.classList.remove("collapsible", "expanded");
+      detailNearby.removeAttribute("data-full");
+    } else {
+      const peek = full.slice(0, COLLAPSE_AT).replace(/\s+\S*$/, "").trimEnd();
+      detailNearby.dataset.full = full;
+      detailNearby.classList.add("collapsible");
+      detailNearby.classList.remove("expanded");
+      detailNearby.innerHTML =
+        `<span class="nearby-text">${escapeHtml(peek)}…</span> ` +
+        `<button class="nearby-toggle" type="button" data-act="expand">Show more (+${full.length - peek.length})</button>`;
+    }
   } else {
     detailNearbyRow.hidden = true;
   }
@@ -2589,6 +2609,36 @@ async function refetchDetailImage(): Promise<void> {
 }
 
 detailRefetch.addEventListener("click", () => void refetchDetailImage());
+
+/**
+ * Expand/collapse the nearby-context block in the detail meta row when
+ * it carries a "Show more" affordance. We swap the DOM payload in
+ * place using the `data-full` cache the openDetail() path stamped on,
+ * so toggling doesn't need to re-query the DB. Idempotent — clicking
+ * "Show less" re-runs openDetail's collapsed branch.
+ */
+detailNearby.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement | null;
+  if (!target || target.dataset.act === undefined) return;
+  if (target.dataset.act === "expand") {
+    const full = detailNearby.dataset.full || "";
+    if (!full) return;
+    detailNearby.classList.add("expanded");
+    detailNearby.innerHTML =
+      `<span class="nearby-text">${escapeHtml(full)}</span> ` +
+      `<button class="nearby-toggle" type="button" data-act="collapse">Show less</button>`;
+  } else if (target.dataset.act === "collapse") {
+    // Re-derive the collapsed payload from the cached full text so we
+    // don't need to round-trip the DB.
+    const full = detailNearby.dataset.full || "";
+    const COLLAPSE_AT = 360;
+    const peek = full.slice(0, COLLAPSE_AT).replace(/\s+\S*$/, "").trimEnd();
+    detailNearby.classList.remove("expanded");
+    detailNearby.innerHTML =
+      `<span class="nearby-text">${escapeHtml(peek)}…</span> ` +
+      `<button class="nearby-toggle" type="button" data-act="expand">Show more (+${full.length - peek.length})</button>`;
+  }
+});
 
 // Settings wiring -------------------------------------------------------
 settingsBtn.addEventListener("click", () => openSettings());

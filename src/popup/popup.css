@@ -1765,6 +1765,44 @@ kbd {
   line-height: 1.55;
 }
 
+/* Collapsible nearby — collapsed view stays in one box at default
+   max-height; expanded grows up to ~280px before scrolling kicks in
+   so very long paragraphs still don't dominate the panel. The toggle
+   button sits inline with the text. */
+.nearby.collapsible {
+  position: relative;
+}
+
+.nearby.collapsible.expanded {
+  max-height: 280px;
+}
+
+.nearby .nearby-toggle {
+  display: inline-block;
+  background: transparent;
+  color: var(--accent);
+  border: 0;
+  font-family: inherit;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  padding: 0 4px;
+  margin-left: 2px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+
+.nearby .nearby-toggle:hover {
+  background: var(--accent-soft);
+  text-decoration: underline;
+}
+
+.nearby .nearby-text {
+  white-space: pre-wrap;
+}
+
 .template-info {
   display: flex;
   flex-direction: column;
