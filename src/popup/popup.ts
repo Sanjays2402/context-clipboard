@@ -114,10 +114,77 @@ let detailId: string | null = null;
 let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
 
-function toast(msg: string, kind: "ok" | "error" = "ok") {
-  toastEl.textContent = msg;
-  toastEl.className = `toast show ${kind === "error" ? "error" : ""}`;
-  setTimeout(() => (toastEl.className = "toast"), 1300);
+/**
+ * Show a transient toast. If `action` is provided, render a clickable
+ * button to the right of the message; clicking it dismisses the toast and
+ * runs `action.fn`. Use this for undoable operations (delete → restore).
+ *
+ * The toast auto-dismisses; for action toasts we hold it for ~4.5s so the
+ * user has time to actually hit Undo, vs ~1.3s for normal status toasts.
+ */
+function toast(
+  msg: string,
+  kind: "ok" | "error" = "ok",
+  action?: { label: string; fn: () => void | Promise<void> },
+) {
+  // Reset any prior content so re-using the same toast element works.
+  toastEl.innerHTML = "";
+  const text = document.createElement("span");
+  text.className = "toast-text";
+  text.textContent = msg;
+  toastEl.appendChild(text);
+  if (action) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action";
+    btn.textContent = action.label;
+    btn.addEventListener(
+      "click",
+      async (e) => {
+        e.stopPropagation();
+        toastEl.className = "toast";
+        try {
+          await action.fn();
+        } catch (err) {
+          console.error(err);
+        }
+      },
+      { once: true },
+    );
+    toastEl.appendChild(btn);
+  }
+  toastEl.className = `toast show ${kind === "error" ? "error" : ""}${
+    action ? " has-action" : ""
+  }`;
+  const dwell = action ? 4500 : 1300;
+  setTimeout(() => {
+    toastEl.className = "toast";
+  }, dwell);
+}
+
+/**
+ * Trash one or more clips and surface a single "Undo" toast that restores
+ * the whole batch. The undo window is the toast lifetime (~4.5s).
+ */
+async function trashWithUndo(ids: string[], label?: string): Promise<void> {
+  if (ids.length === 0) return;
+  for (const id of ids) await trashClip(id);
+  const message =
+    label ??
+    (ids.length === 1 ? "Moved to trash" : `Moved ${ids.length} to trash`);
+  toast(message, "ok", {
+    label: "Undo",
+    fn: async () => {
+      let restored = 0;
+      for (const id of ids) {
+        const ok = await restoreClip(id);
+        if (ok) restored++;
+      }
+      await render();
+      toast(restored === 1 ? "Restored" : `Restored ${restored}`);
+    },
+  });
+  await render();
 }
 
 // Rendering -------------------------------------------------------------
@@ -647,8 +714,7 @@ listEl.addEventListener("click", async (e) => {
   }
 
   if (act === "del") {
-    await trashClip(id);
-    await render();
+    await trashWithUndo([id]);
     return;
   }
   if (act === "pin") {
@@ -751,8 +817,7 @@ document.addEventListener("keydown", async (e) => {
   } else if ((e.key === "Delete" || e.key === "Backspace") && !inSearch) {
     const c = currentClips[activeIndex];
     if (c) {
-      await trashClip(c.id);
-      await render();
+      await trashWithUndo([c.id]);
     }
   } else if (e.key.toLowerCase() === "p" && !inSearch) {
     const c = currentClips[activeIndex];
@@ -780,11 +845,9 @@ detailBack.addEventListener("click", () => closeDetail());
 
 detailDelete.addEventListener("click", async () => {
   if (!detailId) return;
-  if (!confirm("Move this clip to trash?")) return;
-  await trashClip(detailId);
+  const idForUndo = detailId;
   closeDetail();
-  await render();
-  toast("Moved to trash");
+  await trashWithUndo([idForUndo]);
 });
 
 detailPin.addEventListener("click", async () => {
@@ -1019,13 +1082,9 @@ bulkClear.addEventListener("click", () => clearSelection());
 bulkDel.addEventListener("click", async () => {
   const ids = [...selectedIds];
   if (ids.length === 0) return;
-  if (!confirm(`Move ${ids.length} clip${ids.length === 1 ? "" : "s"} to trash?`))
-    return;
-  for (const id of ids) await trashClip(id);
   selectedIds.clear();
   updateBulkBar();
-  toast(`Moved ${ids.length} to trash`);
-  await render();
+  await trashWithUndo(ids);
 });
 
 bulkPin.addEventListener("click", async () => {
