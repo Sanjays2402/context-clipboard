@@ -51,6 +51,13 @@ export interface ClipItem {
    * cleared by re-ingest if the body changes.
    */
   template?: boolean;
+  /**
+   * Optional Unix-ms deadline. When set and `Date.now() >= expiresAt`,
+   * opportunistic GC moves the clip to trash so it disappears from the
+   * live list without the user lifting a finger. Pinned clips ignore
+   * their expiry (pinning is an explicit "keep this" intent).
+   */
+  expiresAt?: number;
 }
 
 export interface SearchQuery {

@@ -69,6 +69,20 @@
           <strong>Template tokens</strong>
           <div id="detail-template-info" class="template-info"></div>
         </div>
+        <div class="meta-row" id="detail-expiry-row">
+          <strong>Expires</strong>
+          <div class="expiry-row">
+            <select id="detail-expiry">
+              <option value="">Never (keep until I delete)</option>
+              <option value="3600000">In 1 hour</option>
+              <option value="14400000">In 4 hours</option>
+              <option value="86400000">In 24 hours</option>
+              <option value="604800000">In 7 days</option>
+              <option value="2592000000">In 30 days</option>
+            </select>
+            <span id="detail-expiry-hint" class="expiry-hint"></span>
+          </div>
+        </div>
       </div>
       <div class="detail-actions">
         <button id="detail-copy">Copy</button>

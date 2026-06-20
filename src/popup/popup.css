@@ -614,6 +614,35 @@ main:focus {
   color: var(--text-secondary);
 }
 
+.clip .meta .meta-ttl {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px 0 4px;
+  margin-left: 1px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+
+.clip .meta .meta-ttl svg {
+  width: 10px;
+  height: 10px;
+  opacity: 0.85;
+}
+
+.clip .meta .meta-ttl.due {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(255, 107, 120, 0.12);
+}
+
 .clip .tags {
   margin-top: 7px;
   display: flex;
@@ -1156,6 +1185,44 @@ footer button:hover {
   word-break: break-word;
   max-height: 80px;
   overflow-y: auto;
+}
+
+.expiry-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.expiry-row select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.expiry-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.expiry-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.expiry-hint.warn {
+  color: var(--danger);
+  font-style: normal;
+  font-weight: 600;
 }
 
 #detail-tags {

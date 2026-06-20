@@ -279,6 +279,45 @@ export async function purgeOldTrash(maxAgeMs: number): Promise<number> {
   return n;
 }
 
+/**
+ * Set or clear a clip's TTL. `expiresAt` is a Unix-ms deadline; pass
+ * `null` to remove an existing TTL. Pinned clips are allowed to carry
+ * a TTL but the GC will skip them (pin always wins over TTL).
+ */
+export async function setClipExpiry(
+  id: string,
+  expiresAt: number | null,
+): Promise<boolean> {
+  const item = await getClip(id);
+  if (!item) return false;
+  if (expiresAt == null) delete item.expiresAt;
+  else item.expiresAt = expiresAt;
+  await putClip(item);
+  return true;
+}
+
+/**
+ * Walk the live clips store and soft-delete any non-pinned clip whose
+ * TTL has elapsed. Runs opportunistically from the ingest path — there's
+ * no separate alarm because MV3 service workers don't need one for this
+ * (worst case: clips linger until the next capture, which is fine).
+ *
+ * Returns the count of clips that were trashed this pass.
+ */
+export async function expireDueClips(): Promise<number> {
+  const now = Date.now();
+  const all = await listClips({ limit: 1_000_000 });
+  let n = 0;
+  for (const c of all) {
+    if (c.pinned) continue;
+    if (typeof c.expiresAt !== "number") continue;
+    if (c.expiresAt > now) continue;
+    const ok = await trashClip(c.id);
+    if (ok) n++;
+  }
+  return n;
+}
+
 export async function togglePin(id: string): Promise<boolean> {
   const item = await getClip(id);
   if (!item) return false;

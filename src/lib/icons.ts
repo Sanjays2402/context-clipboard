@@ -49,6 +49,10 @@ export const icons = {
     svg(
       `<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>`,
     ),
+  clock: () =>
+    svg(
+      `<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`,
+    ),
   trash: () =>
     svg(
       `<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m5 6 1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/>`,

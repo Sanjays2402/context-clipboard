@@ -16,6 +16,8 @@ import {
   unredactClip,
   purgeOldTrash,
   forgetHost,
+  setClipExpiry,
+  expireDueClips,
 } from "./lib/db";
 import type { ClipItem, ClipSource, FieldMapEntry } from "./lib/types";
 import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii } from "./lib/util";
@@ -199,6 +201,16 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           if (!p?.host) return sendResponse({ ok: false, error: "host required" });
           const res = await forgetHost(p.host);
           return sendResponse({ ok: true, ...res });
+        }
+        if (msg.action === "setClipExpiry") {
+          const p = msg.payload as { id?: string; expiresAt?: number | null } | undefined;
+          if (!p?.id) return sendResponse({ ok: false, error: "id required" });
+          const ok = await setClipExpiry(p.id, p.expiresAt ?? null);
+          return sendResponse({ ok });
+        }
+        if (msg.action === "expireDueClips") {
+          const n = await expireDueClips();
+          return sendResponse({ ok: true, expired: n });
         }
         if (msg.action === "redactClip") {
           const p = msg.payload as { id?: string } | undefined;
@@ -398,8 +410,10 @@ async function ingest(inp: IngestInput): Promise<string> {
   }
   await putClip(item);
   await pruneOldUnpinned(settings.maxUnpinned);
-  // Opportunistic trash GC — never let trash outlive the retention window.
-  // Free, runs at most once per capture.
+  // Opportunistic GC: trash any clips whose TTL has elapsed, then prune
+  // any trash older than the retention window. Both are bounded and run
+  // at most once per capture; cheap.
+  void expireDueClips().catch(() => {});
   void purgeOldTrash(7 * 86_400_000).catch(() => {});
   return item.id;
 }
@@ -463,6 +477,8 @@ interface RpcMsg {
     | "clearUnpinned"
     | "clearAll"
     | "forgetHost"
+    | "setClipExpiry"
+    | "expireDueClips"
     | "setOcrText"
     | "addImageBlob"
     | "addNote"

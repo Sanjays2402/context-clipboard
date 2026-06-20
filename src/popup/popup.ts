@@ -70,6 +70,8 @@ const detailOcrRow = $("detail-ocr-row");
 const detailOcrText = $("detail-ocr-text");
 const detailTemplateRow = $("detail-template-row");
 const detailTemplateInfo = $("detail-template-info");
+const detailExpiry = $<HTMLSelectElement>("detail-expiry");
+const detailExpiryHint = $("detail-expiry-hint");
 const detailCopy = $<HTMLButtonElement>("detail-copy");
 const detailCopyMd = $<HTMLButtonElement>("detail-copy-md");
 
@@ -207,6 +209,10 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
   const previewText =
     c.kind === "image" ? c.preview || "Image" : c.preview || c.content;
   const hits = c.hitCount > 1 ? ` · ×${c.hitCount}` : "";
+  const expiry =
+    !c.pinned && typeof c.expiresAt === "number"
+      ? ` · <span class="meta-ttl${c.expiresAt <= Date.now() ? " due" : ""}" title="Expires ${new Date(c.expiresAt).toLocaleString()}">${icons.clock()}${formatRemaining(c.expiresAt)}</span>`
+      : "";
   const tags = c.tags
     .slice(0, 4)
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
@@ -219,7 +225,7 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
         <div class="preview">${escapeHtml(previewText.slice(0, 140))}</div>
         <div class="meta">
           <span class="src" title="${escapeHtml(c.source.url || "")}">${escapeHtml(src || "—")}</span>
-          <span>· ${timeAgo(c.lastSeenAt)}${hits}</span>
+          <span>· ${timeAgo(c.lastSeenAt)}${hits}${expiry}</span>
         </div>
         ${tags ? `<div class="tags">${tags}</div>` : ""}
       </div>
@@ -230,6 +236,17 @@ function renderClip(c: ClipItem, idx: number, active: boolean): string {
       </div>
     </div>
   `;
+}
+
+/** Short "5d" / "2h" / "in 3m" / "due" — for the inline meta TTL pill. */
+function formatRemaining(deadline: number): string {
+  const ms = deadline - Date.now();
+  if (ms <= 0) return "due";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86_400)}d`;
 }
 
 function renderTagChips(allClips: ClipItem[]) {
@@ -269,6 +286,7 @@ function renderQuickChips(allClips: ClipItem[]) {
   let ocr = 0;
   let images = 0;
   let templates = 0;
+  let expiring = 0;
   for (const c of allClips) {
     const h = hostFrom(c.source.url);
     if (h) hostCounts.set(h, (hostCounts.get(h) || 0) + 1);
@@ -276,6 +294,7 @@ function renderQuickChips(allClips: ClipItem[]) {
     if (c.ocrText) ocr++;
     if (c.kind === "image") images++;
     if (c.template) templates++;
+    if (typeof c.expiresAt === "number") expiring++;
   }
   const topHosts = Array.from(hostCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -294,6 +313,13 @@ function renderQuickChips(allClips: ClipItem[]) {
       op: "is:template",
       active: hasOp("is:template"),
       count: templates,
+    });
+  if (expiring > 0)
+    pills.push({
+      label: "Expiring",
+      op: "is:expiring",
+      active: hasOp("is:expiring"),
+      count: expiring,
     });
   if (redacted > 0)
     pills.push({
@@ -380,7 +406,7 @@ async function render(): Promise<void> {
     activeIndex = Math.max(0, currentClips.length - 1);
   if (currentClips.length === 0) {
     const hint = searchEl.value.trim()
-      ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:template</code> / <code>after:24h</code>.</small></div>`
+      ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:template</code> / <code>is:expiring</code> / <code>after:24h</code>.</small></div>`
       : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     listEl.innerHTML = hint;
   } else {
@@ -534,10 +560,53 @@ async function openDetail(id: string) {
   } else {
     detailTemplateRow.hidden = true;
   }
+  renderExpiryRow(c);
   detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
   renderRedactButton(c);
   updateDetailNav();
   detailEl.hidden = false;
+}
+
+/**
+ * Format the "Expires" row based on the clip's current `expiresAt`.
+ * The dropdown values are durations from *now*, so we don't try to
+ * "select" the original value — Never is the sticky baseline. The hint
+ * shows the current state ("Expires in 5d 2h" / "Expired — will GC at
+ * next capture" / "Pinned · TTL ignored").
+ */
+function renderExpiryRow(c: ClipItem): void {
+  detailExpiry.value = "";
+  if (c.pinned && c.expiresAt) {
+    detailExpiryHint.textContent = "Pinned · TTL ignored until unpinned";
+    detailExpiryHint.className = "expiry-hint warn";
+    return;
+  }
+  if (typeof c.expiresAt !== "number") {
+    detailExpiryHint.textContent = "No TTL — keeps until the unpinned cap evicts it";
+    detailExpiryHint.className = "expiry-hint";
+    return;
+  }
+  const remaining = c.expiresAt - Date.now();
+  if (remaining <= 0) {
+    detailExpiryHint.textContent = "Expired — will GC at next capture";
+    detailExpiryHint.className = "expiry-hint warn";
+  } else {
+    detailExpiryHint.textContent = `Expires in ${formatDuration(remaining)} (at ${new Date(c.expiresAt).toLocaleString()})`;
+    detailExpiryHint.className = "expiry-hint";
+  }
+}
+
+/** Human-friendly "5d 3h" / "47m" — caps at the two biggest units. */
+function formatDuration(ms: number): string {
+  if (ms < 0) return "0s";
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86_400);
+  const h = Math.floor((s % 86_400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return `${m}m`;
+  return `${s}s`;
 }
 
 /**
@@ -1097,6 +1166,28 @@ detailTags.addEventListener("change", async () => {
   await updateTags(detailId, tags);
   await render();
   toast("Tags saved");
+});
+
+detailExpiry.addEventListener("change", async () => {
+  if (!detailId) return;
+  const raw = detailExpiry.value.trim();
+  // Selecting any preset = TTL from *now*. Selecting "" = clear TTL.
+  // We never use the dropdown as a "show current value" — it's purely an
+  // action affordance, so we reset to "" after every change to mirror
+  // openDetail()'s baseline.
+  const id = detailId;
+  const expiresAt = raw ? Date.now() + Number(raw) : null;
+  await new Promise<void>((resolve) => {
+    api.runtime.sendMessage(
+      { type: "cc-rpc", action: "setClipExpiry", payload: { id, expiresAt } },
+      () => resolve(),
+    );
+  });
+  const updated = await getClip(id);
+  if (updated) renderExpiryRow(updated);
+  detailExpiry.value = "";
+  toast(raw ? "TTL set" : "TTL cleared");
+  await render();
 });
 
 detailOcr.addEventListener("click", async () => {

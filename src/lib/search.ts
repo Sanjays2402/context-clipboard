@@ -31,6 +31,8 @@ export interface ParsedQuery {
   ocrOnly: boolean;
   /** Only template clips ({{tokens}}) when true. */
   templateOnly: boolean;
+  /** Only clips with an `expiresAt` set when true. */
+  expiringOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -66,6 +68,7 @@ export function parseQuery(raw: string): ParsedQuery {
     redactedOnly: false,
     ocrOnly: false,
     templateOnly: false,
+    expiringOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -95,6 +98,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "redacted") out.redactedOnly = true;
       else if (v === "ocr") out.ocrOnly = true;
       else if (v === "template") out.templateOnly = true;
+      else if (v === "expiring") out.expiringOnly = true;
       else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
@@ -136,6 +140,7 @@ export function applyQuery(
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
     if (q.templateOnly && !c.template) return false;
+    if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
     if (q.before != null && c.lastSeenAt >= q.before) return false;
     if (q.after != null && c.lastSeenAt <= q.after) return false;
     for (const t of q.tags) if (!c.tags.includes(t)) return false;
@@ -168,6 +173,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.redactedOnly) bits.push("redacted");
   if (q.ocrOnly) bits.push("ocr");
   if (q.templateOnly) bits.push("template");
+  if (q.expiringOnly) bits.push("expiring");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");
