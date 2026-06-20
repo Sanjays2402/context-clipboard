@@ -121,3 +121,44 @@ export interface ClipUpdate {
   ocrText?: string;
   tags?: string[];
 }
+
+/**
+ * A named query the user can recall with one click. Persisted in the
+ * `meta` store under key `saved_searches`. The `query` is the same string
+ * the user types into the search box (operators included), so applying
+ * a saved search is just `searchEl.value = s.query`.
+ */
+export interface SavedSearch {
+  /** Stable id; we use it for delete/apply and as React-style key. */
+  id: string;
+  /** Human label shown in the chip strip. */
+  name: string;
+  /** Raw search string — same grammar as `parseQuery`. */
+  query: string;
+  createdAt: number;
+}
+
+/**
+ * Per-site capture rule. Applied during ingest in `background.ts`. Rules
+ * are matched against `hostFrom(source.url)`; the first rule whose
+ * `hostPattern` matches wins. Patterns are exact hostnames or `*.example`
+ * wildcards (one leading `*.` allowed — no full glob).
+ *
+ * `skipCapture` short-circuits ingest entirely (more granular than the
+ * existing block-list because the user opts in to rules per host). The
+ * other booleans layer on top of a normal capture.
+ */
+export interface SiteRule {
+  id: string;
+  /** Host or `*.host` pattern. */
+  hostPattern: string;
+  /** Extra tags to apply on capture (lowercased, deduped). */
+  autoTags?: string[];
+  /** Pin the clip on capture. */
+  autoPin?: boolean;
+  /** Force PII auto-redact for this site regardless of the global toggle. */
+  autoRedact?: boolean;
+  /** Don't capture anything from this site at all. */
+  skipCapture?: boolean;
+  createdAt: number;
+}

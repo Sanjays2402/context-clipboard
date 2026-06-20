@@ -1,4 +1,4 @@
-import type { ClipItem, SearchQuery, Settings } from "./types";
+import type { ClipItem, SearchQuery, Settings, SavedSearch, SiteRule } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import { hostFrom, redactPii, redactSensitivePreview } from "./util";
 
@@ -494,4 +494,152 @@ export async function importAll(data: {
   }
   if (data.settings) await saveSettings(data.settings);
   return { imported };
+}
+
+// Saved searches -----------------------------------------------------------
+//
+// Stored as a single meta row so we don't need an IDB schema bump. The list
+// stays tiny in practice (typical user: <20 saved searches), so reading +
+// rewriting the whole array per change is fine.
+
+const SAVED_SEARCHES_KEY = "saved_searches";
+
+export async function listSavedSearches(): Promise<SavedSearch[]> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(SAVED_SEARCHES_KEY);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: SavedSearch[] } | undefined;
+      const list = Array.isArray(row?.value) ? row.value : [];
+      resolve(list);
+    };
+    req.onerror = () => resolve([]);
+  });
+}
+
+async function writeSavedSearches(list: SavedSearch[]): Promise<void> {
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: SAVED_SEARCHES_KEY, value: list });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Add a named query. Trims + dedupes by lowercased name so the user
+ * doesn't end up with three "github" chips. Returns the persisted row.
+ */
+export async function addSavedSearch(
+  name: string,
+  query: string,
+): Promise<SavedSearch | null> {
+  const trimmedName = name.trim();
+  const trimmedQuery = query.trim();
+  if (!trimmedName || !trimmedQuery) return null;
+  const list = await listSavedSearches();
+  const lower = trimmedName.toLowerCase();
+  const existingIdx = list.findIndex((s) => s.name.toLowerCase() === lower);
+  const entry: SavedSearch = {
+    id:
+      existingIdx >= 0
+        ? list[existingIdx].id
+        : `ss_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    name: trimmedName,
+    query: trimmedQuery,
+    createdAt: existingIdx >= 0 ? list[existingIdx].createdAt : Date.now(),
+  };
+  const next = existingIdx >= 0 ? [...list] : [...list, entry];
+  if (existingIdx >= 0) next[existingIdx] = entry;
+  // Cap at 24 so the chip row stays scannable.
+  await writeSavedSearches(next.slice(-24));
+  return entry;
+}
+
+export async function removeSavedSearch(id: string): Promise<boolean> {
+  const list = await listSavedSearches();
+  const next = list.filter((s) => s.id !== id);
+  if (next.length === list.length) return false;
+  await writeSavedSearches(next);
+  return true;
+}
+
+// Site rules ---------------------------------------------------------------
+
+const SITE_RULES_KEY = "site_rules";
+
+export async function listSiteRules(): Promise<SiteRule[]> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(SITE_RULES_KEY);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: SiteRule[] } | undefined;
+      resolve(Array.isArray(row?.value) ? row.value : []);
+    };
+    req.onerror = () => resolve([]);
+  });
+}
+
+async function writeSiteRules(list: SiteRule[]): Promise<void> {
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: SITE_RULES_KEY, value: list });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function upsertSiteRule(
+  rule: Omit<SiteRule, "id" | "createdAt"> & { id?: string },
+): Promise<SiteRule> {
+  const list = await listSiteRules();
+  const pattern = rule.hostPattern.trim().toLowerCase();
+  if (!pattern) throw new Error("hostPattern required");
+  const idx = rule.id
+    ? list.findIndex((r) => r.id === rule.id)
+    : list.findIndex((r) => r.hostPattern === pattern);
+  const next: SiteRule = {
+    id: rule.id ?? list[idx]?.id ?? `sr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    hostPattern: pattern,
+    autoTags: rule.autoTags?.map((t) => t.trim()).filter(Boolean),
+    autoPin: !!rule.autoPin,
+    autoRedact: !!rule.autoRedact,
+    skipCapture: !!rule.skipCapture,
+    createdAt: idx >= 0 ? list[idx].createdAt : Date.now(),
+  };
+  const out = idx >= 0 ? [...list] : [...list, next];
+  if (idx >= 0) out[idx] = next;
+  await writeSiteRules(out);
+  return next;
+}
+
+export async function removeSiteRule(id: string): Promise<boolean> {
+  const list = await listSiteRules();
+  const next = list.filter((r) => r.id !== id);
+  if (next.length === list.length) return false;
+  await writeSiteRules(next);
+  return true;
+}
+
+/**
+ * Pure pattern test — no IO. Exact match, or `*.example.com` style
+ * (one leading wildcard label). Empty / blank hosts never match.
+ */
+export function matchesHostPattern(pattern: string, host: string): boolean {
+  if (!pattern || !host) return false;
+  const p = pattern.toLowerCase();
+  const h = host.toLowerCase().replace(/^www\./, "");
+  if (p.startsWith("*.")) {
+    const suffix = p.slice(2);
+    if (!suffix) return false;
+    return h === suffix || h.endsWith(`.${suffix}`);
+  }
+  return p === h;
+}
+
+/** Find the first matching site rule for `host`, or undefined. */
+export async function findSiteRuleFor(host: string): Promise<SiteRule | undefined> {
+  if (!host) return undefined;
+  const rules = await listSiteRules();
+  return rules.find((r) => matchesHostPattern(r.hostPattern, host));
 }

@@ -11,9 +11,12 @@ import {
   restoreClip,
   emptyTrash,
   trashCount,
+  listSavedSearches,
+  addSavedSearch,
+  removeSavedSearch,
   type TrashedClip,
 } from "../lib/db";
-import type { ClipItem, ClipKind, Settings } from "../lib/types";
+import type { ClipItem, ClipKind, Settings, SavedSearch } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
@@ -43,6 +46,8 @@ const settingsBtn = $<HTMLButtonElement>("settings-btn");
 const noteBtn = $<HTMLButtonElement>("note-btn");
 const tagChipsEl = $("tag-chips");
 const quickChipsEl = $("quick-chips");
+const savedSearchesEl = $("saved-searches");
+const saveSearchBtn = $<HTMLButtonElement>("save-search-btn");
 const dropZone = $("drop-zone");
 const filterBtns = document.querySelectorAll<HTMLButtonElement>(
   ".filters button[data-kind]",
@@ -123,6 +128,7 @@ let activeIndex = 0;
 let detailId: string | null = null;
 let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
+let savedSearches: SavedSearch[] = [];
 
 /**
  * Show a transient toast. If `action` is provided, render a clickable
@@ -386,10 +392,90 @@ function toggleSearchOp(op: string) {
   void render();
 }
 
+/**
+ * Render the saved-searches chip strip. Each chip applies its query when
+ * clicked; the right-side × button removes it (no confirm — saved searches
+ * are cheap, recreating one is one prompt away).
+ *
+ * The strip stays hidden when there are zero saved searches so we don't
+ * eat vertical space for an empty row.
+ */
+function renderSavedSearches(): void {
+  if (savedSearches.length === 0) {
+    savedSearchesEl.hidden = true;
+    savedSearchesEl.innerHTML = "";
+    return;
+  }
+  const current = searchEl.value.trim();
+  savedSearchesEl.hidden = false;
+  savedSearchesEl.innerHTML = savedSearches
+    .map(
+      (s) =>
+        `<span class="saved-search-chip ${s.query === current ? "active" : ""}" data-id="${escapeHtml(s.id)}" title="${escapeHtml(s.query)}">` +
+        `<button class="saved-search-apply" data-act="apply" type="button">${escapeHtml(s.name)}</button>` +
+        `<button class="saved-search-del" data-act="del" type="button" title="Remove">×</button>` +
+        `</span>`,
+    )
+    .join("");
+}
+
+/**
+ * Toggle the save-search button: visible only when the search box has a
+ * non-trivial query that isn't already saved verbatim. Empty boxes don't
+ * need a save affordance; already-saved queries don't either.
+ */
+function updateSaveSearchButton(): void {
+  const q = searchEl.value.trim();
+  if (!q) {
+    saveSearchBtn.hidden = true;
+    return;
+  }
+  const alreadySaved = savedSearches.some((s) => s.query === q);
+  saveSearchBtn.hidden = alreadySaved;
+  saveSearchBtn.title = alreadySaved
+    ? "Already saved"
+    : "Save this search as a chip";
+}
+
+async function refreshSavedSearches(): Promise<void> {
+  savedSearches = await listSavedSearches();
+}
+
+async function handleSaveSearch(): Promise<void> {
+  const q = searchEl.value.trim();
+  if (!q) return;
+  // Default name = first meaningful token. We pull it from the parsed
+  // query so "kind:image after:24h" → "image", not the raw operator.
+  const parsed = parseQuery(q);
+  const fallback =
+    parsed.freeText.split(/\s+/)[0] ||
+    parsed.host ||
+    parsed.tags[0] ||
+    parsed.kind ||
+    "Saved search";
+  const name = prompt("Name this search:", fallback.slice(0, 32));
+  if (name == null) return;
+  const trimmed = name.trim();
+  if (!trimmed) {
+    toast("Name required", "error");
+    return;
+  }
+  const entry = await addSavedSearch(trimmed, q);
+  if (!entry) {
+    toast("Couldn't save", "error");
+    return;
+  }
+  await refreshSavedSearches();
+  toast(`Saved "${entry.name}"`);
+  await render();
+}
+
 async function render(): Promise<void> {
   const all = await listClips({ limit: 1000 });
   renderTagChips(all);
   renderQuickChips(all);
+  renderSavedSearches();
+  updateSaveSearchButton();
   const parsed = parseQuery(searchEl.value);
   // Pull a wide window from IDB then apply parsed filters in-memory. The
   // total clip count is bounded by `maxUnpinned` (default 500) + pinned, so
@@ -935,6 +1021,34 @@ quickChipsEl.addEventListener("click", (e) => {
   toggleSearchOp(op);
 });
 
+// Saved searches --------------------------------------------------------
+savedSearchesEl.addEventListener("click", async (e) => {
+  const chip = (e.target as HTMLElement).closest(
+    ".saved-search-chip",
+  ) as HTMLElement | null;
+  if (!chip) return;
+  const id = chip.dataset.id;
+  if (!id) return;
+  const entry = savedSearches.find((s) => s.id === id);
+  if (!entry) return;
+  const target = e.target as HTMLElement;
+  if (target.dataset.act === "del") {
+    e.stopPropagation();
+    await removeSavedSearch(id);
+    await refreshSavedSearches();
+    toast(`Removed "${entry.name}"`);
+    await render();
+    return;
+  }
+  // Apply: drop into search box, focus so the user can refine, render.
+  searchEl.value = entry.query;
+  activeIndex = 0;
+  searchEl.focus();
+  await render();
+});
+
+saveSearchBtn.addEventListener("click", () => void handleSaveSearch());
+
 // List events -----------------------------------------------------------
 listEl.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;
@@ -1403,6 +1517,7 @@ bulkTag.addEventListener("click", async () => {
   });
   const s = await getSettings();
   document.body.dataset.theme = s.theme;
+  await refreshSavedSearches();
   await render();
   searchEl.focus();
 })();
