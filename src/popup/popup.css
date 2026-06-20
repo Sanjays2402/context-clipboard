@@ -581,6 +581,26 @@ main:focus {
   line-height: 1.7;
 }
 
+.empty small {
+  display: block;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.85;
+  line-height: 1.9;
+}
+
+.empty code {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
 /* Footer */
 footer {
   padding: 10px 12px;

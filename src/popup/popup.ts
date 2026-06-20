@@ -17,6 +17,7 @@ import {
   isEncryptedEnvelope,
   type EncryptedEnvelope,
 } from "../lib/crypto";
+import { parseQuery, applyQuery, describeQuery } from "../lib/search";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -167,23 +168,33 @@ function renderTagChips(allClips: ClipItem[]) {
 async function render(): Promise<void> {
   const all = await listClips({ limit: 1000 });
   renderTagChips(all);
-  currentClips = await listClips({
-    q: searchEl.value,
-    kind: currentKind,
-    pinnedOnly,
-    tag: activeTag || undefined,
-    limit: 200,
-  });
+  const parsed = parseQuery(searchEl.value);
+  // Pull a wide window from IDB then apply parsed filters in-memory. The
+  // total clip count is bounded by `maxUnpinned` (default 500) + pinned, so
+  // this stays cheap. We keep the legacy free-text filter inside listClips
+  // disabled (we own it now) and pass only kind/pinned/tag through, then
+  // overlay the parsed operators on top.
+  const wide = await listClips({ limit: 5000 });
+  currentClips = applyQuery(wide, parsed, {
+    extraPinnedOnly: pinnedOnly,
+    extraTag: activeTag,
+    extraKind: currentKind,
+  }).slice(0, 200);
   if (activeIndex >= currentClips.length)
     activeIndex = Math.max(0, currentClips.length - 1);
   if (currentClips.length === 0) {
-    listEl.innerHTML = `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
+    const hint = searchEl.value.trim()
+      ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>after:24h</code>.</small></div>`
+      : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
+    listEl.innerHTML = hint;
   } else {
     listEl.innerHTML = currentClips
       .map((c, i) => renderClip(c, i, i === activeIndex))
       .join("");
   }
-  countEl.textContent = `${currentClips.length} clip${currentClips.length === 1 ? "" : "s"}`;
+  const desc = describeQuery(parsed);
+  const countText = `${currentClips.length} clip${currentClips.length === 1 ? "" : "s"}`;
+  countEl.textContent = desc ? `${countText} · ${desc}` : countText;
 }
 
 // Clipboard helpers -----------------------------------------------------
