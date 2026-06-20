@@ -50,8 +50,6 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)  <!-- partially covered by quick chips, still keep -->
 - [ ] Fuzzy command palette in popup (`Cmd+K`: actions like "Pin all images", "Clear redacted only")
 - [ ] Jump to host: typing `g github` in search jumps to first github clip
-- [ ] Search highlight: bold/inline-highlight needle inside each clip preview
-- [ ] Recently-used search history (last 5 typed queries as ghost chips below the box)
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
@@ -75,10 +73,12 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Smart dedup across `lastSeenAt` window groups (right now only same-hash)
 - [ ] Import merge strategy: dedup by hash on import
 - [ ] Bulk re-tag from search (apply tag to every clip in current filter)
+- [ ] Pin-all-filtered: one-click pin every clip in current view (mirror of bulk-delete-all)
+- [ ] Sort options for the list (oldest first, by hit count, by size)
 
 ### UI polish (real, not cosmetic)
-- [ ] Storage breakdown chart (text vs images vs OCR text)
-- [ ] Keyboard cheatsheet overlay (press `?` to show)
+- [ ] Inline diff for re-captured clips (show what changed vs previous copy)
+- [ ] Per-collection storage breakdown (when collections ship)
 
 ### Shipped (autoship)
 - [x] Smart search operators (kind/host/tag/is/before/after) — `c407d53`
@@ -96,6 +96,11 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Reveal-once mode for redacted clips (10s with countdown) — `7f37ed1`
 - [x] Export filter (pinned / tag / date range / skip images) — `656d25e`
 - [x] Result count breakdown when filtering — `ad3b2a1`
+- [x] Search-match highlight in previews + detail body — `ec7fb3f`
+- [x] Recent search history (5 ghost chips, auto-tracked, debounced) — `f01d4fc`
+- [x] Keyboard cheatsheet overlay (press `?`) — `6a033f0`
+- [x] Storage breakdown — text / image / link / OCR / trash segments — `82a97a0`
+- [x] Select all filtered (footer btn + bulk-bar toggle + Cmd/Ctrl+A) — `54a2c1a`
 
 ## Tick log
 
@@ -103,6 +108,14 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 <!-- TICKS BELOW -->
 
+- **2026-06-20 06:58 PT** — 5/5 shipped. Search-needle highlight in previews
+  + detail (ec7fb3f, 9/9 sanity), recent search history as auto-tracked
+  ghost chips with 900ms debounce (f01d4fc), keyboard cheatsheet overlay
+  on `?` with four grouped sections (6a033f0), segmented storage breakdown
+  by clip kind with colored legend (82a97a0), select-all-filtered with
+  footer pill + bulk-bar toggle + Cmd/Ctrl+A shortcut (54a2c1a). tsc +
+  chrome/firefox builds green; 11/11 export-filter + 9/9 highlight sanity
+  pass.
 - **2026-06-20 03:27 PT** — 5/5 shipped. Saved searches as chips with one-click
   apply (72b7ed7), per-site capture rules with host or `*.host` patterns and
   auto-tag/pin/redact/skip effects (97f584c), reveal-once for redacted clips
