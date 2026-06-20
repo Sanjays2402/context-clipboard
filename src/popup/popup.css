@@ -962,6 +962,52 @@ main:focus {
   box-shadow: 0 0 0 3px rgba(255, 107, 120, 0.18);
 }
 
+/* Reveal-once mode (redacted clip → original for 10s) */
+.detail-body.revealed {
+  position: relative;
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+  background: rgba(255, 107, 120, 0.05);
+}
+
+.reveal-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 107, 120, 0.16);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--danger);
+}
+
+.reveal-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--danger);
+  border-radius: 999px;
+  box-shadow: 0 0 0 0 var(--danger);
+  animation: reveal-pulse 1.2s ease-out infinite;
+}
+
+@keyframes reveal-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 107, 120, 0.55); }
+  100% { box-shadow: 0 0 0 8px rgba(255, 107, 120, 0); }
+}
+
+#detail-reveal {
+  color: var(--danger);
+}
+
+#detail-reveal:hover {
+  background: rgba(255, 107, 120, 0.1);
+  border-color: var(--danger);
+}
+
 /* Per-site rules */
 .site-rules-list {
   display: flex;

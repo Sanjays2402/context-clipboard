@@ -61,6 +61,7 @@ const detailNavPos = $("detail-nav-pos");
 const detailPin = $<HTMLButtonElement>("detail-pin");
 const detailDelete = $<HTMLButtonElement>("detail-delete");
 const detailOcr = $<HTMLButtonElement>("detail-ocr");
+const detailReveal = $<HTMLButtonElement>("detail-reveal");
 const detailRedact = $<HTMLButtonElement>("detail-redact");
 const detailBody = $("detail-body");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
@@ -599,6 +600,9 @@ async function copyAsMarkdown(c: ClipItem) {
 async function openDetail(id: string) {
   const c = await getClip(id);
   if (!c) return;
+  // Always end any prior reveal before swapping clips. Otherwise the timer
+  // would clobber the new clip's body when it fires.
+  if (detailId && detailId !== id) endRevealOnce();
   detailId = c.id;
   if (c.kind === "image") {
     detailBody.innerHTML = `<img src="${c.content}" alt="" />`;
@@ -746,13 +750,14 @@ function renderRedactButton(c: ClipItem) {
   // Images aren't redactable (binary payload).
   if (c.kind === "image") {
     detailRedact.hidden = true;
+    detailReveal.hidden = true;
     return;
   }
   detailRedact.hidden = false;
   if (c.redacted) {
     detailRedact.innerHTML = icons.shieldOff();
     if (c.originalContent != null) {
-      detailRedact.title = "Unmask — restore original content";
+      detailRedact.title = "Unmask permanently — restore original content";
       detailRedact.disabled = false;
     } else {
       detailRedact.title = "Redaction is permanent (original was never stored)";
@@ -763,9 +768,19 @@ function renderRedactButton(c: ClipItem) {
     detailRedact.title = "Redact emails / phones / cards / secrets in this clip";
     detailRedact.disabled = false;
   }
+  // Reveal-once is only meaningful when the clip is redacted AND we still
+  // have the original. Auto-redacted-on-capture clips never get the
+  // affordance because there's nothing to reveal.
+  if (c.redacted && c.originalContent != null) {
+    detailReveal.hidden = false;
+    detailReveal.title = "Show original for 10s, then snap back";
+  } else {
+    detailReveal.hidden = true;
+  }
 }
 
 function closeDetail() {
+  endRevealOnce();
   detailEl.hidden = true;
   detailId = null;
 }
@@ -1353,10 +1368,21 @@ detailRedact.addEventListener("click", async () => {
   const c = await getClip(detailId);
   if (!c) return;
   if (c.kind === "image") return;
+  // If a reveal countdown is running, restoring the redacted view is the
+  // safer default — we don't want a stray click to permanently unmask.
+  if (revealTimer != null) {
+    endRevealOnce();
+    return;
+  }
   const action = c.redacted ? "unredactClip" : "redactClip";
   if (action === "redactClip") {
     const confirmMsg =
       "Redact this clip? Emails, phones, cards, and secrets will be masked. You can unmask later — the original is kept locally.";
+    if (!confirm(confirmMsg)) return;
+  }
+  if (action === "unredactClip") {
+    const confirmMsg =
+      "Permanently restore original? For a temporary view, use the eye button (10-second reveal).";
     if (!confirm(confirmMsg)) return;
   }
   api.runtime.sendMessage(
@@ -1381,6 +1407,74 @@ detailRedact.addEventListener("click", async () => {
     },
   );
 });
+
+// Reveal-once mode -----------------------------------------------------
+//
+// Show a redacted clip's original content for ~10s with a visible
+// countdown, then snap back. The DB is never touched — the `redacted`
+// flag stays on; only the popup DOM changes. We tear down on any of:
+// timer expiry, manual close, opening a different clip, or popup close.
+
+const REVEAL_MS = 10_000;
+let revealTimer: number | null = null;
+let revealInterval: number | null = null;
+
+function endRevealOnce(): void {
+  if (revealTimer != null) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (revealInterval != null) {
+    clearInterval(revealInterval);
+    revealInterval = null;
+  }
+  detailBody.classList.remove("revealed");
+  // Re-render the body from the (still-redacted) DB content. Don't await
+  // — this is a UI-side cleanup; if the DB call fails, the worst case is
+  // a stale view that the user can refresh by closing/reopening.
+  if (detailId) {
+    void getClip(detailId).then((updated) => {
+      if (!updated) return;
+      if (updated.kind === "image") {
+        detailBody.innerHTML = `<img src="${updated.content}" alt="" />`;
+      } else {
+        detailBody.innerHTML = `<pre>${escapeHtml(updated.content)}</pre>`;
+      }
+      renderRedactButton(updated);
+    });
+  }
+}
+
+async function startRevealOnce(): Promise<void> {
+  if (!detailId) return;
+  const c = await getClip(detailId);
+  if (!c || !c.redacted || c.originalContent == null) {
+    toast("Nothing to reveal", "error");
+    return;
+  }
+  // Cancel any prior reveal first so two quick clicks don't stack timers.
+  endRevealOnce();
+  // Swap the body to the original with a clear "revealed" treatment.
+  // A wrapping span carries the countdown so the user always knows when
+  // it'll snap back.
+  detailBody.classList.add("revealed");
+  const countdownId = "reveal-countdown";
+  detailBody.innerHTML =
+    `<div class="reveal-banner"><span class="reveal-dot"></span> Revealed · snaps back in <span id="${countdownId}">10</span>s</div>` +
+    `<pre>${escapeHtml(c.originalContent)}</pre>`;
+  let remaining = Math.ceil(REVEAL_MS / 1000);
+  revealInterval = setInterval(() => {
+    remaining = Math.max(0, remaining - 1);
+    const el = document.getElementById(countdownId);
+    if (el) el.textContent = String(remaining);
+  }, 1000) as unknown as number;
+  revealTimer = setTimeout(() => {
+    endRevealOnce();
+    toast("Snapped back");
+  }, REVEAL_MS) as unknown as number;
+}
+
+detailReveal.addEventListener("click", () => void startRevealOnce());
 
 detailCopy.addEventListener("click", async () => {
   if (!detailId) return;
