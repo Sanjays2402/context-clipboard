@@ -4710,12 +4710,13 @@ importFile.addEventListener("change", async () => {
     }
     api.runtime.sendMessage(
       { type: "cc-rpc", action: "import", payload: data },
-      (resp: { ok: boolean; imported?: number; skippedId?: number; skippedHash?: number; auditMerged?: number; error?: string }) => {
+      (resp: { ok: boolean; imported?: number; skippedId?: number; skippedHash?: number; auditMerged?: number; historyMerged?: number; error?: string }) => {
         if (resp?.ok) {
           const imp = resp.imported || 0;
           const skipId = resp.skippedId || 0;
           const skipHash = resp.skippedHash || 0;
           const auditMerged = resp.auditMerged || 0;
+          const historyMerged = resp.historyMerged || 0;
           // Build a concise summary: lead with imported count, then
           // surface dedup outcomes ONLY when they happened so the
           // common case ("clean import") stays a one-word toast.
@@ -4729,11 +4730,19 @@ importFile.addEventListener("change", async () => {
           if (auditMerged > 0) {
             parts.push(`+ ${auditMerged} audit entr${auditMerged === 1 ? "y" : "ies"}`);
           }
+          if (historyMerged > 0) {
+            parts.push(`+ ${historyMerged} search${historyMerged === 1 ? "" : "es"}`);
+          }
           toast(parts.join(" "));
           // Audit log changed under us if we imported any entries —
           // re-render the section so the Settings panel reflects the
           // merged ring without a manual refresh.
           if (auditMerged > 0) void renderAudit();
+          // Search history changed — refresh in-memory + repaint the
+          // "Recent" chip strip so restored history shows immediately.
+          if (historyMerged > 0) {
+            void refreshSearchHistory().then(() => renderSearchHistory());
+          }
           render();
         } else {
           toast(resp?.error || "Import failed", "error");

@@ -779,6 +779,18 @@ export async function exportAll(): Promise<{
    * scrubbed weeks ago and the new device's IDB is empty.
    */
   privacyAudit?: import("./db").PrivacyAuditEntry[];
+  /**
+   * Recent search history at export time (most-recent first, capped
+   * at SEARCH_HISTORY_MAX). Additive — old bundles without the field
+   * still import cleanly. Round-tripping search history means a user
+   * restoring on a new device doesn't lose their "Recent" chip row,
+   * which is small but surprisingly painful when it's gone (the
+   * chips are the muscle-memory layer above saved searches).
+   *
+   * We export a snapshot copy so a later push to history doesn't
+   * mutate the already-written bundle.
+   */
+  searchHistory?: string[];
 }> {
   const clips = await listClips({ limit: 1_000_000 });
   const settings = await getSettings();
@@ -793,19 +805,33 @@ export async function exportAll(): Promise<{
     console.warn("[context-clipboard] export: audit read failed", e);
     privacyAudit = undefined;
   }
-  return { version: DB_VERSION, clips, settings, exportedAt: Date.now(), privacyAudit };
+  // Same posture as the audit log: snapshot + omit-when-empty so a
+  // user who's never typed in the search box doesn't ship an empty
+  // [] in their backup.
+  let searchHistory: string[] | undefined;
+  try {
+    const list = await listSearchHistory();
+    searchHistory = list.length > 0 ? list.slice() : undefined;
+  } catch (e) {
+    console.warn("[context-clipboard] export: search history read failed", e);
+    searchHistory = undefined;
+  }
+  return { version: DB_VERSION, clips, settings, exportedAt: Date.now(), privacyAudit, searchHistory };
 }
 
 export async function importAll(data: {
   clips?: ClipItem[];
   settings?: Partial<Settings>;
   privacyAudit?: PrivacyAuditEntry[];
+  searchHistory?: string[];
 }): Promise<{
   imported: number;
   skippedId: number;
   skippedHash: number;
   /** Audit entries actually written (after dedup against existing entries by id). */
   auditMerged: number;
+  /** Search history entries added (after dedup against existing entries). */
+  historyMerged: number;
 }> {
   let imported = 0;
   let skippedId = 0;
@@ -910,7 +936,46 @@ export async function importAll(data: {
       console.warn("[context-clipboard] import: audit merge failed", e);
     }
   }
-  return { imported, skippedId, skippedHash, auditMerged };
+  // Search history merge: union with existing history, imported entries
+  // FIRST (they're newer-from-the-user's-POV in a backup restore scenario;
+  // the existing device's typing has already moved to whatever they're
+  // doing now). Same SEARCH_HISTORY_MAX cap as the live push path.
+  //
+  // Defensive: imported entries that aren't non-empty strings get
+  // dropped silently — keeps a forward-compatible export from poisoning
+  // the chip row with garbage. Trim to handle stray whitespace.
+  let historyMerged = 0;
+  if (Array.isArray(data.searchHistory) && data.searchHistory.length > 0) {
+    try {
+      const existing = await listSearchHistory();
+      const seen = new Set<string>(existing);
+      const additions: string[] = [];
+      for (const raw of data.searchHistory) {
+        if (typeof raw !== "string") continue;
+        const q = raw.trim();
+        if (!q) continue;
+        if (seen.has(q)) continue;
+        seen.add(q);
+        additions.push(q);
+      }
+      historyMerged = additions.length;
+      if (historyMerged > 0) {
+        // Imported first so they show up in the chip row on the
+        // freshly-restored device — that's the point of carrying
+        // history across machines.
+        const merged = [...additions, ...existing].slice(0, SEARCH_HISTORY_MAX);
+        const store = await metaTx("readwrite");
+        await new Promise<void>((resolve, reject) => {
+          const req = store.put({ key: SEARCH_HISTORY_KEY, value: merged });
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+        });
+      }
+    } catch (e) {
+      console.warn("[context-clipboard] import: search history merge failed", e);
+    }
+  }
+  return { imported, skippedId, skippedHash, auditMerged, historyMerged };
 }
 
 // Saved searches -----------------------------------------------------------
