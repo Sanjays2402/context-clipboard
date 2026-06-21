@@ -22,7 +22,7 @@ import {
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
-import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern } from "../lib/util";
+import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
   encryptJson,
@@ -138,6 +138,8 @@ const ruleSkipInput = $<HTMLInputElement>("rule-skip");
 const ruleAddBtn = $<HTMLButtonElement>("rule-add");
 const ruleCancelBtn = $<HTMLButtonElement>("rule-cancel");
 const ruleFormTitle = $("rule-form-title");
+const ruleTestInput = $<HTMLTextAreaElement>("rule-test-input");
+const ruleTestResult = $("rule-test-result");
 
 const bulkBar = $("bulk-bar");
 const bulkCount = $("bulk-count");
@@ -1354,6 +1356,7 @@ function loadRuleIntoForm(rule: SiteRule): void {
   // is already visible; we're just nudging within it.
   ruleHostInput.focus();
   ruleHostInput.select();
+  renderRuleTest();
 }
 
 function resetRuleForm(): void {
@@ -1368,6 +1371,7 @@ function resetRuleForm(): void {
   ruleCancelBtn.hidden = true;
   ruleFormTitle.textContent = "Add a rule";
   ruleAddBtn.closest(".site-rule-form")?.classList.remove("editing");
+  renderRuleTest();
 }
 
 async function addSiteRuleFromForm(): Promise<void> {
@@ -1447,6 +1451,62 @@ ruleCancelBtn.addEventListener("click", async () => {
   resetRuleForm();
   await renderSiteRules();
 });
+
+/**
+ * Render the live-test panel for the custom redaction patterns
+ * textarea: take whatever's in the test input, run the current
+ * patterns over it, and paint each match wrapped in a red span so
+ * the user can SEE which characters will be redacted before saving
+ * the rule. Empty input shows hint text; zero matches shows zero;
+ * invalid patterns get counted in the footer line.
+ *
+ * Re-runs on every keystroke in either textarea. Synchronous and
+ * cheap (caps + safety limits inside findCustomPatternHits).
+ */
+function renderRuleTest(): void {
+  const sample = ruleTestInput.value;
+  const patterns = rulePatternsInput.value
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!sample.trim()) {
+    ruleTestResult.innerHTML =
+      `<span class="empty-state">Paste sample text above to see what would be redacted.</span>`;
+    return;
+  }
+  if (patterns.length === 0) {
+    ruleTestResult.innerHTML =
+      `<span class="empty-state">Add a regex above (one per line) to start testing.</span>`;
+    return;
+  }
+  const { hits, invalid, matchedPatterns } = findCustomPatternHits(sample, patterns);
+  if (hits.length === 0) {
+    const note =
+      invalid > 0
+        ? ` <span class="empty-state">(${invalid} invalid pattern${invalid === 1 ? "" : "s"} skipped)</span>`
+        : "";
+    ruleTestResult.innerHTML = `<span class="empty-state">No matches.</span>${note}`;
+    return;
+  }
+  // Build the highlighted output by walking the sample and emitting
+  // escaped text + spans alternately. Hits are sorted + non-overlapping
+  // by `findCustomPatternHits` so this single pass is sound.
+  const pieces: string[] = [];
+  let cursor = 0;
+  for (const h of hits) {
+    if (h.start > cursor) pieces.push(escapeHtml(sample.slice(cursor, h.start)));
+    pieces.push(
+      `<span class="red" title="matched: ${escapeHtml(h.pattern)}">${escapeHtml(sample.slice(h.start, h.end))}</span>`,
+    );
+    cursor = h.end;
+  }
+  if (cursor < sample.length) pieces.push(escapeHtml(sample.slice(cursor)));
+  const summary = `<span class="empty-state">${hits.length} match${hits.length === 1 ? "" : "es"} across ${matchedPatterns} pattern${matchedPatterns === 1 ? "" : "s"}${invalid > 0 ? ` · ${invalid} invalid skipped` : ""}</span>\n`;
+  ruleTestResult.innerHTML = summary + pieces.join("");
+}
+
+rulePatternsInput.addEventListener("input", () => renderRuleTest());
+ruleTestInput.addEventListener("input", () => renderRuleTest());
 
 siteRulesList.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;

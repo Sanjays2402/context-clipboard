@@ -236,6 +236,81 @@ export function applyCustomPatterns(
   return { content: out, matched };
 }
 
+export interface CustomPatternHit {
+  /** 0-based start offset in the ORIGINAL (un-redacted) string. */
+  start: number;
+  /** Exclusive end offset. */
+  end: number;
+  /** Which regex source matched (helpful for tooltips / debugging). */
+  pattern: string;
+}
+
+/**
+ * Locate every match of every (valid) pattern in `content`. Returns
+ * non-overlapping hits sorted by start offset — when two patterns
+ * overlap, the EARLIER + LONGER match wins so the test panel paints a
+ * single non-flickery highlight per region.
+ *
+ * Separate from `applyCustomPatterns` because the test panel needs
+ * positions for highlight HTML, not just a rewritten string. Reuses
+ * the same caps so behavior matches what ingest actually does.
+ */
+export function findCustomPatternHits(
+  content: string,
+  patterns: string[] | undefined,
+): { hits: CustomPatternHit[]; invalid: number; matchedPatterns: number } {
+  if (!content || !patterns || patterns.length === 0) {
+    return { hits: [], invalid: 0, matchedPatterns: 0 };
+  }
+  const raw: CustomPatternHit[] = [];
+  let invalid = 0;
+  let n = 0;
+  const matchedSet = new Set<string>();
+  for (const p of patterns) {
+    if (n++ >= MAX_CUSTOM_PATTERNS) break;
+    const src = (p || "").trim();
+    if (!src || src.length > MAX_PATTERN_LEN) {
+      if (src) invalid++;
+      continue;
+    }
+    let re: RegExp;
+    try {
+      re = new RegExp(src, "gi");
+    } catch {
+      invalid++;
+      continue;
+    }
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    let safety = 0;
+    while ((m = re.exec(content)) !== null) {
+      // Empty-match guard — required for zero-width regexes; otherwise
+      // we'd loop forever.
+      if (m[0].length === 0) {
+        re.lastIndex++;
+        continue;
+      }
+      raw.push({ start: m.index, end: m.index + m[0].length, pattern: src });
+      matchedSet.add(src);
+      if (++safety > 5000) break; // pathological-input guard
+    }
+  }
+  // Sort by start, then prefer the longer match so overlap-merge picks
+  // the bigger one.
+  raw.sort((a, b) => a.start - b.start || b.end - a.end);
+  const merged: CustomPatternHit[] = [];
+  for (const h of raw) {
+    const last = merged[merged.length - 1];
+    if (last && h.start < last.end) {
+      // Overlap: extend the earlier hit if this one stretches further.
+      if (h.end > last.end) last.end = h.end;
+    } else {
+      merged.push({ ...h });
+    }
+  }
+  return { hits: merged, invalid, matchedPatterns: matchedSet.size };
+}
+
 /** Pure validator for the settings UI. True when `src` compiles as a regex. */
 export function isValidPattern(src: string): boolean {
   const trimmed = (src || "").trim();

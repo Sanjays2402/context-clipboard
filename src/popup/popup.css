@@ -1344,6 +1344,96 @@ main:focus {
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
+/* Pattern test panel — collapsible. Uses <details> so it's keyboard-
+   accessible by default; we only style the summary + the inner block. */
+.rule-test {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--glass);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.rule-test > summary {
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--muted);
+  padding: 2px 0;
+  user-select: none;
+  outline: none;
+  list-style: none;
+}
+
+.rule-test > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rule-test > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.15s;
+  color: var(--muted);
+}
+
+.rule-test[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.rule-test[open] > summary {
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.rule-test-output {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rule-test-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.rule-test-result {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary);
+  min-height: 1.45em;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.rule-test-result .red {
+  background: rgba(255, 107, 120, 0.16);
+  color: var(--danger);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-weight: 600;
+}
+
+.rule-test-result .empty-state {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .site-rule-toggles {
   display: flex;
   flex-wrap: wrap;
