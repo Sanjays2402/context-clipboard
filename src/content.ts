@@ -119,8 +119,8 @@ api.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
     msg !== null &&
     (msg as { type?: string }).type === "cc-open-palette"
   ) {
-    const m = msg as { clips?: PaletteClip[]; lastQuery?: string };
-    openPalette(m.clips || [], m.lastQuery || "");
+    const m = msg as { clips?: PaletteClip[]; lastQuery?: string; tabHost?: string };
+    openPalette(m.clips || [], m.lastQuery || "", m.tabHost || "");
     sendResponse({ ok: true });
   }
   return false;
@@ -495,8 +495,13 @@ function detectLangLite(content: string): string {
   return "";
 }
 
-function openPalette(clips: PaletteClip[], initialQuery = "") {
+function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
   closePalette();
+  // Active-tab host (already www.-stripped on the background side) —
+  // we still normalise here defensively in case future call sites send
+  // the raw hostname. Empty string disables the host-boost so legacy
+  // call sites that don't pass a tabHost still behave the same.
+  const activeHost = (tabHost || "").toLowerCase().replace(/^www\./, "");
   const root = document.createElement("div");
   root.id = "__context_clipboard_palette__";
   root.attachShadow({ mode: "open" });
@@ -517,12 +522,14 @@ function openPalette(clips: PaletteClip[], initialQuery = "") {
     .row.dim { opacity: 0.42; }
     .row.dim .preview { font-style: italic; }
     .row.pinned-divider { border-top: 1px dashed rgba(245,180,0,0.22); }
+    .row.host-divider { border-top: 1px solid rgba(120, 200, 255, 0.18); }
     .thumb { width: 36px; height: 36px; flex:0 0 36px; border-radius:4px; background:#0f1115; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; position:relative; }
     .thumb img { width:100%; height:100%; object-fit:cover; }
     .pin-dot { position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:#f5b400; box-shadow: 0 0 6px rgba(245,180,0,0.7); }
     .body { flex:1; min-width:0; }
     .preview { font-size: 13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .meta { margin-top:2px; font-size: 11px; color:#8a93a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .host-badge { display:inline-block; margin-left: 6px; padding: 1px 6px; background: rgba(120, 200, 255, 0.12); color: #93c5fd; border-radius: 999px; font-size: 9px; font-weight: 600; text-transform: lowercase; letter-spacing: 0.02em; vertical-align: 2px; }
     .empty { padding: 24px; text-align:center; color:#8a93a6; font-size: 13px; }
     .hint { font-size: 10px; padding: 6px 12px; background:#0f1115; color:#8a93a6; text-align:center; border-top:1px solid #232936; }
   `;
@@ -616,6 +623,27 @@ function openPalette(clips: PaletteClip[], initialQuery = "") {
       }
     }
     const hasPinned = filtered.some((c) => c.pinned);
+    // Find the first row that ISN'T from the active tab's host (within
+    // each tier) so we can draw a faint divider between the host-boost
+    // cluster and the rest. Only meaningful when we have an activeHost
+    // AND the boost actually moved at least one clip to the top.
+    let firstNonHostIdx = -1;
+    if (activeHost) {
+      for (let i = 0; i < filtered.length; i++) {
+        const r = filtered[i];
+        // Pinned tier is drawn with its own divider; we anchor the
+        // host divider INSIDE the unpinned tier so the two strokes
+        // don't double up.
+        if (r.pinned) continue;
+        if (host(r.source?.url) !== activeHost) {
+          firstNonHostIdx = i;
+          break;
+        }
+      }
+    }
+    const anyHostMatch =
+      !!activeHost &&
+      filtered.some((r) => host(r.source?.url) === activeHost);
     list.innerHTML = filtered
       .map((c, i) => {
         const pinDot = c.pinned ? `<span class="pin-dot" title="Pinned"></span>` : "";
@@ -624,13 +652,22 @@ function openPalette(clips: PaletteClip[], initialQuery = "") {
             ? `<div class="thumb"><img src="${c.content}" />${pinDot}</div>`
             : `<div class="thumb">${c.kind === "link" ? "🔗" : "📝"}${pinDot}</div>`;
         const preview = c.kind === "image" ? c.preview || "Image" : c.preview || c.content;
-        const meta = [host(c.source?.url), c.source?.title].filter(Boolean).join(" · ");
+        const hostMatch = !!activeHost && host(c.source?.url) === activeHost;
+        const metaParts = [host(c.source?.url), c.source?.title].filter(Boolean);
+        const metaText = metaParts.join(" · ");
+        const hostBadge = hostMatch
+          ? `<span class="host-badge" title="From this site">this site</span>`
+          : "";
         // Image clips can't be pasted into text fields; dim them so the
         // user understands "this won't paste here" before they try.
         const dim = targetIsEditable && c.kind === "image" ? " dim" : "";
-        const divider =
+        const pinnedDivider =
           hasPinned && firstUnpinnedIdx === i && i > 0 ? " pinned-divider" : "";
-        return `<div class="row${i === active ? " active" : ""}${dim}${divider}" data-i="${i}">${thumb}<div class="body"><div class="preview">${esc(preview.slice(0, 140))}</div><div class="meta">${esc(meta || "")}</div></div></div>`;
+        const hostDivider =
+          anyHostMatch && firstNonHostIdx === i && i > 0 && !pinnedDivider
+            ? " host-divider"
+            : "";
+        return `<div class="row${i === active ? " active" : ""}${dim}${pinnedDivider}${hostDivider}" data-i="${i}">${thumb}<div class="body"><div class="preview">${esc(preview.slice(0, 140))}</div><div class="meta">${esc(metaText || "")}${hostBadge}</div></div></div>`;
       })
       .join("");
   }
@@ -645,11 +682,23 @@ function openPalette(clips: PaletteClip[], initialQuery = "") {
     const matchesKind = (c: PaletteClip) =>
       kindFilter === "all" || c.kind === kindFilter;
     // Pinned first within the matching set so high-signal clips stay
-    // one keystroke away. Stable order otherwise (we don't re-sort
-    // by recency — the parent list already arrived sorted).
+    // one keystroke away. Within the pinned and unpinned tiers, clips
+    // captured from the SAME host as the active tab float up — typing
+    // Cmd+Shift+V on docs.github.com surfaces github clips first
+    // because that's nearly always what the user wants there. The
+    // input array already arrives sorted by recency, so a stable sort
+    // keeps the recent-first ordering intact between host tiers.
     filtered = clips
       .filter((c) => matchesKind(c) && matchesQuery(c))
-      .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
+      .sort((a, b) => {
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+        if (activeHost) {
+          const ah = host(a.source?.url) === activeHost ? 1 : 0;
+          const bh = host(b.source?.url) === activeHost ? 1 : 0;
+          if (ah !== bh) return bh - ah;
+        }
+        return 0;
+      });
     active = 0;
     render();
   }

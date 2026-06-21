@@ -121,7 +121,11 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
         source: { url: c.source.url, title: c.source.title },
       }));
       const lastQuery = await getPaletteLastQuery();
-      await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite, lastQuery });
+      // Pass the active tab's host so the in-page palette can boost
+      // clips captured on this same host — the most-likely match for
+      // a "paste from clipboard here" workflow.
+      const tabHost = hostFrom(tab.url);
+      await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite, lastQuery, tabHost });
       return;
     }
     if (info.menuItemId === "cc-capture-image" && info.srcUrl) {
@@ -171,7 +175,8 @@ if (api.commands) {
             source: { url: c.source.url, title: c.source.title },
           }));
           const lastQuery = await getPaletteLastQuery();
-          await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite, lastQuery });
+          const tabHost = hostFrom(tab.url);
+          await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite, lastQuery, tabHost });
           return;
         }
       } catch (_e) {
