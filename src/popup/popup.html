@@ -221,6 +221,10 @@
           </div>
           <div class="site-rules-list" id="site-rules-list"></div>
           <div class="site-rule-form">
+            <div class="site-rule-form-head">
+              <span id="rule-form-title" class="site-rule-form-title">Add a rule</span>
+              <button id="rule-cancel" class="rule-cancel" type="button" hidden>Cancel edit</button>
+            </div>
             <input id="rule-host" type="text" placeholder="host or *.example.com" autocomplete="off" spellcheck="false" />
             <input id="rule-tags" type="text" placeholder="tags (comma-sep)" autocomplete="off" spellcheck="false" />
             <textarea id="rule-patterns" rows="2" placeholder="custom redaction regex (one per line, optional)&#10;e.g. ACC-\d{6,}" autocomplete="off" spellcheck="false"></textarea>
@@ -236,6 +240,7 @@
             matches example.com and any subdomain. Skip-capture short-circuits ingest
             on that host entirely (more granular than the block list). Custom regex
             patterns layer on top of built-in PII redaction — text clips only.
+            Click a row to load it back into the form for editing.
           </div>
         </div>
         <div class="settings-actions">

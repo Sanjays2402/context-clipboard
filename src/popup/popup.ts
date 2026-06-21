@@ -136,6 +136,8 @@ const rulePinInput = $<HTMLInputElement>("rule-pin");
 const ruleRedactInput = $<HTMLInputElement>("rule-redact");
 const ruleSkipInput = $<HTMLInputElement>("rule-skip");
 const ruleAddBtn = $<HTMLButtonElement>("rule-add");
+const ruleCancelBtn = $<HTMLButtonElement>("rule-cancel");
+const ruleFormTitle = $("rule-form-title");
 
 const bulkBar = $("bulk-bar");
 const bulkCount = $("bulk-count");
@@ -165,6 +167,10 @@ let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
 let savedSearches: SavedSearch[] = [];
 let searchHistory: string[] = [];
+// When non-null, addSiteRuleFromForm() updates the rule with this id
+// instead of creating a fresh one. Set by clicking a rule row in the
+// settings panel; cleared by save, cancel, or any explicit form reset.
+let editingRuleId: string | null = null;
 // Active list sort mode (persisted in IDB meta). Defaults to "recent"
 // which preserves the historical behavior — `lastSeenAt desc` with
 // pinned floated to the top.
@@ -1315,13 +1321,53 @@ async function renderSiteRules(): Promise<void> {
   siteRulesList.innerHTML = rules
     .map(
       (r) =>
-        `<div class="site-rule-row" data-id="${escapeHtml(r.id)}">
+        `<div class="site-rule-row${editingRuleId === r.id ? " editing" : ""}" data-id="${escapeHtml(r.id)}" title="Click to edit">
           <div class="site-rule-host" title="${escapeHtml(r.hostPattern)}">${escapeHtml(r.hostPattern)}</div>
           <div class="site-rule-badges">${ruleBadges(r)}</div>
           <button class="site-rule-del" data-act="del" title="Remove rule">×</button>
         </div>`,
     )
     .join("");
+}
+
+/**
+ * Snap the site-rule form into edit mode for `rule` — pre-fill every
+ * input from its current state, mark the matching row, swap the
+ * submit button label to "Update" + reveal the Cancel pill. Calling
+ * with the same id twice (or hitting Cancel) clears edit mode and
+ * blanks the form back out so the user can add a fresh rule.
+ */
+function loadRuleIntoForm(rule: SiteRule): void {
+  editingRuleId = rule.id;
+  ruleHostInput.value = rule.hostPattern;
+  ruleTagsInput.value = (rule.autoTags || []).join(", ");
+  rulePatternsInput.value = (rule.customPatterns || []).join("\n");
+  rulePinInput.checked = !!rule.autoPin;
+  ruleRedactInput.checked = !!rule.autoRedact;
+  ruleSkipInput.checked = !!rule.skipCapture;
+  ruleAddBtn.textContent = "Update rule";
+  ruleCancelBtn.hidden = false;
+  ruleFormTitle.textContent = `Editing ${rule.hostPattern}`;
+  ruleAddBtn.closest(".site-rule-form")?.classList.add("editing");
+  // Slide the form into view + put focus on the host field so the
+  // user can tweak it immediately. Bounded scroll — the parent panel
+  // is already visible; we're just nudging within it.
+  ruleHostInput.focus();
+  ruleHostInput.select();
+}
+
+function resetRuleForm(): void {
+  editingRuleId = null;
+  ruleHostInput.value = "";
+  ruleTagsInput.value = "";
+  rulePatternsInput.value = "";
+  rulePinInput.checked = false;
+  ruleRedactInput.checked = false;
+  ruleSkipInput.checked = false;
+  ruleAddBtn.textContent = "Add rule";
+  ruleCancelBtn.hidden = true;
+  ruleFormTitle.textContent = "Add a rule";
+  ruleAddBtn.closest(".site-rule-form")?.classList.remove("editing");
 }
 
 async function addSiteRuleFromForm(): Promise<void> {
@@ -1369,6 +1415,7 @@ async function addSiteRuleFromForm(): Promise<void> {
     return;
   }
   const resp = await rpcSiteRules("upsertSiteRule", {
+    id: editingRuleId ?? undefined,
     hostPattern: host,
     autoTags: tags,
     autoPin: pin,
@@ -1380,16 +1427,12 @@ async function addSiteRuleFromForm(): Promise<void> {
     toast(resp.error || "Couldn't save rule", "error");
     return;
   }
-  ruleHostInput.value = "";
-  ruleTagsInput.value = "";
-  rulePatternsInput.value = "";
-  rulePinInput.checked = false;
-  ruleRedactInput.checked = false;
-  ruleSkipInput.checked = false;
+  const wasEdit = editingRuleId != null;
+  resetRuleForm();
   const detail = patterns.length
     ? ` (${patterns.length} pattern${patterns.length === 1 ? "" : "s"})`
     : "";
-  toast(`Rule for ${host} saved${detail}`);
+  toast(`${wasEdit ? "Rule updated" : "Rule saved"} for ${host}${detail}`);
   await renderSiteRules();
 }
 
@@ -1400,14 +1443,37 @@ ruleHostInput.addEventListener("keydown", (e) => {
     void addSiteRuleFromForm();
   }
 });
+ruleCancelBtn.addEventListener("click", async () => {
+  resetRuleForm();
+  await renderSiteRules();
+});
 
 siteRulesList.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;
   const row = target.closest(".site-rule-row") as HTMLElement | null;
   if (!row) return;
-  if (target.dataset.act !== "del") return;
   const id = row.dataset.id!;
-  await rpcSiteRules("removeSiteRule", { id });
+  if (target.dataset.act === "del") {
+    e.stopPropagation();
+    await rpcSiteRules("removeSiteRule", { id });
+    // If the deleted rule was the one being edited, the form is now
+    // orphaned — flip back to add mode so the user doesn't accidentally
+    // recreate a no-longer-relevant rule.
+    if (editingRuleId === id) resetRuleForm();
+    await renderSiteRules();
+    return;
+  }
+  // Row click (anywhere outside the × button): load this rule back
+  // into the form for editing. Clicking the same row toggles edit
+  // off so it acts like a quick \"never mind\".
+  const resp = await rpcSiteRules("listSiteRules");
+  const rule = (resp.rules ?? []).find((r) => r.id === id);
+  if (!rule) return;
+  if (editingRuleId === id) {
+    resetRuleForm();
+  } else {
+    loadRuleIntoForm(rule);
+  }
   await renderSiteRules();
 });
 
