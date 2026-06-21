@@ -446,12 +446,18 @@ function renderQuickChips(allClips: ClipItem[]) {
       count: expiring,
     });
   if (archived > 0)
-    pills.push({
-      label: "Archived",
-      op: "is:archived",
-      active: hasOp("is:archived"),
-      count: archived,
-    });
+    // Hide the Archived chip while `is:archived` is already in the
+    // query — the user is already in archive view, so a chip that
+    // would only toggle them BACK out doesn't earn its row real estate
+    // (the empty-state "Show daily list" button handles that escape
+    // when needed, and the search box still shows the operator).
+    if (!hasOp("is:archived"))
+      pills.push({
+        label: "Archived",
+        op: "is:archived",
+        active: false,
+        count: archived,
+      });
   if (redacted > 0)
     pills.push({
       label: "Redacted",
@@ -677,9 +683,24 @@ async function render(): Promise<void> {
   if (activeIndex >= currentClips.length)
     activeIndex = Math.max(0, currentClips.length - 1);
   if (currentClips.length === 0) {
-    const hint = searchEl.value.trim()
-      ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:template</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
-      : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
+    const archiveView = parsed.archivedOnly;
+    let hint: string;
+    if (archiveView) {
+      // Archive view empty — distinct copy + a one-click escape back
+      // to the daily list. Catches the common "I went looking for an
+      // archived clip, came up empty, now I'm stuck in archive mode"
+      // case. The chip is a real button (data-act handled below) so
+      // keyboard works too.
+      hint =
+        `<div class="empty archive-empty">No archived clips${searchEl.value.trim() !== "is:archived" ? " match this filter" : " yet"}.` +
+        `<br/><small>Archive a clip from its detail view, or run <code>palette → Archive all filtered</code>.</small>` +
+        `<br/><button type="button" class="empty-action" data-act="exit-archive">Show daily list</button>` +
+        `</div>`;
+    } else {
+      hint = searchEl.value.trim()
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:template</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
+        : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
+    }
     listEl.innerHTML = hint;
   } else {
     listEl.innerHTML = currentClips
@@ -2252,6 +2273,18 @@ searchHistoryEl.addEventListener("click", async (e) => {
 // List events -----------------------------------------------------------
 listEl.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;
+  // Empty-state "Show daily list" escape from archive view — strips
+  // the is:archived operator from the search box and re-renders.
+  // Cheap regex pass mirrors what toggleSearchOp does so we don't
+  // accidentally take a wider chunk of the query with us.
+  const exitAct = target.closest("button.empty-action[data-act=exit-archive]");
+  if (exitAct) {
+    const raw = searchEl.value;
+    searchEl.value = raw.replace(/(?:^|\s)is:archived(?:\s|$)/, " ").replace(/\s+/g, " ").trim();
+    activeIndex = 0;
+    await render();
+    return;
+  }
   const clipEl = target.closest(".clip") as HTMLElement | null;
   if (!clipEl) return;
   const id = clipEl.dataset.id!;

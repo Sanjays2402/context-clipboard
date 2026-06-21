@@ -936,6 +936,41 @@ main:focus {
   border-radius: 6px;
   white-space: nowrap;
 }
+/* Distinct empty-state for archive view: same vertical scale as the
+ * default empty, but a softer purple-tinted hint mirrors the archive
+ * row's faint stripe so the affordance reads as "you're in the
+ * archive, here's how to get out". */
+.empty.archive-empty {
+  color: var(--text-secondary);
+}
+.empty-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 7px 16px;
+  background: var(--glass);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.empty-action:hover {
+  background: color-mix(in srgb, var(--accent) 12%, var(--glass));
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.empty-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.empty-action:active {
+  transform: translateY(0.5px);
+}
 
 /* Trash (settings panel) */
 .trash-section {
