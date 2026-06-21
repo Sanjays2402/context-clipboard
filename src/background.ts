@@ -549,6 +549,17 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           await setPaletteLastQuery(p?.query || "");
           return sendResponse({ ok: true });
         }
+        if (msg.action === "purgeTrashOlderThan") {
+          // Hard-delete every trash entry older than `maxAgeMs`. Different
+          // from `emptyTrash` (which clears everything) because the user
+          // explicitly wants a partial purge — typically 24h so the
+          // last-day's deletes stay restorable. No confirm here; the
+          // popup-side wrapper handles UX.
+          const p = msg.payload as { maxAgeMs?: number } | undefined;
+          const ms = Math.max(0, Number(p?.maxAgeMs) || 0);
+          const purged = await purgeOldTrash(ms);
+          return sendResponse({ ok: true, purged });
+        }
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
         return sendResponse({ ok: false, error: err });
@@ -767,7 +778,8 @@ interface RpcMsg {
     | "listSiteRules"
     | "upsertSiteRule"
     | "removeSiteRule"
-    | "setPaletteQuery";
+    | "setPaletteQuery"
+    | "purgeTrashOlderThan";
   payload?: unknown;
 }
 

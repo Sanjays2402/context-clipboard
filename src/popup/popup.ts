@@ -134,6 +134,7 @@ const exportFilterHint = $("export-filter-hint");
 const trashSummary = $("trash-summary");
 const trashList = $("trash-list");
 const trashEmpty = $<HTMLButtonElement>("trash-empty");
+const trashPurge24h = $<HTMLButtonElement>("trash-purge-24h");
 const forgetHostInput = $<HTMLInputElement>("forget-host-input");
 const forgetHostBtn = $<HTMLButtonElement>("forget-host-btn");
 const siteRulesList = $("site-rules-list");
@@ -1257,6 +1258,13 @@ async function renderTrash(): Promise<void> {
       ? "empty"
       : `${items.length} clip${items.length === 1 ? "" : "s"}`;
   trashEmpty.disabled = items.length === 0;
+  // Only enable the 24h-purge button when there's at least one trash
+  // entry old enough to qualify — otherwise the button is a no-op trap.
+  const cutoff = Date.now() - 86_400_000;
+  const oldEnough = items.filter((t) => t.deletedAt < cutoff).length;
+  trashPurge24h.disabled = oldEnough === 0;
+  trashPurge24h.textContent =
+    oldEnough > 0 ? `Purge >24h (${oldEnough})` : "Purge >24h";
   if (items.length === 0) {
     trashList.innerHTML = "";
     return;
@@ -1286,6 +1294,50 @@ trashEmpty.addEventListener("click", async () => {
   toast(`Emptied ${n}`);
   await renderTrash();
 });
+
+/**
+ * Hard-delete only the trash entries older than 24 hours, leaving
+ * yesterday's deletes restorable. Useful when you want to free up
+ * storage without losing the safety net for things you just deleted
+ * (the standard "Empty" wipes the whole trash). Pre-counts so the
+ * confirm message names a real number; refuses politely when there's
+ * nothing to purge.
+ */
+async function purgeTrashOlderThan24h(): Promise<void> {
+  const items = await listTrash();
+  const cutoff = Date.now() - 86_400_000;
+  const oldEnough = items.filter((t) => t.deletedAt < cutoff);
+  if (oldEnough.length === 0) {
+    toast("Nothing older than 24h in trash");
+    return;
+  }
+  const msg =
+    `Permanently delete ${oldEnough.length} trashed clip${oldEnough.length === 1 ? "" : "s"} older than 24h? ` +
+    `Newer trash stays restorable.`;
+  if (!confirm(msg)) return;
+  const resp = await new Promise<{ ok: boolean; purged?: number }>(
+    (resolve) => {
+      api.runtime.sendMessage(
+        {
+          type: "cc-rpc",
+          action: "purgeTrashOlderThan",
+          payload: { maxAgeMs: 86_400_000 },
+        },
+        (r) => resolve(r),
+      );
+    },
+  );
+  if (!resp?.ok) {
+    toast("Purge failed", "error");
+    return;
+  }
+  toast(
+    `Purged ${resp.purged ?? oldEnough.length} trashed clip${(resp.purged ?? oldEnough.length) === 1 ? "" : "s"}`,
+  );
+  await renderTrash();
+}
+
+trashPurge24h.addEventListener("click", () => void purgeTrashOlderThan24h());
 
 async function runForgetHost(): Promise<void> {
   const raw = forgetHostInput.value.trim().toLowerCase().replace(/^www\./, "");
@@ -2549,6 +2601,17 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         clearBtn.click();
+      },
+    },
+    {
+      id: "purge-trash-24h",
+      label: "Purge trash older than 24h",
+      hint: "Frees storage while keeping fresh deletes restorable",
+      group: "Bulk",
+      keywords: "trash purge cleanup retention 24h day",
+      run: async () => {
+        closePalette();
+        await purgeTrashOlderThan24h();
       },
     },
     {

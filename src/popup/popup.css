@@ -973,6 +973,22 @@ main:focus {
   border-radius: 8px;
 }
 
+/* Neutral small button — matches `.danger.small` sizing but without the
+   danger accent. Used by the "Purge >24h" trash control so it visually
+   pairs with the destructive "Empty" button next to it while telegraphing
+   "this is a softer-purge, not a wipe". Disabled state mutes everything
+   so an empty-trash session can't fire it. */
+button.small {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 8px;
+}
+
+button.small:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .danger.small:disabled {
   opacity: 0.4;
   cursor: not-allowed;
