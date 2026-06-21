@@ -762,16 +762,51 @@ export async function pruneOldUnpinned(maxItems = 500): Promise<number> {
   return toDelete.length;
 }
 
-export async function exportAll(): Promise<{ version: number; clips: ClipItem[]; settings: Settings; exportedAt: number }> {
+export async function exportAll(): Promise<{
+  version: number;
+  clips: ClipItem[];
+  settings: Settings;
+  exportedAt: number;
+  /**
+   * Privacy audit ring at the time of export. Additive — old export
+   * bundles that don't carry this field are still valid. We export
+   * a copy (not a reference) so a later in-memory mutation of the
+   * audit log can't retroactively change a written bundle.
+   *
+   * Keeping the audit alongside clips means a user who imports a
+   * backup on a fresh install gets their privacy-action history
+   * back too — useful when they're auditing what they redacted /
+   * scrubbed weeks ago and the new device's IDB is empty.
+   */
+  privacyAudit?: import("./db").PrivacyAuditEntry[];
+}> {
   const clips = await listClips({ limit: 1_000_000 });
   const settings = await getSettings();
-  return { version: DB_VERSION, clips, settings, exportedAt: Date.now() };
+  // Read the audit ring once at export time. If the read fails (IDB
+  // hiccup, missing meta row, etc.) we just omit the field — a missing
+  // audit log is far better than a failed export.
+  let privacyAudit: import("./db").PrivacyAuditEntry[] | undefined;
+  try {
+    const list = await listPrivacyAudit();
+    privacyAudit = list.length > 0 ? list.slice() : undefined;
+  } catch (e) {
+    console.warn("[context-clipboard] export: audit read failed", e);
+    privacyAudit = undefined;
+  }
+  return { version: DB_VERSION, clips, settings, exportedAt: Date.now(), privacyAudit };
 }
 
 export async function importAll(data: {
   clips?: ClipItem[];
   settings?: Partial<Settings>;
-}): Promise<{ imported: number; skippedId: number; skippedHash: number }> {
+  privacyAudit?: PrivacyAuditEntry[];
+}): Promise<{
+  imported: number;
+  skippedId: number;
+  skippedHash: number;
+  /** Audit entries actually written (after dedup against existing entries by id). */
+  auditMerged: number;
+}> {
   let imported = 0;
   let skippedId = 0;
   let skippedHash = 0;
@@ -817,7 +852,65 @@ export async function importAll(data: {
     if (c.hash) hashIndex.set(c.hash, c.id);
   }
   if (data.settings) await saveSettings(data.settings);
-  return { imported, skippedId, skippedHash };
+  // Audit log: union-merge by id, newest-first, capped at PRIVACY_AUDIT_MAX.
+  // Different shape from the per-action append path because here we're
+  // importing a batch — we don't want to do 30 IDB writes when one will
+  // do, AND we want to preserve the timeline order rather than re-stamping
+  // imported entries with the import time. Drops any entry whose `kind` we
+  // don't recognise so a forward-compatible export can't poison our ring
+  // with stuff this build can't render.
+  let auditMerged = 0;
+  if (Array.isArray(data.privacyAudit) && data.privacyAudit.length > 0) {
+    try {
+      const existing = await listPrivacyAudit();
+      const byId = new Map<string, PrivacyAuditEntry>();
+      for (const e of existing) byId.set(e.id, e);
+      const KNOWN: PrivacyAuditKind[] = [
+        "redact",
+        "unredact",
+        "scrub-origin",
+        "retro-redact",
+        "forget-host",
+        "set-ttl",
+        "clear-ttl",
+        "archive",
+        "unarchive",
+        "trash",
+        "restore",
+      ];
+      const known = new Set<string>(KNOWN);
+      for (const raw of data.privacyAudit) {
+        if (!raw || typeof raw !== "object") continue;
+        if (!raw.id || typeof raw.id !== "string") continue;
+        if (!known.has(raw.kind)) continue;
+        if (typeof raw.at !== "number" || !Number.isFinite(raw.at)) continue;
+        if (byId.has(raw.id)) continue;
+        byId.set(raw.id, {
+          id: raw.id,
+          kind: raw.kind,
+          at: raw.at,
+          clipId: typeof raw.clipId === "string" ? raw.clipId : "",
+          host: typeof raw.host === "string" ? raw.host : undefined,
+          detail: typeof raw.detail === "string" ? raw.detail.slice(0, 80) : undefined,
+        });
+        auditMerged++;
+      }
+      if (auditMerged > 0) {
+        const sorted = Array.from(byId.values())
+          .sort((a, b) => b.at - a.at)
+          .slice(0, PRIVACY_AUDIT_MAX);
+        const store = await metaTx("readwrite");
+        await new Promise<void>((resolve, reject) => {
+          const req = store.put({ key: PRIVACY_AUDIT_KEY, value: sorted });
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+        });
+      }
+    } catch (e) {
+      console.warn("[context-clipboard] import: audit merge failed", e);
+    }
+  }
+  return { imported, skippedId, skippedHash, auditMerged };
 }
 
 // Saved searches -----------------------------------------------------------
