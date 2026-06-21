@@ -48,30 +48,33 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Search & navigation
 - [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)  <!-- partially covered by quick chips, still keep -->
-- [ ] Jump to host: typing `g github` in search jumps to first github clip
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
 - [ ] Manual quick-tag dropdown when adding notes
+- [ ] Capture into a chosen collection at copy time (depends on collections)
+- [ ] Quick-capture: paste from system clipboard into a fresh clip (popup button)
 
 ### Pasting & flow
 - [ ] Paste-stack mode: queue N clips, paste them in order across multiple inputs
-- [ ] In-page palette: pin pinned clips at top, dim images you can't paste into text
-- [ ] In-page palette: copy as markdown shortcut (`Shift+Enter`)
-- [ ] In-page palette: filter by kind (chip strip inside overlay)
+- [ ] In-page palette: recent-first ordering when no query (vs server order)
+- [ ] In-page palette: keyboard chord (Cmd+Shift+V) to reopen with last-typed query
 
 ### Privacy & security
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
-- [ ] Custom-pattern test field — paste sample text, see what would redact
+- [ ] Per-clip "scrub origin" — drop source URL/title while keeping content
+- [ ] Auto-redact preview rewrite when settings.autoRedactPii flips on (retroactive)
 
 ### Data lifecycle
-- [ ] Smart dedup across `lastSeenAt` window groups (right now only same-hash)
 - [ ] Image auto-recapture: rule-based scheduled re-fetch for tracked images
+- [ ] "Find duplicates" panel — list groups w/o auto-merging (review before action)
+- [ ] Clip archive mode: pinned-but-hidden state for very-cold pins
 
 ### UI polish (real, not cosmetic)
 - [ ] Inline diff for re-captured clips (show what changed vs previous copy)
 - [ ] Per-collection storage breakdown (when collections ship)
-- [ ] Per-site rule edit (click a row to load it back into the form)
+- [ ] List virtualization for >500 clips (perf)
+- [ ] Clip-row right-click menu (pin/tag/copy-md/forget-host shortcuts)
 
 ### Shipped (autoship)
 - [x] Smart search operators (kind/host/tag/is/before/after) — `c407d53`
@@ -106,6 +109,14 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Image re-fetch from source URL with dim refresh — `8688224`
 - [x] Collapsible long nearby context (show more / less) — `d161fe7`
 - [x] Right-click "Paste from Context Clipboard" on editable fields — `757c95e`
+- [x] Per-site rule edit (click row to load into form) — `737e947`
+- [x] In-page palette kind-filter chips + 1-4 number keys — `0d473fc`
+- [x] In-page palette: pinned-first with pin-dot + dashed divider — `0d473fc`
+- [x] In-page palette: Shift+Enter / Shift+Click pastes as Markdown — `0d473fc`
+- [x] In-page palette: dim image rows when target is editable field — `0d473fc`
+- [x] Jump-to-host search command (`g <prefix>` + Enter) — `58b599f`
+- [x] Live pattern-test panel inside the rule form — `e056689`
+- [x] Smart dedup across windows (palette command, soft-delete losers) — `b2babea`
 
 ## Tick log
 
@@ -113,6 +124,32 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 <!-- TICKS BELOW -->
 
+- **2026-06-20 17:51 PT** — 5/5 shipped. Per-site rule edit: click a
+  row to pre-fill the form, "Update rule" button + Cancel pill +
+  accent border on the active row; deleting the in-edit rule resets
+  the form (737e947). In-page palette overhaul (single commit, three
+  roadmap items): kind-filter chip strip with live counts + 1-4
+  number-key shortcuts, pinned clips float to the top with an accent
+  pin-dot and dashed divider, Shift+Enter / Shift+Click pastes as
+  Markdown (text → fenced block when multiline, link → MD link, image
+  → ![alt](url)); image rows dim when launch target is a text field
+  (0d473fc). Jump-to-host search: typing `g github` and hitting Enter
+  opens the first matching clip in detail; tier order exact > starts-
+  with > contains, pinned nudge inside each tier, recency tie-break;
+  cheatsheet row + placeholder hint updated (58b599f, 14/14 jump
+  sanity). Live pattern-test panel in the rule form: collapsible
+  <details> with sample-text textarea + red-highlighted result, hit
+  count + invalid-pattern footer, runs on every keystroke in either
+  textarea; new pure `findCustomPatternHits` helper returns non-
+  overlapping merged ranges (e056689, 23/23 pattern-hits sanity).
+  Smart dedup across windows: Cmd+K → "Merge duplicate clips by
+  content" groups every clip by hash, survivor = most-recently-seen,
+  inherits union of tags + sum of hitCount + OR pinned + earliest
+  createdAt; losers soft-deleted via the standard trash path; confirm
+  dialog with concrete numbers (b2babea, 25/25 merge-dupes sanity).
+  tsc + chrome/firefox builds green; 14 jump + 23 pattern-hits + 25
+  merge-dupes + 11 export + 9 highlight + 14 import-dedup + 11
+  palette + 13 sort sanity all pass.
 - **2026-06-20 15:22 PT** — 5/5 shipped. Tag all filtered: palette
   command, union-merge across visible window with idempotent skip-
   count + 25-clip confirm guard (7fcbae8). Per-site custom redaction
