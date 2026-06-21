@@ -104,6 +104,13 @@ export interface Settings {
    * a single clip is as cheap as moving the mouse.
    */
   blurPreviews: boolean;
+  /**
+   * Compact-row list mode: shrink each clip row to ~36px so 30+ fit on a
+   * single popup screen. Hides the tag chip row + the thumb dimensions
+   * pill, single-lines the preview, and trims the thumbnail to 28px.
+   * Pure CSS — no data is dropped, just the row chrome.
+   */
+  compactRows: boolean;
   /** Hostnames where capture is disabled. */
   blockList: string[];
   /** If non-empty, capture ONLY on these hostnames. */
@@ -123,6 +130,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enableSidePanel: false,
   autoRedactPii: false,
   blurPreviews: false,
+  compactRows: false,
   blockList: [],
   allowList: [],
   theme: "auto",

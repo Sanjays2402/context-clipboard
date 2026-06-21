@@ -2937,3 +2937,50 @@ body.blur-on header::after {
 .similar-row.pinned .similar-kind {
   color: var(--accent, #f5b400);
 }
+
+/* Compact rows — body class applied by applyCompactRows(). Pure CSS
+ * override; nothing in the data layer changes. We trim padding, hide
+ * the tag chip row, hide the image-dim badge, single-line everything,
+ * and shrink the thumb so 30+ rows fit on one screen. The active /
+ * selected accents stay so keyboard nav still feels obvious. */
+body.compact-rows .clip {
+  padding: 4px 8px;
+  margin-bottom: 1px;
+  gap: 8px;
+  border-radius: 8px;
+}
+body.compact-rows .clip .thumb {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+body.compact-rows .clip .thumb .thumb-dims,
+body.compact-rows .clip .tags,
+body.compact-rows .clip .select-mark {
+  display: none;
+}
+body.compact-rows .clip .preview {
+  font-size: 12px;
+}
+body.compact-rows .clip .meta {
+  margin-top: 1px;
+  font-size: 10px;
+}
+body.compact-rows .clip .actions {
+  align-self: center;
+}
+body.compact-rows .clip .actions button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+body.compact-rows .clip .actions button svg {
+  width: 14px;
+  height: 14px;
+}
+body.compact-rows #list {
+  gap: 0;
+}
+

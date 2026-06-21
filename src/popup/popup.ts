@@ -112,6 +112,7 @@ const sSidePanel = $<HTMLInputElement>("s-sidepanel");
 const sAutoRedact = $<HTMLInputElement>("s-autoredact");
 const retroRedactBtn = $<HTMLButtonElement>("retro-redact-btn");
 const sBlurPreviews = $<HTMLInputElement>("s-blur");
+const sCompactRows = $<HTMLInputElement>("s-compact");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
 const sTheme = $<HTMLSelectElement>("s-theme");
@@ -1098,6 +1099,7 @@ async function openSettings() {
   sSidePanel.checked = s.enableSidePanel;
   sAutoRedact.checked = s.autoRedactPii;
   sBlurPreviews.checked = !!s.blurPreviews;
+  sCompactRows.checked = !!s.compactRows;
   sBlock.value = (s.blockList || []).join("\n");
   sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
@@ -1124,6 +1126,7 @@ async function saveSettingsFromForm() {
     enableSidePanel: sSidePanel.checked,
     autoRedactPii: sAutoRedact.checked,
     blurPreviews: sBlurPreviews.checked,
+    compactRows: sCompactRows.checked,
     blockList: sBlock.value.split("\n").map((s) => s.trim()).filter(Boolean),
     allowList: sAllow.value.split("\n").map((s) => s.trim()).filter(Boolean),
     theme: (sTheme.value as Settings["theme"]) || "auto",
@@ -1131,6 +1134,7 @@ async function saveSettingsFromForm() {
   const saved = await saveSettings(next);
   document.body.dataset.theme = saved.theme;
   applyBlurMode(saved.blurPreviews);
+  applyCompactRows(saved.compactRows);
   // Tell background to re-apply Chrome side panel behavior (no-op on Firefox).
   try {
     api.runtime.sendMessage({ type: "cc-rpc", action: "applySidePanelMode" });
@@ -1144,6 +1148,16 @@ async function saveSettingsFromForm() {
  */
 function applyBlurMode(on: boolean): void {
   document.body.classList.toggle("blur-on", !!on);
+}
+
+/**
+ * Compact-row mode: shrink each clip row to ~36px so the popup fits 30+
+ * clips per screen. Pure DOM — no IDB write here, just the body class.
+ * `compactRows` setting drives this; quick-toggle from the palette flips
+ * the same bit.
+ */
+function applyCompactRows(on: boolean): void {
+  document.body.classList.toggle("compact-rows", !!on);
 }
 
 async function renderStorage() {
@@ -2376,6 +2390,22 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      id: "toggle-compact-rows",
+      label: document.body.classList.contains("compact-rows")
+        ? "Expand row spacing"
+        : "Compact rows (fit 30+ per screen)",
+      hint: "Shrink each clip row so more fit on one screen",
+      group: "Filter",
+      keywords: "dense compact tight rows height",
+      run: async () => {
+        closePalette();
+        const next = !document.body.classList.contains("compact-rows");
+        await saveSettings({ compactRows: next });
+        applyCompactRows(next);
+        toast(next ? "Compact rows on" : "Compact rows off");
+      },
+    },
+    {
       id: "scrub-open-clip",
       label: "Scrub origin from open clip",
       hint: "Drop URL/title/context, keep content",
@@ -3509,6 +3539,13 @@ sBlurPreviews.addEventListener("change", () => {
   applyBlurMode(sBlurPreviews.checked);
 });
 
+sCompactRows.addEventListener("change", () => {
+  // Same live-preview pattern as blur — flip the body class so the
+  // toggle telegraphs the result. The actual setting persists on
+  // Save / Esc / back via saveSettingsFromForm.
+  applyCompactRows(sCompactRows.checked);
+});
+
 retroRedactBtn.addEventListener("click", () => void runRetroactiveAutoRedact());
 
 encryptToggle.addEventListener("change", () => {
@@ -3827,6 +3864,7 @@ bulkTag.addEventListener("click", async () => {
   const s = await getSettings();
   document.body.dataset.theme = s.theme;
   applyBlurMode(s.blurPreviews);
+  applyCompactRows(s.compactRows);
   // Restore the persisted sort mode BEFORE the first render so the list
   // doesn't flash in the wrong order.
   listSort = await getListSort();
