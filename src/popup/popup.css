@@ -3121,6 +3121,22 @@ body.compact-rows #list {
   letter-spacing: 0.02em;
 }
 
+/* Most-recent action — a small accent dot before the label so the
+ * user understands why this row jumped to the top. Subtle: not the
+ * trigger to act, just the explanation. Pairs with the title tooltip
+ * for hover-detail. */
+.send-row-recent .send-row-label::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 8px;
+  vertical-align: middle;
+  opacity: 0.85;
+}
+
 /* Privacy audit log — same visual language as the trash list but
  * lower density (one row per action, no per-row buttons). Each row
  * shows kind / subject / when. Kinds are colour-coded by privacy

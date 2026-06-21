@@ -336,3 +336,34 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
     },
   ];
 }
+
+/**
+ * Promote the most-recently-used action to the top of the list so the
+ * user's muscle memory pays off — if they almost always pick "Copy as
+ * Markdown link", every Send-to menu should put it first. Stable for
+ * everything else (we never re-shuffle the rest of the menu).
+ *
+ * Pure function. Pass `lastId` from `getSendToLast()` and we'll do
+ * the rest. Unknown / empty / unavailable ids no-op (we never want to
+ * surface a disabled row at the top — the user can't act on it).
+ *
+ * Returns a NEW array; the input is untouched. Same `SendAction[]`
+ * shape so the popup renderer doesn't care whether it's the natural
+ * order or the bumped order.
+ */
+export function reorderSendActionsByLast(
+  actions: SendAction[],
+  lastId: string,
+): SendAction[] {
+  if (!lastId) return actions.slice();
+  const idx = actions.findIndex((a) => a.id === lastId);
+  if (idx < 0) return actions.slice();
+  // Never bump an unavailable action to the top — that would mislead
+  // the user (they'd see their favourite action at #1, greyed out,
+  // and have to scroll past it). Leave the order alone in that case.
+  if (!actions[idx].available) return actions.slice();
+  const next = actions.slice();
+  const [hit] = next.splice(idx, 1);
+  next.unshift(hit);
+  return next;
+}

@@ -1380,6 +1380,44 @@ export async function setPaletteLastQuery(query: string): Promise<void> {
   });
 }
 
+// Send-to: remember the last picked action ----------------------------
+//
+// Tiny meta row so the next time the user opens the "Send to…" menu on
+// a clip, their most-recent choice floats to the top. Pure UX — no
+// behaviour change, just row order. Stored as the action id (a short
+// stable string like "google" / "md-link" / "json"); empty when the
+// user hasn't picked anything yet.
+//
+// Why per-user rather than per-clip? The point is muscle memory — if
+// you almost always copy as Markdown link, every menu should bias
+// toward that. Per-clip ordering would mean the menu shuffles between
+// clips, which defeats the muscle-memory win.
+
+const SEND_TO_LAST_KEY = "send_to_last";
+const SEND_TO_ID_MAX = 32;
+
+export async function getSendToLast(): Promise<string> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(SEND_TO_LAST_KEY);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: string } | undefined;
+      resolve(typeof row?.value === "string" ? row.value.slice(0, SEND_TO_ID_MAX) : "");
+    };
+    req.onerror = () => resolve("");
+  });
+}
+
+export async function setSendToLast(id: string): Promise<void> {
+  const next = (id || "").trim().slice(0, SEND_TO_ID_MAX);
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: SEND_TO_LAST_KEY, value: next });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
 // Privacy audit log ----------------------------------------------------
 //
 // Ring buffer of the user's last N privacy-impacting actions: per-clip

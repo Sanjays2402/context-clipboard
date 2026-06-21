@@ -30,6 +30,8 @@ import {
   listPrivacyAudit,
   clearPrivacyAudit,
   countClipsForRules,
+  getSendToLast,
+  setSendToLast,
   type TrashedClip,
   type DuplicateGroup,
   type PrivacyAuditEntry,
@@ -49,7 +51,7 @@ import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFi
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
 import { rankActions, boldedLabel, type PaletteAction } from "../lib/palette";
 import { contextTagsForTab } from "../lib/context-tags";
-import { buildSendActions, type SendAction } from "../lib/send-to";
+import { buildSendActions, reorderSendActionsByLast, type SendAction } from "../lib/send-to";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -4480,7 +4482,15 @@ async function openSendMenu(): Promise<void> {
     source: c.source,
     full: c,
   });
-  const available = actions.filter((a) => a.available);
+  // Promote the user's most-recently-picked action to the top so
+  // muscle memory pays off. Pure reorder — every other row stays in
+  // its natural position. Skipped silently when no last-pick is
+  // remembered yet, when the saved id isn't in this clip's action
+  // set, or when the saved action would be unavailable here (we
+  // never bump a disabled row).
+  const lastId = await getSendToLast();
+  const ordered = reorderSendActionsByLast(actions, lastId);
+  const available = ordered.filter((a) => a.available);
   if (available.length === 0) {
     toast("Nothing to send for this clip");
     return;
@@ -4489,8 +4499,14 @@ async function openSendMenu(): Promise<void> {
     .map((a) => {
       const hint = a.hint ? `<span class="send-row-hint">${escapeHtml(a.hint)}</span>` : "";
       const verb = a.kind === "copy" ? "copy" : a.kind === "incognito" ? "incognito" : "open";
+      // Tag the row that was promoted by the last-used reorder so
+      // the user gets a quiet "this is your most-recent pick" cue
+      // (subtle accent dot — the row is at the top anyway, this
+      // just explains why).
+      const recent = lastId && a.id === lastId ? " send-row-recent" : "";
+      const recentTitle = recent ? ` title="Most-recent send-to action"` : "";
       return (
-        `<button type="button" class="send-row" role="menuitem" data-id="${escapeHtml(a.id)}" data-verb="${verb}">` +
+        `<button type="button" class="send-row${recent}" role="menuitem" data-id="${escapeHtml(a.id)}" data-verb="${verb}"${recentTitle}>` +
         `<span class="send-row-label">${escapeHtml(a.label)}</span>${hint}` +
         `</button>`
       );
@@ -4536,6 +4552,12 @@ detailSendMenu.addEventListener("click", async (e) => {
     toast("Action unavailable", "error");
     return;
   }
+  // Persist the chosen action so the next Send-to menu (this clip
+  // or another) opens with this row at the top. Fire-and-forget —
+  // a failed write is harmless (worst case, the menu just doesn't
+  // remember). We stamp it BEFORE the actual action so even a
+  // misbehaving incognito/nav call doesn't drop the muscle-memory bit.
+  void setSendToLast(action.id);
   if (action.kind === "incognito") {
     // chrome.windows.create with incognito:true. Two failure modes
     // worth handling out loud:
