@@ -73,17 +73,29 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Quick-filter chips: "Archived (N)" tier should hide when is:archived is already active
 - [ ] Empty-state for archive view: distinct copy + "Show daily list" shortcut chip
 - [ ] Audit log group-by-day rollup (collapse same-day entries into a single row)
-- [ ] Audit log: per-entry "show me the clip" jump (clipId already in the row, just wire detail open)
-- [ ] Send-to: add "Open in private/incognito window" row (chrome.windows.create with incognito flag)
-- [ ] Send-to: add "Copy as JSON" row (single-clip envelope, mirror exportAll shape)
+- [x] Audit log: per-entry "show me the clip" jump (clipId already in the row, just wire detail open) — `7d3cf61`
+- [x] Send-to: add "Open in private/incognito window" row (chrome.windows.create with incognito flag) — `fa72405`
+- [x] Send-to: add "Copy as JSON" row (single-clip envelope, mirror exportAll shape) — `9c8aea5`
 - [ ] Bulk archive: confirm dialog should preview the first 3 clips so the user knows what's about to vanish
 - [ ] Note composer: remember "Pin" checkbox state across opens (per-session, no IDB)
 - [ ] Note composer: focus survives quick-tag chip click (already works, but verify on Firefox)
 - [ ] Detail "Send to…": remember last-picked action so re-open puts it first
-- [ ] Export bundle: include search history alongside audit log
-- [ ] Per-host capture rule edit panel: show "X clips captured under this rule" stat
+- [x] Export bundle: include search history alongside audit log — `e7017f3`
+- [x] Per-host capture rule edit panel: show "X clips captured under this rule" stat — `9ce47b9`
 - [ ] In-page palette: hostBoost should also apply to keywords (title + nearbyText matches from same host get the bump)
 - [ ] Detail-view: add a thin "Copies in the last 30 days" sparkline (already on roadmap but worth flagging)
+
+### New (added this tick — refill, 5+ open items)
+- [ ] Send-to: keyboard navigation inside the menu (↑↓ to step, Enter to fire, Tab focuses first row)
+- [ ] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs)
+- [ ] Search history: "pin a recent query" — promote to saved search in one click
+- [ ] Audit row: long-press / right-click for "Forget this action" (drop just this entry from the ring)
+- [ ] Detail Send-to: "Copy as plain text (strip tokens)" — explicit non-templated copy for template clips
+- [ ] Site-rule row: show "last matched X ago" alongside the clip count
+- [ ] Settings: Privacy audit retention slider (10 / 30 / 60 / 100 entries) — currently hard-coded at 30
+- [ ] Per-host capture rule: regex pattern test panel should also show what `applyCustomPatterns` would do to a real captured clip from that host (not just a textarea)
+- [ ] Import: surface `historyMerged` in a per-section breakdown card (audit, history, clips) instead of just the toast
+- [ ] Audit log: filter by clipId so clicking a clip's row in audit pre-filters to its action history
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -146,12 +158,86 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Audit log round-trips through JSON export bundle (additive, capped, dedup-by-id) — `91ce7ec`
 - [x] Note composer pulls tags from active tab URL+host (host-first, deduped) — `ced3d02`
 - [x] Detail-view "Send to…" sub-menu (open/search/site/email/md-link/fence) — `8db76f3`
+- [x] Send-to: "Copy as JSON" single-clip envelope (importAll-compatible) — `9c8aea5`
+- [x] Send-to: "Open in private window" row with graceful fallback — `fa72405`
+- [x] Audit log row click → jump to live / trash / "gone" — `7d3cf61`
+- [x] Per-site rule clip-count badge (clickable → host: filter) — `9ce47b9`
+- [x] Export bundle includes search history (round-trips Recent chips) — `e7017f3`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-21 08:57 PT** — 5/5 shipped. Send-to JSON envelope:
+  new pure `jsonEnvelopeForClip` + `ClipForJson` shape on
+  send-to.ts; popup passes the full ClipItem via the `full`
+  override so hitCount/pinned/tags/hash/archived round-trip
+  through importAll cleanly; envelope mirrors exportAll
+  fields (version/clips/exportedAt) + a `source:"send-to-json"`
+  marker; image clips supported (data URL lives in content);
+  empty clips drop the row (no payload = no envelope); paste
+  into Import dialog "just works" (9c8aea5). Send-to Open
+  in private window: new `urlForIncognitoOpen` (mirrors
+  open-source availability) + "incognito" kind on SendAction;
+  popup routes via `api.windows.create({ incognito: true })`
+  with two-tier fallback — chrome.tabs.create when the extension
+  isn't allowed in incognito (most common — Chrome's per-extension
+  opt-in), window.open as last resort, with honest toast
+  "Opened in a normal tab — private mode unavailable" so the
+  user knows what happened; row sits right after open-source
+  for muscle memory (fa72405). Audit log row jump: every audit
+  entry with a clipId now renders as a <button> instead of a
+  <div>; click → live store lookup → openDetail() (handles
+  archived clips fine), else trash store lookup → action-toast
+  with Restore button (4.5s, matches undo dwell) + smooth-scroll
+  trash section into view, else "Clip is gone — only the audit
+  row remains" toast; non-clip rows (forget-host with clipId="")
+  stay as <div>; CSS resets native button chrome + adds
+  accent-tinted hover/focus-visible/active feedback only on
+  .jumpable rows so the affordance is obvious without overloading
+  static rows (7d3cf61). Per-site rule clip-count badge: new
+  pure `countClipsForRules(rules, clips)` in lib/db — mirrors
+  background `findSiteRuleFor` first-match-wins semantics, caches
+  host-per-clip so inner loop stays O(rules) not O(rules*parse),
+  returns Map<ruleId,number> with absent rules implicitly 0;
+  popup renderSiteRules now does one `listClips({limit:5000})`
+  + counts; "N clips" badge with tabular-num formatting renders
+  to the right of behavior pills, clickable to `host:<pattern>`
+  filter (wildcards strip leading `*.`), "unused" muted variant
+  when count=0 (italic, non-clickable, informational); distinct
+  .rule-usage CSS palette so the telemetry pill reads different
+  from the rule-badge behavior pills; 13/13 rule-count sanity
+  covers empty/wildcard/exact/order-matters/first-match-starves-
+  second/bare-wildcard-rejection/map-absent-when-zero/apex match
+  (9ce47b9). Export bundle includes search history: additive
+  `searchHistory?: string[]` on exportAll (snapshot via .slice,
+  omitted when empty), import union-merges by trimmed string
+  with imported entries FIRST (point of restoration is the
+  backup's recent queries top the chip row on the new device),
+  same SEARCH_HISTORY_MAX (5) cap as the live push path,
+  defensive shape validation drops non-string/empty/whitespace
+  entries, new `historyMerged` field on importAll return shape;
+  popup import toast picks up the new count (`+ N searches`
+  bit) and refreshSearchHistory + renderSearchHistory fire on
+  non-zero merge so the Recent strip repaints without a manual
+  popup re-open; 27/27 history-export sanity covers export
+  attach/omit + import union math + cap enforcement (10→5)
+  + defensive validation + whitespace trim before dedup +
+  round-trip idempotency + missing-field graceful no-op +
+  historyMerged-stays-typed-number (e7017f3). tsc + chrome/
+  firefox builds green (popup 177.5KB, background 44.3KB,
+  content 23.8KB); ALL 17 sanity suites pass — 362 total
+  checks (11 archive + 20 audit-export + 30 audit-filter +
+  32 context-tags + 11 export + 15 find-dupes + 9 highlight
+  + 27 history-export + 14 import-dedup + 14 jump + 25
+  merge-dupes + 11 palette + 23 pattern-hits + 15 privacy-
+  audit + 13 rule-count + 79 send-to + 13 sort); 16 script
+  tests pass too (templates + export + lang-detect + retro-
+  redact + site-rule-scrub + palette-host-boost + palette-
+  last-query + redact + crypto + popup-encrypt). Pre-existing
+  playwright redact-ui DB-version mismatch unrelated.
 
 - **2026-06-21 05:58 PT** — 5/5 shipped. Bulk archive/unarchive
   all filtered: new `archiveAllFiltered(boolean)` mirrors
