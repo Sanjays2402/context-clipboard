@@ -151,7 +151,7 @@ try {
 
   // buildSendActions matrix
   const textActs = mod.buildSendActions(textClip);
-  total++; if (textActs.length === 8) pass++;
+  total++; if (textActs.length === 9) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
@@ -301,6 +301,68 @@ try {
   check('actions: json available for text', jsonAct.available, true);
   check('actions: json available for image', imageActs.find((a) => a.id === 'json').available, true);
   check('actions: json unavailable for empty', mod.buildSendActions(emptyClip).find((a) => a.id === 'json').available, false);
+
+  // --- raw-text (strip {{tokens}}) ---
+  //
+  // Returns the body unchanged for template clips so the user can
+  // copy the LITERAL template (with token braces intact) — useful
+  // for editing the template offline. Hidden for non-template clips
+  // since it would duplicate the default Copy action.
+
+  const tmplClip = {
+    id: 'tm1',
+    kind: 'text',
+    content: 'Order #{{uuid}} placed on {{date}} for {{title|customer}}',
+    preview: 'Order #...',
+    source: { url: 'https://shop.example/orders/123', title: 'Order' },
+  };
+  // Non-template text clip — should NOT surface the raw-text row.
+  const plainText = {
+    id: 'p1',
+    kind: 'text',
+    content: 'just plain text, no tokens here',
+    preview: 'just plain text',
+    source: { url: 'https://example.com' },
+  };
+
+  // The pure builder
+  check('raw-text: template body returned untouched',
+    mod.rawTextForClip(tmplClip), 'Order #{{uuid}} placed on {{date}} for {{title|customer}}');
+  check('raw-text: plain text -> undefined (no tokens)',
+    mod.rawTextForClip(plainText), undefined);
+  check('raw-text: empty body -> undefined', mod.rawTextForClip(emptyClip), undefined);
+  check('raw-text: image -> undefined', mod.rawTextForClip(imageClip), undefined);
+  // Edge: tokens with only digits / weird syntax shouldn't match
+  check('raw-text: {{ 123 }} not a token -> undefined',
+    mod.rawTextForClip({ ...plainText, content: 'price {{ 123 }} only' }), undefined);
+  check('raw-text: {{date|fallback}} IS a token -> returns body',
+    mod.rawTextForClip({ ...plainText, content: 'when: {{date|today}}' }),
+    'when: {{date|today}}');
+
+  // The matrix
+  const tmplActs = mod.buildSendActions(tmplClip);
+  const plainActs = mod.buildSendActions(plainText);
+  const rawTmpl = tmplActs.find((a) => a.id === 'raw-text');
+  const rawPlain = plainActs.find((a) => a.id === 'raw-text');
+  const rawImg = imageActs.find((a) => a.id === 'raw-text');
+  const rawEmpty = mod.buildSendActions(emptyClip).find((a) => a.id === 'raw-text');
+  checkTruthy('actions: raw-text row exists in template clip', rawTmpl);
+  check('actions: raw-text kind is "copy"', rawTmpl.kind, 'copy');
+  check('actions: raw-text available for template clip', rawTmpl.available, true);
+  check('actions: raw-text payload preserves tokens',
+    rawTmpl.payload, 'Order #{{uuid}} placed on {{date}} for {{title|customer}}');
+  check('actions: raw-text unavailable for plain text', rawPlain.available, false);
+  check('actions: raw-text unavailable for image', rawImg.available, false);
+  check('actions: raw-text unavailable for empty', rawEmpty.available, false);
+  // Row order: raw-text sits between fenced-code and json (between
+  // the other copy actions). Confirmed so the menu reads as a
+  // tight "copy variants" cluster.
+  check('actions: raw-text follows fenced-code',
+    tmplActs.findIndex((a) => a.id === 'raw-text') - tmplActs.findIndex((a) => a.id === 'fenced-code'),
+    1);
+  check('actions: raw-text comes before json',
+    tmplActs.findIndex((a) => a.id === 'json') - tmplActs.findIndex((a) => a.id === 'raw-text'),
+    1);
 
   if (pass === total) {
     console.log(`PASS — ${pass}/${total} send-to sanity checks`);

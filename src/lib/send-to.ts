@@ -187,6 +187,33 @@ export interface ClipForJson extends SendableClip {
   full?: unknown;
 }
 
+/**
+ * "Copy as plain text (strip tokens)" — for template clips, return
+ * the raw token-literal body without expansion. Useful for editing
+ * a snippet template offline (paste into your notes app, tweak the
+ * `{{tokens}}`, then re-import) and for sharing the TEMPLATE itself
+ * vs the expanded value.
+ *
+ * Only meaningful for clips whose body contains at least one
+ * `{{token}}` placeholder — non-template clips would be identical
+ * to the default Copy action, so we hide the row entirely (returns
+ * undefined). Image and empty clips also return undefined.
+ *
+ * Pure: no expansion, no clipboard touch, no IO. The popup caller
+ * does the actual clipboard write.
+ */
+const TEMPLATE_TOKEN_PROBE = /\{\{[a-zA-Z][\w]*(?:\|[^}]{0,80})?\}\}/;
+
+export function rawTextForClip(c: SendableClip): string | undefined {
+  if (c.kind === "image") return undefined;
+  const body = c.content || "";
+  if (!body) return undefined;
+  // Only surface this row for actual template clips — for plain text
+  // it would duplicate the default Copy and clutter the menu.
+  if (!TEMPLATE_TOKEN_PROBE.test(body)) return undefined;
+  return body;
+}
+
 export function jsonEnvelopeForClip(c: ClipForJson): string | undefined {
   // Envelope requires a payload — if the clip has nothing to put inside
   // (empty content AND no source AND not an image with data URL), skip.
@@ -269,6 +296,7 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const mail = mailtoForClip(c);
   const mdLink = markdownLinkForClip(c);
   const fence = fencedCodeForClip(c);
+  const rawText = rawTextForClip(c);
   const json = jsonEnvelopeForClip(c);
   return [
     {
@@ -325,6 +353,14 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: fence,
       available: !!fence,
+    },
+    {
+      id: "raw-text",
+      label: "Copy as plain text",
+      hint: "strip {{tokens}}",
+      kind: "copy",
+      payload: rawText,
+      available: !!rawText,
     },
     {
       id: "json",
