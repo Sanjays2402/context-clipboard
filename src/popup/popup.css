@@ -3105,6 +3105,28 @@ body.compact-rows #list {
   border: 1px solid var(--border);
   font-size: 11px;
 }
+/* When the audit row is rendered as <button> (i.e. it carries a clipId
+ * we can jump to), strip the native button chrome so it visually
+ * matches the plain-div rows around it — but keep the cursor +
+ * hover/active feedback so the jump affordance is obvious. */
+button.audit-row {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button.audit-row.jumpable:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--glass));
+}
+button.audit-row.jumpable:active {
+  transform: translateY(0.5px);
+}
+button.audit-row.jumpable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 .audit-kind {
   flex: 0 0 auto;
   font-weight: 700;

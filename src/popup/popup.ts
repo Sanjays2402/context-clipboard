@@ -1444,12 +1444,22 @@ async function renderAudit(): Promise<void> {
       if (e.host) subjectBits.push(`@${e.host}`);
       if (e.detail) subjectBits.push(e.detail);
       const subject = subjectBits.join(" · ");
+      // Rows tied to a specific clip render as a button so the user
+      // can jump straight to detail (or trash) for spot-checking what
+      // the redaction / scrub / archive actually did. Non-clip rows
+      // (forget-host) stay as plain divs — no single target to jump
+      // to (the action operated on N clips, all now in trash).
+      const jumpable = !!e.clipId;
+      const tag = jumpable ? "button" : "div";
+      const extra = jumpable
+        ? ` type="button" data-act="jump" data-clip-id="${escapeHtml(e.clipId)}" title="Show this clip"`
+        : "";
       return (
-        `<div class="audit-row audit-${e.kind}">` +
+        `<${tag} class="audit-row audit-${e.kind}${jumpable ? " jumpable" : ""}"${extra}>` +
         `<span class="audit-kind">${escapeHtml(auditKindLabel(e.kind))}</span>` +
         `<span class="audit-subject" title="${escapeHtml(subject)}">${escapeHtml(subject || "—")}</span>` +
         `<span class="audit-time" title="${escapeHtml(new Date(e.at).toLocaleString())}">${escapeHtml(timeAgo(e.at))}</span>` +
-        `</div>`
+        `</${tag}>`
       );
     })
     .join("");
@@ -1464,6 +1474,64 @@ auditFiltersEl.addEventListener("click", (e) => {
   // chip behaves like a single-select with an obvious reset path.
   auditFilter = auditFilter === id && id !== "all" ? "all" : id;
   void renderAudit();
+});
+
+/**
+ * Click an audit row → jump to that clip. Lookup ladder:
+ *  1) Live clips store — open the detail view (handles archived
+ *     clips by surfacing them via openDetail's orphan-tolerant path).
+ *  2) Trash store — close settings, scroll the trash panel into view,
+ *     and toast where they ended up. We deliberately DON'T auto-restore
+ *     (the trash is an intentional retention boundary; the user should
+ *     decide whether to restore).
+ *  3) Gone entirely — toast a friendly note; the audit row is the
+ *     only evidence the clip ever existed.
+ *
+ * Non-clip rows (forget-host) don't carry a clipId and never enter
+ * this handler — they render as plain divs above.
+ */
+auditList.addEventListener("click", async (e) => {
+  const btn = (e.target as HTMLElement).closest("button.audit-row.jumpable") as
+    | HTMLButtonElement
+    | null;
+  if (!btn) return;
+  const clipId = btn.dataset.clipId || "";
+  if (!clipId) return;
+  const live = await getClip(clipId);
+  if (live) {
+    closeSettings();
+    await openDetail(clipId);
+    return;
+  }
+  // Not in live store — peek into trash.
+  const trash = await listTrash();
+  const hit = trash.find((t) => t.id === clipId);
+  if (hit) {
+    // Make sure trash section is visible + offer a single-click
+    // restore via the toast so they don't have to scroll-hunt.
+    const preview =
+      (hit.preview || hit.content || "Clip").slice(0, 40).replace(/\s+/g, " ");
+    toast(`In trash: ${preview}`, "ok", {
+      label: "Restore",
+      fn: async () => {
+        const ok = await restoreClip(clipId);
+        if (!ok) {
+          toast("Couldn't restore", "error");
+          return;
+        }
+        await renderTrash();
+        await renderAudit();
+        await render();
+        toast("Restored — back in the list");
+      },
+    });
+    // Scroll the trash list into view inside the settings panel so
+    // the user can see the row even if they ignore the toast.
+    const trashSection = document.getElementById("trash-section");
+    trashSection?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    return;
+  }
+  toast("Clip is gone — only the audit row remains", "error");
 });
 
 auditClearBtn.addEventListener("click", async () => {
