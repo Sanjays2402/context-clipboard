@@ -187,6 +187,13 @@ const dupesBody = $("dupes-body");
 const dupesSummary = $("dupes-summary");
 const dupesClose = $<HTMLButtonElement>("dupes-close");
 const dupesMergeAll = $<HTMLButtonElement>("dupes-merge-all");
+const noteComposer = $("note-composer");
+const noteText = $<HTMLTextAreaElement>("note-text");
+const noteTagsInput = $<HTMLInputElement>("note-tags-input");
+const noteTagSuggestions = $("note-tag-suggestions");
+const notePinInput = $<HTMLInputElement>("note-pin");
+const noteSaveBtn = $<HTMLButtonElement>("note-save");
+const noteCancelBtn = $<HTMLButtonElement>("note-cancel");
 
 // State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
@@ -2249,17 +2256,164 @@ clearBtn.addEventListener("click", async () => {
   toast("Cleared unpinned");
 });
 
-noteBtn.addEventListener("click", async () => {
-  const text = prompt("Add a quick note:");
-  if (!text) return;
-  await new Promise<void>((resolve) => {
-    api.runtime.sendMessage(
-      { type: "cc-rpc", action: "addNote", payload: { text } },
-      () => resolve(),
-    );
-  });
-  toast("Note saved");
-  await render();
+noteBtn.addEventListener("click", () => void openNoteComposer());
+
+/**
+ * Inline note composer overlay. Replaces the bare `prompt()` with a
+ * real dialog so the user can:
+ *   - Type a multi-line note (Cmd/Ctrl+Enter saves, Enter inserts a line)
+ *   - Add tags inline (comma-separated text input)
+ *   - Click chip suggestions to add tags drawn from existing clips'
+ *     top tags (noise tags like "image"/"text"/"redacted" filtered out)
+ *   - Pin the note from the same dialog (no second click after save)
+ *
+ * Opens centered, focuses the textarea, restores focus to the toolbar
+ * after close. Esc cancels; the global keydown handler routes through
+ * the composer before falling through to other panels.
+ */
+async function openNoteComposer(): Promise<void> {
+  noteText.value = "";
+  noteTagsInput.value = "";
+  notePinInput.checked = false;
+  await renderNoteTagSuggestions();
+  noteComposer.hidden = false;
+  // After the panel paints — focus the textarea so typing lands there
+  // instead of stealing focus from whatever the user just clicked.
+  setTimeout(() => noteText.focus(), 0);
+}
+
+function closeNoteComposer(): void {
+  noteComposer.hidden = true;
+}
+
+/**
+ * Build the quick-tag chip strip from the user's most-used tags. We
+ * pull the same data the main list's tag chips render off of, drop
+ * the noise auto-tags (kind shapes, generic descriptors) so we
+ * surface intent tags like `code`, `recipe`, `idea`, `todo`, etc.
+ * Hidden when no tags exist yet.
+ */
+async function renderNoteTagSuggestions(): Promise<void> {
+  const NOISE = new Set([
+    "image",
+    "link",
+    "text",
+    "url",
+    "long",
+    "redacted",
+    "scrubbed",
+    "quick-capture",
+    "omnibox",
+    "code",
+  ]);
+  try {
+    const all = await listClips({ limit: 2000 });
+    const counts = new Map<string, number>();
+    for (const c of all) {
+      for (const t of c.tags || []) {
+        const k = t.toLowerCase();
+        if (NOISE.has(k)) continue;
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+    }
+    const top = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
+    if (top.length === 0) {
+      noteTagSuggestions.hidden = true;
+      noteTagSuggestions.innerHTML = "";
+      return;
+    }
+    noteTagSuggestions.hidden = false;
+    noteTagSuggestions.innerHTML =
+      `<span class="note-tag-suggestions-label">Quick tags</span>` +
+      top
+        .map(
+          ([t, n]) =>
+            `<button type="button" class="note-tag-chip" data-tag="${escapeHtml(t)}" title="${escapeHtml(t)} (${n})">${escapeHtml(t)}</button>`,
+        )
+        .join("");
+  } catch {
+    noteTagSuggestions.hidden = true;
+  }
+}
+
+noteTagSuggestions.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".note-tag-chip") as HTMLButtonElement | null;
+  if (!btn) return;
+  const tag = btn.dataset.tag || "";
+  if (!tag) return;
+  const existing = noteTagsInput.value
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (existing.includes(tag)) {
+    // Toggle off — clicking a chip a second time removes it from the
+    // tag input. Keeps the chip strip behaving like a multi-select.
+    const next = existing.filter((t) => t !== tag);
+    noteTagsInput.value = next.join(", ");
+    btn.classList.remove("active");
+  } else {
+    const next = [...existing, tag];
+    noteTagsInput.value = next.join(", ");
+    btn.classList.add("active");
+  }
+  noteText.focus();
+});
+
+noteCancelBtn.addEventListener("click", () => closeNoteComposer());
+noteComposer.addEventListener("click", (e) => {
+  if (e.target === noteComposer) closeNoteComposer();
+});
+
+async function saveNoteFromComposer(): Promise<void> {
+  const text = noteText.value.trim();
+  if (!text) {
+    toast("Empty note", "error");
+    noteText.focus();
+    return;
+  }
+  const tags = noteTagsInput.value
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const pinned = notePinInput.checked;
+  noteSaveBtn.disabled = true;
+  try {
+    await new Promise<void>((resolve) => {
+      api.runtime.sendMessage(
+        {
+          type: "cc-rpc",
+          action: "addNote",
+          payload: { text, tags, pinned },
+        },
+        () => resolve(),
+      );
+    });
+    const bits: string[] = ["Note saved"];
+    if (tags.length) bits.push(`${tags.length} tag${tags.length === 1 ? "" : "s"}`);
+    if (pinned) bits.push("pinned");
+    toast(bits.join(" · "));
+    closeNoteComposer();
+    await render();
+  } finally {
+    noteSaveBtn.disabled = false;
+  }
+}
+
+noteSaveBtn.addEventListener("click", () => void saveNoteFromComposer());
+
+noteText.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    void saveNoteFromComposer();
+  }
+});
+noteTagsInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    void saveNoteFromComposer();
+  }
 });
 
 /**
@@ -3413,6 +3567,17 @@ document.addEventListener("keydown", async (e) => {
     if (e.key === "Escape") {
       e.preventDefault();
       closeDupesPanel();
+    }
+    return;
+  }
+  if (!noteComposer.hidden) {
+    // Note composer: Esc cancels. Cmd/Ctrl+Enter save is handled by the
+    // textarea's own keydown listener so the global handler doesn't
+    // need to know about it. Return early so the rest of the global
+    // handler doesn't react to typing inside the dialog.
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeNoteComposer();
     }
     return;
   }

@@ -508,7 +508,11 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           return sendResponse({ ok: true, id });
         }
         if (msg.action === "addNote") {
-          const p = msg.payload as { text: string } | undefined;
+          const p = msg.payload as {
+            text: string;
+            tags?: string[];
+            pinned?: boolean;
+          } | undefined;
           if (!p?.text) return sendResponse({ ok: false, error: "text required" });
           const id = await ingest({
             kind: "text",
@@ -516,6 +520,29 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
             preview: redactSensitivePreview(p.text),
             source: { title: "Manual note" },
           });
+          // Apply optional caller-supplied tags + pin AFTER ingest so
+          // we don't bypass dedup or auto-tag — we let the same
+          // pipeline run, then layer user intent on top. Failures
+          // here are non-fatal: the note still landed.
+          if (id && (p.tags?.length || p.pinned)) {
+            try {
+              const stored = await getClip(id);
+              if (stored) {
+                if (p.tags?.length) {
+                  const merged = new Set(stored.tags || []);
+                  for (const t of p.tags) {
+                    const cleaned = t.trim().toLowerCase();
+                    if (cleaned) merged.add(cleaned);
+                  }
+                  stored.tags = Array.from(merged);
+                }
+                if (p.pinned) stored.pinned = true;
+                await putClip(stored);
+              }
+            } catch (e) {
+              console.warn("[context-clipboard] note tag/pin apply failed", e);
+            }
+          }
           return sendResponse({ ok: true, id });
         }
         if (msg.action === "listSiteRules") {

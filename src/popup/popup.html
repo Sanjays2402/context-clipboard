@@ -336,6 +336,31 @@
       <button class="row-menu-item danger" data-act="trash" role="menuitem"><span class="row-menu-glyph" data-icon="trash"></span><span>Move to trash</span><span class="row-menu-shortcut">⌫</span></button>
     </div>
 
+    <!-- Note composer overlay. Replaces the bare prompt() with a real
+         dialog: multi-line textarea + tag input + quick-tag chip
+         suggestions (top tags from existing clips) + a "Pin this note"
+         checkbox. Cmd/Ctrl+Enter saves; Esc cancels. -->
+    <div id="note-composer" class="note-composer" hidden role="dialog" aria-modal="true" aria-labelledby="note-title">
+      <div class="note-composer-card">
+        <div class="note-composer-header">
+          <span id="note-title" class="note-composer-title">Add a note</span>
+          <button id="note-cancel" class="icon-btn" title="Cancel (Esc)" data-icon="close"></button>
+        </div>
+        <textarea id="note-text" class="note-composer-text" rows="5" placeholder="Type your note… (Cmd/Ctrl+Enter saves)" autocomplete="off" spellcheck="true"></textarea>
+        <div class="note-composer-tag-row">
+          <input id="note-tags-input" class="note-composer-tag-input" type="text" placeholder="comma,separated,tags (optional)" autocomplete="off" spellcheck="false" />
+        </div>
+        <div id="note-tag-suggestions" class="note-tag-suggestions"></div>
+        <div class="note-composer-foot">
+          <label class="note-composer-pin">
+            <input id="note-pin" type="checkbox" /> Pin this note
+          </label>
+          <span class="note-composer-hint">Cmd/Ctrl+Enter to save · Esc to cancel</span>
+          <button id="note-save" class="small" type="button">Save note</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Find duplicates review panel. Toggled by the "Review duplicates"
          palette command. Lists every hash group with 2+ members; each
          group exposes a Merge button so the user can pick which to

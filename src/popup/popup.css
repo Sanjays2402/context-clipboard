@@ -3079,6 +3079,151 @@ body.compact-rows #list {
   text-align: center;
 }
 
+/* Note composer — same backdrop model as the dupes panel/cheatsheet,
+ * but the card has its own structure: title bar + textarea + tag
+ * input + chip strip + footer (pin + hint + Save). Floats above
+ * everything else (z-index higher than dupes/palette) so users can
+ * trigger it from the palette without overlap weirdness. */
+.note-composer {
+  position: fixed;
+  inset: 0;
+  z-index: 36;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 30px 14px;
+  overflow-y: auto;
+  animation: palette-fade 0.14s ease-out;
+}
+.note-composer-card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--glass-elevated);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.note-composer-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.note-composer-title {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+}
+.note-composer-text {
+  width: 100%;
+  min-height: 110px;
+  padding: 12px 14px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  letter-spacing: -0.005em;
+}
+.note-composer-text::placeholder {
+  color: var(--muted);
+}
+.note-composer-tag-row {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-inner);
+}
+.note-composer-tag-input {
+  width: 100%;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+}
+.note-composer-tag-input::placeholder {
+  color: var(--muted);
+}
+.note-tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 0 14px 8px;
+}
+.note-tag-suggestions-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.note-tag-chip {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    color 0.1s,
+    border-color 0.1s;
+}
+.note-tag-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.note-tag-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.note-composer-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--glass);
+}
+.note-composer-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.note-composer-pin input {
+  accent-color: var(--accent);
+}
+.note-composer-hint {
+  flex: 1 1 auto;
+  font-size: 10.5px;
+  color: var(--muted);
+  text-align: right;
+}
+
 /* Find duplicates review panel — same overlay model as cheatsheet, but
  * structured around a list of dupe groups + a single "Merge all" button
  * in the header. Each group shows the survivor preview, a per-group
