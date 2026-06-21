@@ -53,6 +53,7 @@ import { expandTemplate, listTokens, type TemplateContext } from "../lib/templat
 import { rankActions, boldedLabel, type PaletteAction } from "../lib/palette";
 import { contextTagsForTab } from "../lib/context-tags";
 import { buildSendActions, reorderSendActionsByLast, type SendAction } from "../lib/send-to";
+import { buildBulkPreviewMessage } from "../lib/bulk-preview";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -3533,12 +3534,7 @@ async function archiveAllFiltered(archive: boolean): Promise<void> {
     toast(`Already ${archive ? "archived" : "unarchived"}`);
     return;
   }
-  if (
-    targets.length > 25 &&
-    !confirm(
-      `${verb} ${targets.length} clip${targets.length === 1 ? "" : "s"}?`,
-    )
-  ) {
+  if (targets.length > 25 && !confirm(buildBulkPreviewMessage(verb, targets.length, targets))) {
     return;
   }
   let flipped = 0;
