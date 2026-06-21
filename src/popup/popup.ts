@@ -1639,6 +1639,85 @@ searchEl.addEventListener("input", () => {
   render();
 });
 
+/**
+ * Parse a `g <prefix>` jump pattern from the search box. Returns the
+ * prefix when the value matches `g <something>` (case-insensitive,
+ * leading-only), else null. Pure helper — exported for the keydown
+ * handler below and reachable from tests via the same import path.
+ */
+function parseJumpPattern(raw: string): string | null {
+  const m = /^\s*g\s+([\w.*-]+)\s*$/i.exec(raw);
+  if (!m) return null;
+  return m[1].toLowerCase().replace(/^www\./, "");
+}
+
+/**
+ * Resolve a jump prefix to the first matching clip from the currently-
+ * loaded set. Match order: exact host = best, then host starts-with,
+ * then host contains. Pinned beats unpinned within each tier so the
+ * \"go to that thing I always go to\" instinct wins.
+ *
+ * Pure given (clips, prefix); split out for unit-testability.
+ */
+function resolveJumpTarget(clips: ClipItem[], prefix: string): ClipItem | null {
+  if (!prefix) return null;
+  const p = prefix.toLowerCase();
+  type Scored = { clip: ClipItem; rank: number };
+  const scored: Scored[] = [];
+  for (const c of clips) {
+    const h = hostFrom(c.source.url);
+    if (!h) continue;
+    let rank = -1;
+    if (h === p) rank = 0;
+    else if (h.startsWith(p)) rank = 1;
+    else if (h.includes(p)) rank = 2;
+    if (rank < 0) continue;
+    // Pinned floats up within each tier (subtract 0.5 so a pinned
+    // starts-with still beats an unpinned exact-match? no — we keep
+    // exact-match king regardless of pin state, so the pinned tie-
+    // break is INSIDE its tier only).
+    if (c.pinned) rank -= 0.1;
+    scored.push({ clip: c, rank });
+  }
+  if (scored.length === 0) return null;
+  scored.sort(
+    (a, b) =>
+      a.rank - b.rank ||
+      // Within a tier, prefer more-recently-seen clips.
+      b.clip.lastSeenAt - a.clip.lastSeenAt,
+  );
+  return scored[0].clip;
+}
+
+// Enter on the search box: if the value matches `g <prefix>`, open the
+// first clip whose host matches the prefix in the detail view. Mirrors
+// the global Enter behavior (which copies the active clip) but is
+// scoped to the search input via this listener so we don't have to
+// shoehorn host-jump logic into the global keydown handler.
+searchEl.addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter") return;
+  const prefix = parseJumpPattern(searchEl.value);
+  if (!prefix) return;
+  e.preventDefault();
+  e.stopPropagation();
+  // Source: the currently-loaded list when it's not empty, else a
+  // fresh full pull so the user can jump even before they've scrolled
+  // / filtered. Bounded at 1000 to avoid an unreasonable read.
+  const source =
+    currentClips.length > 0 ? currentClips : await listClips({ limit: 1000 });
+  const target = resolveJumpTarget(source, prefix);
+  if (!target) {
+    toast(`No clips from "${prefix}"`, "error");
+    return;
+  }
+  // Drop the jump command from the search box so the list isn't
+  // stuck filtering to "g github" garbage when the user backs out.
+  searchEl.value = "";
+  activeIndex = 0;
+  await render();
+  await openDetail(target.id);
+});
+
 filterBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
     filterBtns.forEach((b) => b.classList.remove("active"));
