@@ -115,6 +115,7 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
         kind: c.kind,
         content: c.content,
         preview: c.preview,
+        pinned: !!c.pinned,
         source: { url: c.source.url, title: c.source.title },
       }));
       await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite });
@@ -163,6 +164,7 @@ if (api.commands) {
             kind: c.kind,
             content: c.content,
             preview: c.preview,
+            pinned: !!c.pinned,
             source: { url: c.source.url, title: c.source.title },
           }));
           await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite });

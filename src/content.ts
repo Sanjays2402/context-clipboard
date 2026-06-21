@@ -109,6 +109,7 @@ interface PaletteClip {
   kind: "text" | "image" | "link";
   content: string;
   preview?: string;
+  pinned?: boolean;
   source?: { url?: string; title?: string };
 }
 
@@ -448,13 +449,22 @@ function openPalette(clips: PaletteClip[]) {
     :host { all: initial; }
     .scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 2147483646; display:flex; align-items:flex-start; justify-content:center; padding-top: 12vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     .box { width: 560px; max-width: 92vw; background: #161a22; color:#e6e8ef; border-radius: 12px; box-shadow: 0 18px 60px rgba(0,0,0,0.55); overflow: hidden; border: 1px solid #232936; }
-    input { width:100%; background:#0f1115; color:#e6e8ef; border:none; border-bottom:1px solid #232936; padding:14px 16px; font-size:15px; outline:none; }
+    input { width:100%; background:#0f1115; color:#e6e8ef; border:none; border-bottom:1px solid #232936; padding:14px 16px; font-size:15px; outline:none; box-sizing: border-box; }
+    .chips { display:flex; gap:6px; padding: 8px 12px; background:#10141c; border-bottom:1px solid #232936; }
+    .chip { background:transparent; border:1px solid #2a3140; color:#8a93a6; font: 11px/1 -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 600; padding: 4px 10px; border-radius: 999px; cursor: pointer; display:flex; align-items:center; gap:5px; transition: border-color 0.15s, color 0.15s, background 0.15s; text-transform: uppercase; letter-spacing: 0.02em; }
+    .chip:hover { color:#e6e8ef; border-color:#3a4356; }
+    .chip.active { background: rgba(245,180,0,0.12); border-color: #f5b400; color: #ffd766; }
+    .chip em { font-style: normal; opacity: 0.55; font-weight: 500; font-size: 10px; }
     .list { max-height: 50vh; overflow-y: auto; }
     .row { padding: 10px 14px; border-bottom: 1px solid #232936; cursor: pointer; display:flex; gap:10px; align-items:flex-start; }
     .row:hover, .row.active { background: #1c212c; }
     .row.active { box-shadow: inset 3px 0 0 #f5b400; }
-    .thumb { width: 36px; height: 36px; flex:0 0 36px; border-radius:4px; background:#0f1115; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; }
+    .row.dim { opacity: 0.42; }
+    .row.dim .preview { font-style: italic; }
+    .row.pinned-divider { border-top: 1px dashed rgba(245,180,0,0.22); }
+    .thumb { width: 36px; height: 36px; flex:0 0 36px; border-radius:4px; background:#0f1115; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; position:relative; }
     .thumb img { width:100%; height:100%; object-fit:cover; }
+    .pin-dot { position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:#f5b400; box-shadow: 0 0 6px rgba(245,180,0,0.7); }
     .body { flex:1; min-width:0; }
     .preview { font-size: 13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .meta { margin-top:2px; font-size: 11px; color:#8a93a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -465,8 +475,9 @@ function openPalette(clips: PaletteClip[]) {
     <div class="scrim">
       <div class="box" role="dialog">
         <input type="search" placeholder="Search Context Clipboard…" autocomplete="off" />
+        <div class="chips" role="tablist"></div>
         <div class="list"></div>
-        <div class="hint">↑↓ navigate · ⏎ paste · Esc close</div>
+        <div class="hint">↑↓ navigate · ⏎ paste · ⇧⏎ paste as markdown · 1-4 filter · Esc close</div>
       </div>
     </div>
   `;
@@ -481,10 +492,19 @@ function openPalette(clips: PaletteClip[]) {
 
   const sr = root.shadowRoot!;
   const input = sr.querySelector("input") as HTMLInputElement;
+  const chipsEl = sr.querySelector(".chips") as HTMLElement;
   const list = sr.querySelector(".list") as HTMLElement;
   const scrim = sr.querySelector(".scrim") as HTMLElement;
   let active = 0;
+  let kindFilter: "all" | "text" | "image" | "link" = "all";
   let filtered = clips.slice();
+
+  // True when the user clicked into an editable field via the
+  // right-click menu — only text/link clips can be pasted directly,
+  // so we dim image rows to telegraph "this won't work here". Image
+  // clips still pick (we fall back to the system clipboard), just
+  // with a visual warning so the user isn't surprised.
+  const targetIsEditable = isEditable(lastFocusedField);
 
   function host(u?: string) {
     if (!u) return "";
@@ -499,44 +519,117 @@ function openPalette(clips: PaletteClip[]) {
     return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
   }
 
+  function counts(): Record<"all" | "text" | "image" | "link", number> {
+    const out = { all: clips.length, text: 0, image: 0, link: 0 };
+    for (const c of clips) {
+      if (c.kind === "text") out.text++;
+      else if (c.kind === "image") out.image++;
+      else if (c.kind === "link") out.link++;
+    }
+    return out;
+  }
+
+  function renderChips() {
+    const c = counts();
+    const chips: { id: "all" | "text" | "image" | "link"; label: string; n: number }[] = [
+      { id: "all", label: "All", n: c.all },
+      { id: "text", label: "Text", n: c.text },
+      { id: "link", label: "Links", n: c.link },
+      { id: "image", label: "Images", n: c.image },
+    ];
+    chipsEl.innerHTML = chips
+      .map(
+        (ch) =>
+          `<button class="chip ${kindFilter === ch.id ? "active" : ""}" data-kind="${ch.id}" type="button" title="${esc(ch.label)} (${ch.n})">${esc(ch.label)}<em>${ch.n}</em></button>`,
+      )
+      .join("");
+  }
+
   function render() {
     if (filtered.length === 0) {
-      list.innerHTML = `<div class="empty">No clips match.</div>`;
+      list.innerHTML = `<div class="empty">No clips match${kindFilter === "all" ? "" : ` in ${kindFilter}`}.</div>`;
       return;
     }
+    // Find the first non-pinned row so we can draw a soft separator
+    // between the pinned cluster and the rest. Only meaningful when
+    // we actually have BOTH groups in the filtered set.
+    let firstUnpinnedIdx = -1;
+    for (let i = 0; i < filtered.length; i++) {
+      if (!filtered[i].pinned) {
+        firstUnpinnedIdx = i;
+        break;
+      }
+    }
+    const hasPinned = filtered.some((c) => c.pinned);
     list.innerHTML = filtered
       .map((c, i) => {
+        const pinDot = c.pinned ? `<span class="pin-dot" title="Pinned"></span>` : "";
         const thumb =
           c.kind === "image"
-            ? `<div class="thumb"><img src="${c.content}" /></div>`
-            : `<div class="thumb">${c.kind === "link" ? "🔗" : "📝"}</div>`;
+            ? `<div class="thumb"><img src="${c.content}" />${pinDot}</div>`
+            : `<div class="thumb">${c.kind === "link" ? "🔗" : "📝"}${pinDot}</div>`;
         const preview = c.kind === "image" ? c.preview || "Image" : c.preview || c.content;
-        const src = [host(c.source?.url), c.source?.title].filter(Boolean).join(" · ");
-        return `<div class="row ${i === active ? "active" : ""}" data-i="${i}">${thumb}<div class="body"><div class="preview">${esc(preview.slice(0, 140))}</div><div class="meta">${esc(src || "")}</div></div></div>`;
+        const meta = [host(c.source?.url), c.source?.title].filter(Boolean).join(" · ");
+        // Image clips can't be pasted into text fields; dim them so the
+        // user understands "this won't paste here" before they try.
+        const dim = targetIsEditable && c.kind === "image" ? " dim" : "";
+        const divider =
+          hasPinned && firstUnpinnedIdx === i && i > 0 ? " pinned-divider" : "";
+        return `<div class="row${i === active ? " active" : ""}${dim}${divider}" data-i="${i}">${thumb}<div class="body"><div class="preview">${esc(preview.slice(0, 140))}</div><div class="meta">${esc(meta || "")}</div></div></div>`;
       })
       .join("");
   }
 
   function filter() {
     const q = input.value.toLowerCase().trim();
-    filtered = clips.filter((c) => {
+    const matchesQuery = (c: PaletteClip) => {
       if (!q) return true;
       const hay = `${c.preview || c.content} ${c.source?.title || ""} ${c.source?.url || ""}`.toLowerCase();
       return hay.includes(q);
-    });
+    };
+    const matchesKind = (c: PaletteClip) =>
+      kindFilter === "all" || c.kind === kindFilter;
+    // Pinned first within the matching set so high-signal clips stay
+    // one keystroke away. Stable order otherwise (we don't re-sort
+    // by recency — the parent list already arrived sorted).
+    filtered = clips
+      .filter((c) => matchesKind(c) && matchesQuery(c))
+      .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
     active = 0;
     render();
   }
 
-  async function pick(c: PaletteClip) {
+  function setKind(next: "all" | "text" | "image" | "link") {
+    if (kindFilter === next) return;
+    kindFilter = next;
+    renderChips();
+    filter();
+  }
+
+  async function pick(c: PaletteClip, asMarkdown = false) {
+    // Markdown variant: text → wrap in backticks if multiline, link →
+    // [preview](url), image → ![title](url). Falls through to a normal
+    // paste afterwards using `out` instead of `c.content`.
+    let out = c.content;
+    if (asMarkdown) {
+      if (c.kind === "image") {
+        const url = c.source?.url || c.content;
+        const title = c.source?.title || "image";
+        out = `![${title}](${url})`;
+      } else if (c.kind === "link") {
+        out = `[${(c.preview || c.content).slice(0, 80)}](${c.content})`;
+      } else if (/\n/.test(c.content)) {
+        out = `\n\n\`\`\`\n${c.content}\n\`\`\`\n`;
+      }
+    }
     // If the user opened the palette via right-click on an editable
     // field, paste the chosen clip directly into that field so the
     // action mirrors a normal "Paste from menu". Falls back to copying
     // to the system clipboard otherwise (keyboard-shortcut path).
     const target = isEditable(lastFocusedField) ? lastFocusedField : null;
-    if (target && (c.kind === "text" || c.kind === "link")) {
+    if (target && (c.kind === "text" || c.kind === "link" || asMarkdown)) {
       try {
-        setFieldValue(target, c.content);
+        setFieldValue(target, out);
         target.focus();
         closePalette();
         return;
@@ -545,14 +638,14 @@ function openPalette(clips: PaletteClip[]) {
       }
     }
     try {
-      if (c.kind === "image") {
+      if (c.kind === "image" && !asMarkdown) {
         const res = await fetch(c.content);
         const blob = await res.blob();
         const Item = (window as unknown as { ClipboardItem: new (parts: Record<string, Blob>) => unknown }).ClipboardItem;
         const clip = navigator.clipboard as unknown as { write: (items: unknown[]) => Promise<void> };
         await clip.write([new Item({ [blob.type]: blob })]);
       } else {
-        await navigator.clipboard.writeText(c.content);
+        await navigator.clipboard.writeText(out);
       }
     } catch (e) {
       console.error("[context-clipboard] paste failed", e);
@@ -573,24 +666,55 @@ function openPalette(clips: PaletteClip[]) {
     } else if (e.key === "Enter") {
       e.preventDefault();
       const c = filtered[active];
-      if (c) pick(c);
+      if (c) pick(c, e.shiftKey);
     } else if (e.key === "Escape") {
       closePalette();
+    } else if (
+      // 1-4 jumps to a kind chip when the search box is empty (so
+      // typing a literal "1" inside a query still works). The order
+      // matches the chip order shown above: 1=All, 2=Text, 3=Links,
+      // 4=Images.
+      !input.value &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey
+    ) {
+      if (e.key === "1") {
+        e.preventDefault();
+        setKind("all");
+      } else if (e.key === "2") {
+        e.preventDefault();
+        setKind("text");
+      } else if (e.key === "3") {
+        e.preventDefault();
+        setKind("link");
+      } else if (e.key === "4") {
+        e.preventDefault();
+        setKind("image");
+      }
     }
+  });
+  chipsEl.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest(".chip") as HTMLElement | null;
+    if (!btn) return;
+    const k = btn.dataset.kind as "all" | "text" | "image" | "link" | undefined;
+    if (k) setKind(k);
+    input.focus();
   });
   list.addEventListener("click", (e) => {
     const row = (e.target as HTMLElement).closest(".row") as HTMLElement | null;
     if (!row) return;
     const i = Number(row.dataset.i);
     const c = filtered[i];
-    if (c) pick(c);
+    if (c) pick(c, (e as MouseEvent).shiftKey);
   });
   scrim.addEventListener("click", (e) => {
     if (e.target === scrim) closePalette();
   });
 
+  renderChips();
   setTimeout(() => input.focus(), 0);
-  render();
+  filter();
 }
 
 function closePalette() {
