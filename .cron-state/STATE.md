@@ -54,7 +54,6 @@ Status: ` ` open / `~` in-progress / `x` shipped
 ### Pasting & flow
 - [ ] Paste-stack mode: queue N clips, paste them in order across multiple inputs
 - [ ] In-page palette: recent-first ordering when no query (vs server order)
-- [ ] Detail-view "Send to..." sub-menu (compose new email / open in editor / share sheet)
 
 ### Privacy & security
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
@@ -69,14 +68,22 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] "Pinned hits" sparkline in detail (last 30 days of hitCount, ASCII)
 
 ### New (added this tick — refill toward 15-25)
-- [ ] Bulk archive: "Archive all filtered" Cmd+K command (today archive is per-clip via detail)
-- [ ] Empty-state for archive view: distinct copy + "Show daily list" shortcut chip
-- [ ] Audit log filter chips (show only redact / scrub / forget / archive entries)
-- [ ] Audit log export (JSON only, append to existing export bundle)
-- [ ] Note composer: pull tags from active tab URL/host as one-click chips
 - [ ] Saved searches auto-import (a saved search becomes a smart folder pill at the top of the list when active)
 - [ ] Recent-host quick filter strip (top 5 hosts as toggle pills) — partially covered by quick chips
 - [ ] Quick-filter chips: "Archived (N)" tier should hide when is:archived is already active
+- [ ] Empty-state for archive view: distinct copy + "Show daily list" shortcut chip
+- [ ] Audit log group-by-day rollup (collapse same-day entries into a single row)
+- [ ] Audit log: per-entry "show me the clip" jump (clipId already in the row, just wire detail open)
+- [ ] Send-to: add "Open in private/incognito window" row (chrome.windows.create with incognito flag)
+- [ ] Send-to: add "Copy as JSON" row (single-clip envelope, mirror exportAll shape)
+- [ ] Bulk archive: confirm dialog should preview the first 3 clips so the user knows what's about to vanish
+- [ ] Note composer: remember "Pin" checkbox state across opens (per-session, no IDB)
+- [ ] Note composer: focus survives quick-tag chip click (already works, but verify on Firefox)
+- [ ] Detail "Send to…": remember last-picked action so re-open puts it first
+- [ ] Export bundle: include search history alongside audit log
+- [ ] Per-host capture rule edit panel: show "X clips captured under this rule" stat
+- [ ] In-page palette: hostBoost should also apply to keywords (title + nearbyText matches from same host get the bump)
+- [ ] Detail-view: add a thin "Copies in the last 30 days" sparkline (already on roadmap but worth flagging)
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -134,12 +141,88 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Auto-detect language / lang-specific code-fence (copy-md + export) — `e549438`
 - [x] In-page palette: per-host suggestion ranking (boost same-host clips) — `dc6c5b4`
 - [x] Per-host scrub rule (auto-scrub origin on every capture from this host) — `f27c95b`
+- [x] Bulk archive: "Archive/Unarchive all filtered" Cmd+K commands — `5b35feb`
+- [x] Audit log filter chips (Redact/Scrub/Lifecycle/Host/TTL buckets) — `d7b7e1a`
+- [x] Audit log round-trips through JSON export bundle (additive, capped, dedup-by-id) — `91ce7ec`
+- [x] Note composer pulls tags from active tab URL+host (host-first, deduped) — `ced3d02`
+- [x] Detail-view "Send to…" sub-menu (open/search/site/email/md-link/fence) — `8db76f3`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-21 05:58 PT** — 5/5 shipped. Bulk archive/unarchive
+  all filtered: new `archiveAllFiltered(boolean)` mirrors
+  `pinAllFiltered` shape — targets only clips that don't match
+  the desired state, confirms above 25, fires per-clip
+  privacy-audit entries; two new Cmd+K palette commands (Bulk
+  group) gated on whether any unarchived/archived clips are
+  visible; archiving leaves lastSeenAt alone for archive
+  view's recency-order, unarchiving bumps it so resurfaced
+  clips top the daily list (5b35feb). Audit log filter chips:
+  six bucket pills in Settings (All / Redact / Scrub /
+  Lifecycle / Host / TTL) over the audit ring; chip strip
+  hides when empty, zero-count chips drop out, active-click
+  snaps back to All; stale-filter guard auto-snaps to All
+  when the chosen bucket goes to zero (so a cleared entry
+  can't strand the panel empty); summary line reflects active
+  filter ("5 of 18" vs "18 actions"); 30/30 audit-filter
+  sanity covers bucket mapping + count math + coverage of
+  every PrivacyAuditKind variant (forward-compat tripwire)
+  (d7b7e1a). Audit log in JSON export bundle: exportAll()
+  attaches `privacyAudit` (newest-first, omitted when empty);
+  importAll() union-merges by id, drops unknown/invalid
+  shapes (defensive against forward-compat exports), sorts by
+  `at`, caps at PRIVACY_AUDIT_MAX (30); import return shape
+  gains `auditMerged`, popup toast surfaces it + re-renders
+  the Settings audit section; 20/20 audit-export sanity
+  covers export attach/omit, dedup-by-id on re-import,
+  shape validation, 35→30 cap behavior, round-trip
+  idempotency, and missing-field backwards compatibility
+  (91ce7ec). Note composer pulls tags from active tab:
+  new pure `src/lib/context-tags.ts` —
+  `tagFromHost` strips www + handles 2-part TLDs
+  (.co.uk/.com.au/.ac.jp/…), drops localhost noise;
+  `tagsFromUrl` tokenizes path, drops PATH_STOP
+  (index/html/page/…), pure-numeric / hex-id / 16-char
+  base64-ish / >24-char tokens, dedupes + caps;
+  `contextTagsForTab` combines host-first, deduped; composer
+  strip now has two segments — "From this tab" (blue chips)
+  and "Recent" (existing top-tag history, overlap-pruned);
+  graceful fallback when tab access fails (chrome:// /
+  extension pages); 32/32 context-tags sanity covers
+  host normalisation, URL token extraction, every edge
+  case + combined builder (ced3d02). Detail-view "Send
+  to…" sub-menu: new pure `src/lib/send-to.ts` —
+  6 builders (open source / Google / site-search /
+  mailto / Markdown link / fenced code) with per-clip
+  availability rules (scrubbed clips drop md-link, images
+  drop google/fence, empty clips drop body-driven actions,
+  non-http(s) URLs never open as nav); new floating
+  dropdown anchored under detail action row, closes on
+  Esc/outside-click/item-click/detail-close, re-opens
+  fresh each time so action availability tracks the
+  current clip; mailto opens via api.tabs.create (FF
+  fallback via window.open); copy actions write via
+  navigator.clipboard with toast; Cmd+K "Send open clip
+  to…" surfaces the same menu; 45/45 send-to sanity
+  covers every builder against 5 fixture clip shapes,
+  encoding caps (200-char Google / 1500-char mailto),
+  www-stripping, paren escaping in md-links, auto-lang
+  detection, and the buildSendActions availability matrix
+  (8db76f3). tsc + chrome/firefox builds green (popup
+  171.9KB, background 42.6KB, content 23.8KB); ALL 16
+  sanity suites pass: 11 archive + 20 audit-export +
+  30 audit-filter + 32 context-tags + 11 export +
+  15 find-dupes + 9 highlight + 14 import-dedup +
+  14 jump + 25 merge-dupes + 11 palette + 23 pattern-hits +
+  15 privacy-audit + 45 send-to + 13 sort + 11 templates +
+  22 lang-detect + 8 palette-host-boost + 9 retro-redact +
+  9 palette-last-q + 16 site-rule-scrub + crypto + redact +
+  popup-encrypt. Pre-existing playwright redact-ui
+  DB-version mismatch unrelated.
 
 - **2026-06-21 02:49 PT** — 5/5 shipped. Compact-row list mode:
   new `compactRows` Settings toggle drives a body-level
