@@ -6,9 +6,9 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 
 ## Branch
 
-- **Working branch:** `feature/autoship` (off `main`, never merged automatically)
+- **Working branch:** `main` (commits land directly on `main`, push every tick)
 - **Cron identity:** `Cake (cron) <51058514+Sanjays2402@users.noreply.github.com>`
-- **No tags. No PRs. No release artifacts.** Just commits on the feature branch.
+- **No tags. No PRs. No release artifacts.** Just commits on `main`.
 
 ## Hard invariants (never violate)
 
@@ -46,13 +46,8 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 
 Status: ` ` open / `~` in-progress / `x` shipped
 
-### Search & navigation
-- [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)  <!-- partially covered by quick chips, still keep -->
-- [ ] Saved-search auto-import (a saved search becomes a smart folder pill at the top of the list when active)
-
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
-- [ ] Manual quick-tag dropdown when adding notes
 - [ ] Capture into a chosen collection at copy time (depends on collections)
 - [ ] Link-preview enrichment: fetch og:title / og:image at capture time for kind=link
 
@@ -63,21 +58,32 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Privacy & security
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
-- [ ] Audit log of redact / scrub / forget operations (last 30 actions)
 
 ### Data lifecycle
 - [ ] Image auto-recapture: rule-based scheduled re-fetch for tracked images
-- [ ] "Find duplicates" panel — list groups w/o auto-merging (review before action)
-- [ ] Clip archive mode: pinned-but-hidden state for very-cold pins
 
 ### UI polish (real, not cosmetic)
 - [ ] Inline diff for re-captured clips (show what changed vs previous copy)
 - [ ] Per-collection storage breakdown (when collections ship)
 - [ ] List virtualization for >500 clips (perf)
-- [ ] Compact-row toggle (shrink each row to 36px so 30+ fit on one screen)
 - [ ] "Pinned hits" sparkline in detail (last 30 days of hitCount, ASCII)
 
+### New (added this tick — refill toward 15-25)
+- [ ] Bulk archive: "Archive all filtered" Cmd+K command (today archive is per-clip via detail)
+- [ ] Empty-state for archive view: distinct copy + "Show daily list" shortcut chip
+- [ ] Audit log filter chips (show only redact / scrub / forget / archive entries)
+- [ ] Audit log export (JSON only, append to existing export bundle)
+- [ ] Note composer: pull tags from active tab URL/host as one-click chips
+- [ ] Saved searches auto-import (a saved search becomes a smart folder pill at the top of the list when active)
+- [ ] Recent-host quick filter strip (top 5 hosts as toggle pills) — partially covered by quick chips
+- [ ] Quick-filter chips: "Archived (N)" tier should hide when is:archived is already active
+
 ### Shipped (autoship)
+- [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
+- [x] Find duplicates review panel — list groups, merge selectively — `b3a7e22`
+- [x] Clip archive mode — `is:archived` + detail toggle + quick chip — `12ad8cc`
+- [x] Privacy audit log — last 30 actions in settings — `a1f32fa`
+- [x] Note composer with tag suggestions + pin checkbox — `b6c5fc9`
 - [x] Smart search operators (kind/host/tag/is/before/after) — `c407d53`
 - [x] Soft-delete trash with 7-day restore — `1a306bc`
 - [x] Quick-filter pill row (pinned / redacted / OCR / images / 24h / top hosts) — `9183ea8`
@@ -135,6 +141,48 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 <!-- TICKS BELOW -->
 
+- **2026-06-21 02:49 PT** — 5/5 shipped. Compact-row list mode:
+  new `compactRows` Settings toggle drives a body-level
+  `.compact-rows` class that shrinks padding, gaps, thumb
+  (42→28px), hides tag-chip row + thumb-dimensions pill, type-
+  scales meta down; live-preview in settings + Cmd+K palette
+  toggle saves immediately; default off, opt-in dense view for
+  scanning long lists (76b3301). Find duplicates review panel:
+  new `findDuplicateGroups()` + `mergeDuplicateGroup(hash)`
+  helpers (largest-group-first, survivor-first member order,
+  pinnedInGroup OR'd); new `#dupes-panel` overlay with per-group
+  Merge buttons + a single Merge-all button in the header; each
+  group shows survivor preview + loser list so the user sees
+  exactly what's going to trash; Cmd+K "Review duplicates…"
+  command alongside the bulk merge; 15/15 find-dupes sanity
+  (b3a7e22). Clip archive mode: additive `archived?: boolean`
+  on ClipItem (no IDB bump); search parser learns `is:archived`
+  with FLIP semantics (default hides archived, operator surfaces
+  archive-only); `toggleArchive(id)` bumps lastSeenAt on
+  un-archive so the clip resurfaces; detail-view Archive/Inbox
+  button + Cmd+K commands; quick-chip strip gets an "Archived"
+  pill with count; clip rows render an "archived" badge + faint
+  purple stripe; 11/11 archive sanity (12ad8cc). Privacy audit
+  log: ring buffer of last 30 privacy actions in meta-store —
+  11 verbs covered (redact/unredact/scrub-origin/retro-redact/
+  forget-host/set-ttl/clear-ttl/archive/unarchive/trash/restore);
+  hooks added across detailRedact / scrubDetailOrigin /
+  retroactiveAutoRedact / forgetHost / detailExpiry /
+  toggleDetailArchive; fire-and-forget writes that never block
+  the underlying op; Settings panel gets a new "Privacy audit"
+  section + Clear button + colour-coded kind labels; Cmd+K
+  "Show privacy audit log" scrolls Settings to the section;
+  15/15 audit sanity (a1f32fa). Note composer overlay: replaces
+  bare `prompt()` with a real dialog — multiline textarea
+  (Cmd/Ctrl+Enter saves), tag input, quick-tag chip strip
+  (top tags minus noise auto-tags, click toggles), "Pin this
+  note" checkbox; background `addNote` extended to accept
+  tags/pinned and apply them after ingest so dedup + auto-tag
+  still fire; Esc/backdrop cancels (b6c5fc9). tsc + chrome/
+  firefox builds green (popup 157.3KB, background 40.2KB,
+  content 23.8KB); 11+15+15+11+9+22+14+25+23+13+9 sanity
+  tests pass across all suites. Pre-existing playwright redact-
+  ui DB-version mismatch unrelated.
 - **2026-06-20 23:32 PT** — 5/5 shipped. Detail-view "Similar
   clips" sidekick: new `findSimilarClips(pivotId)` in lib/db
   scores other clips by shared host (+4) and shared topic tags
