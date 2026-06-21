@@ -2607,10 +2607,32 @@ noteBtn.addEventListener("click", () => void openNoteComposer());
  * after close. Esc cancels; the global keydown handler routes through
  * the composer before falling through to other panels.
  */
+/**
+ * Per-session memory for the note composer's "Pin this note" checkbox.
+ * Survives across opens within the same popup session (so a user who
+ * just pinned a note and immediately opens the composer again to drop
+ * another related note doesn't have to re-check the box every time).
+ *
+ * In-memory only — per spec we don't persist this in IDB. The popup
+ * closing resets the bit, which is the right granularity: pinning is
+ * sticky for the duration of a focused note-taking burst, not
+ * permanently. Matches how the audit day-collapse state persists for
+ * the same reason.
+ *
+ * Initial value is `false` — first-ever open of the composer in a
+ * fresh popup session shows the box unchecked (consistent with how
+ * it's always behaved). We only START remembering after the user
+ * EXPLICITLY toggles it.
+ */
+let notePinSticky = false;
+
 async function openNoteComposer(): Promise<void> {
   noteText.value = "";
   noteTagsInput.value = "";
-  notePinInput.checked = false;
+  // Restore the user's last in-session pin choice so a "pin a bunch
+  // of related notes" workflow doesn't require re-checking the box
+  // on every open. First open of the session = default false.
+  notePinInput.checked = notePinSticky;
   await renderNoteTagSuggestions();
   noteComposer.hidden = false;
   // After the panel paints — focus the textarea so typing lands there
@@ -2737,6 +2759,14 @@ noteTagSuggestions.addEventListener("click", (e) => {
 });
 
 noteCancelBtn.addEventListener("click", () => closeNoteComposer());
+// Stamp the sticky bit on every checkbox toggle (not just save) so a
+// user who explicitly checks "Pin" mid-thought, then closes the
+// composer without saving (Esc / backdrop / Cancel), still gets the
+// pinned default on the NEXT open. Otherwise the "I'm in a pinning
+// burst" mode would silently reset on every aborted draft.
+notePinInput.addEventListener("change", () => {
+  notePinSticky = notePinInput.checked;
+});
 noteComposer.addEventListener("click", (e) => {
   if (e.target === noteComposer) closeNoteComposer();
 });
@@ -2753,6 +2783,8 @@ async function saveNoteFromComposer(): Promise<void> {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   const pinned = notePinInput.checked;
+  // Remember the pin choice for the next composer open (per-session).
+  notePinSticky = pinned;
   noteSaveBtn.disabled = true;
   try {
     await new Promise<void>((resolve) => {
