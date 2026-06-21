@@ -29,6 +29,7 @@ import {
   appendPrivacyAuditEntry,
   listPrivacyAudit,
   clearPrivacyAudit,
+  trimPrivacyAuditToCap,
   countClipsForRules,
   getSendToLast,
   setSendToLast,
@@ -156,6 +157,8 @@ const auditSummary = $("audit-summary");
 const auditList = $("audit-list");
 const auditFiltersEl = $("audit-filters");
 const auditClearBtn = $<HTMLButtonElement>("audit-clear");
+const auditRetentionEl = $<HTMLSelectElement>("audit-retention");
+const auditFootCap = $("audit-foot-cap");
 const forgetHostInput = $<HTMLInputElement>("forget-host-input");
 const forgetHostBtn = $<HTMLButtonElement>("forget-host-btn");
 const siteRulesList = $("site-rules-list");
@@ -1166,6 +1169,15 @@ async function openSettings() {
   sAutoRedact.checked = s.autoRedactPii;
   sBlurPreviews.checked = !!s.blurPreviews;
   sCompactRows.checked = !!s.compactRows;
+  // Privacy audit retention — defaults to 30 if the stored value
+  // is missing or junk (a freshly imported settings shape from an
+  // older version won't have this field).
+  const retention = (s.privacyAuditRetention === 10 || s.privacyAuditRetention === 30 ||
+    s.privacyAuditRetention === 60 || s.privacyAuditRetention === 100)
+    ? s.privacyAuditRetention
+    : 30;
+  auditRetentionEl.value = String(retention);
+  auditFootCap.textContent = String(retention);
   sBlock.value = (s.blockList || []).join("\n");
   sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
@@ -1194,6 +1206,13 @@ async function saveSettingsFromForm() {
     autoRedactPii: sAutoRedact.checked,
     blurPreviews: sBlurPreviews.checked,
     compactRows: sCompactRows.checked,
+    // Snap the raw <select> value back to the allowed quartet so a
+    // tampered DOM (extension dev-tools, etc.) can't sneak a value
+    // like 5000 into IDB.
+    privacyAuditRetention: (() => {
+      const v = Number(auditRetentionEl.value);
+      return v === 10 || v === 30 || v === 60 || v === 100 ? (v as 10 | 30 | 60 | 100) : 30;
+    })(),
     blockList: sBlock.value.split("\n").map((s) => s.trim()).filter(Boolean),
     allowList: sAllow.value.split("\n").map((s) => s.trim()).filter(Boolean),
     theme: (sTheme.value as Settings["theme"]) || "auto",
@@ -1438,7 +1457,11 @@ async function renderAudit(): Promise<void> {
       ? `${entries.length} action${entries.length === 1 ? "" : "s"}`
       : `${filtered.length} of ${entries.length}`;
   if (filtered.length === 0) {
-    auditList.innerHTML = `<div class="audit-empty">No ${escapeHtml(auditFilter)} actions in the last 30.</div>`;
+    // "Last N" reads from the live foot-cap span so it tracks the
+    // user's retention pick. Falls back to the entries length when
+    // the foot cap span hasn't rendered yet (very early render).
+    const capLabel = auditFootCap.textContent || String(entries.length);
+    auditList.innerHTML = `<div class="audit-empty">No ${escapeHtml(auditFilter)} actions in the last ${escapeHtml(capLabel)}.</div>`;
     return;
   }
   auditList.innerHTML = filtered
@@ -1542,6 +1565,31 @@ auditClearBtn.addEventListener("click", async () => {
   await clearPrivacyAudit();
   await renderAudit();
   toast("Audit log cleared");
+});
+
+/**
+ * Live retention change. Lower → trim immediately so the user sees
+ * the smaller log right away. Higher → just save; the log grows on
+ * the next append (no back-fill, by design — past actions stay gone
+ * once they've fallen off).
+ *
+ * We save inline rather than waiting for the user to back out of
+ * settings (`saveSettingsFromForm` on close) so the change is
+ * immediately durable + the slider's effect is visible without
+ * extra clicks.
+ */
+auditRetentionEl.addEventListener("change", async () => {
+  const v = Number(auditRetentionEl.value);
+  if (v !== 10 && v !== 30 && v !== 60 && v !== 100) return;
+  await saveSettings({ privacyAuditRetention: v as 10 | 30 | 60 | 100 });
+  auditFootCap.textContent = String(v);
+  const dropped = await trimPrivacyAuditToCap();
+  await renderAudit();
+  if (dropped > 0) {
+    toast(`Audit retention set to ${v} (trimmed ${dropped})`);
+  } else {
+    toast(`Audit retention set to ${v}`);
+  }
 });
 
 function trashRow(t: TrashedClip): string {

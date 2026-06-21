@@ -922,9 +922,13 @@ export async function importAll(data: {
         auditMerged++;
       }
       if (auditMerged > 0) {
+        // On import, cap at the user's configured retention so the
+        // import respects the same ceiling as live appends. We still
+        // hard-cap at PRIVACY_AUDIT_MAX (100) as a safety net.
+        const importCap = await getPrivacyAuditCap();
         const sorted = Array.from(byId.values())
           .sort((a, b) => b.at - a.at)
-          .slice(0, PRIVACY_AUDIT_MAX);
+          .slice(0, importCap);
         const store = await metaTx("readwrite");
         await new Promise<void>((resolve, reject) => {
           const req = store.put({ key: PRIVACY_AUDIT_KEY, value: sorted });
@@ -1469,7 +1473,29 @@ export interface PrivacyAuditEntry {
 }
 
 const PRIVACY_AUDIT_KEY = "privacy_audit";
-const PRIVACY_AUDIT_MAX = 30;
+const PRIVACY_AUDIT_MAX = 100; // Hard ceiling — settings cap stays at-or-below.
+
+/**
+ * Resolve the user-configured retention cap, defaulting to 30 and
+ * snapping any junk value back to a valid option. We snapshot the
+ * setting on each call so the cap reflects the live preference (the
+ * audit panel writes the change immediately on slider movement and
+ * the next append picks it up).
+ *
+ * Returns at most PRIVACY_AUDIT_MAX (100) — the hard ceiling so a
+ * future settings shape change can't suddenly request a 10k-entry
+ * ring.
+ */
+async function getPrivacyAuditCap(): Promise<number> {
+  try {
+    const s = await getSettings();
+    const v = s.privacyAuditRetention;
+    if (v === 10 || v === 30 || v === 60 || v === 100) return v;
+  } catch {
+    // Settings read failed (very rare) — fall back to default.
+  }
+  return 30;
+}
 
 export async function listPrivacyAudit(): Promise<PrivacyAuditEntry[]> {
   const store = await metaTx("readonly");
@@ -1496,7 +1522,10 @@ export async function appendPrivacyAuditEntry(
   entry: Omit<PrivacyAuditEntry, "id" | "at">,
 ): Promise<void> {
   try {
-    const list = await listPrivacyAudit();
+    const [list, cap] = await Promise.all([
+      listPrivacyAudit(),
+      getPrivacyAuditCap(),
+    ]);
     const next: PrivacyAuditEntry = {
       id: `pa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
       at: Date.now(),
@@ -1505,7 +1534,7 @@ export async function appendPrivacyAuditEntry(
       host: entry.host,
       detail: entry.detail ? entry.detail.slice(0, 80) : undefined,
     };
-    const trimmed = [next, ...list].slice(0, PRIVACY_AUDIT_MAX);
+    const trimmed = [next, ...list].slice(0, cap);
     const store = await metaTx("readwrite");
     await new Promise<void>((resolve, reject) => {
       const req = store.put({ key: PRIVACY_AUDIT_KEY, value: trimmed });
@@ -1525,4 +1554,29 @@ export async function clearPrivacyAudit(): Promise<void> {
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
+}
+
+/**
+ * Trim the audit log to the current settings retention cap. Called
+ * by the Settings panel after the user lowers the retention slider
+ * so the change is visible immediately — without this, a 100→10
+ * lower-and-stop wouldn't shrink the log until the next append.
+ *
+ * Returns the number of entries dropped (0 when nothing was over the
+ * cap). No-op when the log is already at-or-under the cap.
+ */
+export async function trimPrivacyAuditToCap(): Promise<number> {
+  const [list, cap] = await Promise.all([
+    listPrivacyAudit(),
+    getPrivacyAuditCap(),
+  ]);
+  if (list.length <= cap) return 0;
+  const trimmed = list.slice(0, cap);
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: PRIVACY_AUDIT_KEY, value: trimmed });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+  return list.length - trimmed.length;
 }

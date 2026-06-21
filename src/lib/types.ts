@@ -123,6 +123,18 @@ export interface Settings {
    * Pure CSS — no data is dropped, just the row chrome.
    */
   compactRows: boolean;
+  /**
+   * Privacy audit retention — how many recent privacy actions to keep
+   * in the ring buffer (Settings → Privacy audit panel). Each entry is
+   * tiny (~80 bytes), so the storage cost is negligible even at 100.
+   * Defaults to 30 (the original hard-coded cap). Allowed values are
+   * 10 / 30 / 60 / 100; anything else snaps to 30 on load.
+   *
+   * Lowering the value AFTER entries exist trims the log on the next
+   * append; raising it just grows it on the next append (we never
+   * back-fill — past actions stay gone once they fall off).
+   */
+  privacyAuditRetention: 10 | 30 | 60 | 100;
   /** Hostnames where capture is disabled. */
   blockList: string[];
   /** If non-empty, capture ONLY on these hostnames. */
@@ -143,10 +155,14 @@ export const DEFAULT_SETTINGS: Settings = {
   autoRedactPii: false,
   blurPreviews: false,
   compactRows: false,
+  privacyAuditRetention: 30,
   blockList: [],
   allowList: [],
   theme: "auto",
 };
+
+/** Valid retention sizes for the privacy audit ring buffer. */
+export const PRIVACY_AUDIT_RETENTION_OPTIONS = [10, 30, 60, 100] as const;
 
 export interface FieldMapEntry {
   /** `${host}::${fieldKey}` */

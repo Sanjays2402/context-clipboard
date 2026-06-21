@@ -3142,6 +3142,24 @@ body.compact-rows #list {
  * shows kind / subject / when. Kinds are colour-coded by privacy
  * intent: redact + scrub get a "shielded" accent, forget-host gets
  * danger red, archive uses the same purple as the badge. */
+
+/* Retention select sits in the audit header alongside Clear — small,
+ * unobtrusive, only visible when settings is open. */
+.audit-retention {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 2px 4px;
+  cursor: pointer;
+  margin-right: 4px;
+}
+.audit-retention:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
 .audit-list {
   display: flex;
   flex-direction: column;
