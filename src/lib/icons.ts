@@ -97,6 +97,25 @@ export const icons = {
     svg(
       `<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6M9 17h6"/>`,
     ),
+  // Clipboard with checkmark — quick-capture button. Distinct silhouette
+  // from `copy` (which is two pages) so users don't confuse "paste a new
+  // clip in" with "copy this clip to clipboard".
+  clipboard: () =>
+    svg(
+      `<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="m9 14 2 2 4-4"/>`,
+    ),
+  // Eraser — used by the "scrub origin" affordance to telegraph
+  // "remove the source metadata, keep the content".
+  eraser: () =>
+    svg(
+      `<path d="m3 21 9-9 9 9"/><path d="m7 17 10-10 5 5L12 22z"/><path d="M14 4 20 10"/>`,
+    ),
+  // Globe — used by the "Forget host" right-click menu entry so the
+  // intent is unambiguous (the action is about origin host, not content).
+  globe: () =>
+    svg(
+      `<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/>`,
+    ),
   imageGeneric: () =>
     svg(
       `<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/>`,

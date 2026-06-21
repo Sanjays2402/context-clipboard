@@ -52,6 +52,7 @@ const clearBtn = $<HTMLButtonElement>("clear");
 const pinnedToggle = $<HTMLButtonElement>("pinned-toggle");
 const settingsBtn = $<HTMLButtonElement>("settings-btn");
 const noteBtn = $<HTMLButtonElement>("note-btn");
+const quickCaptureBtn = $<HTMLButtonElement>("quick-capture-btn");
 const tagChipsEl = $("tag-chips");
 const quickChipsEl = $("quick-chips");
 const savedSearchesEl = $("saved-searches");
@@ -1821,6 +1822,127 @@ noteBtn.addEventListener("click", async () => {
   await render();
 });
 
+/**
+ * Quick-capture: read the system clipboard and ingest whatever is there
+ * as a fresh clip. Tries images first (clipboard.read returns ClipboardItems
+ * with MIME types), falls back to plain text. The captured clip is marked
+ * with a `quick-capture` tag + `Manual capture` source title so users can
+ * `tag:quick-capture` later. Local-only — the read happens in the popup,
+ * not over the wire.
+ *
+ * Failure modes (no permission, empty clipboard, exotic MIME) surface as
+ * a one-line toast — no silent no-ops.
+ */
+async function quickCaptureFromClipboard(): Promise<void> {
+  const before = quickCaptureBtn.title;
+  quickCaptureBtn.disabled = true;
+  quickCaptureBtn.title = "Reading clipboard…";
+  try {
+    // Try the rich Clipboard API first so we catch images. Falls back
+    // to readText() when read() isn't available (older Firefox).
+    const clip = navigator.clipboard as unknown as {
+      read?: () => Promise<Array<{ types: string[]; getType: (t: string) => Promise<Blob> }>>;
+      readText?: () => Promise<string>;
+    };
+    if (clip.read) {
+      try {
+        const items = await clip.read();
+        for (const it of items) {
+          const imageType = it.types.find((t) => t.startsWith("image/"));
+          if (imageType) {
+            const blob = await it.getType(imageType);
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const r = new FileReader();
+              r.onload = () => resolve(String(r.result));
+              r.onerror = () => reject(r.error);
+              r.readAsDataURL(blob);
+            });
+            await new Promise<void>((resolve) => {
+              api.runtime.sendMessage(
+                {
+                  type: "cc-rpc",
+                  action: "addImageBlob",
+                  payload: { dataUrl, name: "Quick capture" },
+                },
+                () => resolve(),
+              );
+            });
+            await tagLastQuickCapture("quick-capture");
+            toast("Image captured from clipboard");
+            await render();
+            return;
+          }
+          const textType = it.types.find((t) => t === "text/plain");
+          if (textType) {
+            const blob = await it.getType(textType);
+            const text = (await blob.text()).trim();
+            if (!text) continue;
+            await ingestQuickText(text);
+            return;
+          }
+        }
+        // No supported types found in the rich payload — fall through
+        // to readText so an HTML-only clipboard still gets captured
+        // (browsers usually expose a text/plain fallback alongside).
+      } catch (e) {
+        // Permission denied / no focus / DataCloneError on some Firefox
+        // builds — fall through to readText.
+        console.debug("[context-clipboard] clipboard.read failed", e);
+      }
+    }
+    if (clip.readText) {
+      const text = (await clip.readText()).trim();
+      if (!text) {
+        toast("Clipboard is empty", "error");
+        return;
+      }
+      await ingestQuickText(text);
+      return;
+    }
+    toast("Clipboard read not supported", "error");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    toast(`Capture failed: ${msg}`, "error");
+  } finally {
+    quickCaptureBtn.disabled = false;
+    quickCaptureBtn.title = before;
+  }
+}
+
+/** Internal: ingest a plain-text quick capture and tag the result. */
+async function ingestQuickText(text: string): Promise<void> {
+  await new Promise<void>((resolve) => {
+    api.runtime.sendMessage(
+      { type: "cc-rpc", action: "addNote", payload: { text } },
+      () => resolve(),
+    );
+  });
+  await tagLastQuickCapture("quick-capture");
+  toast(text.length > 60 ? `Captured ${text.length} chars` : `Captured: ${text.slice(0, 40)}${text.length > 40 ? "…" : ""}`);
+  await render();
+}
+
+/**
+ * Append a tag to the most-recently-seen clip. Used right after a quick
+ * capture (which we have no direct id for, since addNote/addImageBlob
+ * resolve asynchronously and we don't await the response payload). The
+ * lastSeenAt index pins the freshly-ingested clip to position 0 so this
+ * is reliable inside the ~ms window between capture and tag.
+ */
+async function tagLastQuickCapture(tag: string): Promise<void> {
+  try {
+    const all = await listClips({ limit: 1 });
+    const c = all[0];
+    if (!c) return;
+    const merged = Array.from(new Set([...c.tags, tag]));
+    await updateTags(c.id, merged);
+  } catch (e) {
+    console.debug("[context-clipboard] quick-capture tag failed", e);
+  }
+}
+
+quickCaptureBtn.addEventListener("click", () => void quickCaptureFromClipboard());
+
 // Keyboard cheatsheet --------------------------------------------------
 //
 // `?` toggles a modal listing every shortcut + search operator. Esc and
@@ -1912,6 +2034,17 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         noteBtn.click();
+      },
+    },
+    {
+      id: "quick-capture",
+      label: "Capture from system clipboard",
+      hint: "Pull the current clipboard contents into a fresh clip",
+      group: "Capture",
+      keywords: "paste import pull pasteboard",
+      run: () => {
+        closePalette();
+        void quickCaptureFromClipboard();
       },
     },
     {
