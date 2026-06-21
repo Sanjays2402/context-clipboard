@@ -3012,6 +3012,76 @@ body.compact-rows #list {
   color: var(--accent);
 }
 
+/* Detail-view "Send to…" dropdown — anchored under the action row
+ * on the right edge so it feels attached to the trigger button.
+ * Drops shadow + border for hover-affordance; rows are full-width
+ * buttons that take label + hint on one line. */
+.detail-send-menu {
+  position: absolute;
+  top: 56px;
+  right: 12px;
+  z-index: 28;
+  min-width: 220px;
+  max-width: 280px;
+  background: var(--surface, var(--bg-elev, #15171c));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: send-menu-fade 0.12s ease-out;
+}
+@keyframes send-menu-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.send-row {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  transition: background 0.1s;
+}
+.send-row:hover,
+.send-row:focus-visible {
+  background: var(--hover, rgba(255, 255, 255, 0.06));
+  outline: none;
+}
+.send-row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.send-row-hint {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
 /* Privacy audit log — same visual language as the trash list but
  * lower density (one row per action, no per-row buttons). Each row
  * shows kind / subject / when. Kinds are colour-coded by privacy

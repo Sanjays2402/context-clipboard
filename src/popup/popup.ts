@@ -48,6 +48,7 @@ import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFi
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
 import { rankActions, boldedLabel, type PaletteAction } from "../lib/palette";
 import { contextTagsForTab } from "../lib/context-tags";
+import { buildSendActions, type SendAction } from "../lib/send-to";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -88,6 +89,8 @@ const detailReveal = $<HTMLButtonElement>("detail-reveal");
 const detailRedact = $<HTMLButtonElement>("detail-redact");
 const detailScrub = $<HTMLButtonElement>("detail-scrub");
 const detailArchive = $<HTMLButtonElement>("detail-archive");
+const detailSend = $<HTMLButtonElement>("detail-send");
+const detailSendMenu = $("detail-send-menu");
 const detailBody = $("detail-body");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
@@ -1128,6 +1131,10 @@ function renderArchiveButton(c: ClipItem) {
 
 function closeDetail() {
   endRevealOnce();
+  // Defensive: if the send-to dropdown is open and the user navigates
+  // away via Back / Esc, drop the menu so it doesn't linger as a
+  // ghost overlay over the main list.
+  if (!detailSendMenu.hidden) closeSendMenu();
   detailEl.hidden = true;
   detailId = null;
 }
@@ -2848,6 +2855,18 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      id: "send-open-clip",
+      label: "Send open clip to…",
+      hint: "Open URL · search · email · copy as Markdown",
+      group: "Bulk",
+      keywords: "send share export open url search mailto markdown copy",
+      available: detailId != null,
+      run: () => {
+        closePalette();
+        void openSendMenu();
+      },
+    },
+    {
       id: "archive-open-clip",
       label: "Archive / unarchive open clip",
       hint: "Hide cold pins from the default list",
@@ -4220,6 +4239,128 @@ async function toggleDetailArchive(): Promise<void> {
 }
 
 detailArchive.addEventListener("click", () => void toggleDetailArchive());
+
+// Send-to sub-menu --------------------------------------------------
+//
+// Pure-URL builders + clipboard writes — see lib/send-to.ts. The
+// menu lives as a floating dropdown anchored to the detail header
+// (right-aligned over the action row) so it doesn't fight with the
+// detail body's scroll. Closes on Esc / outside-click / item-click,
+// re-opens fresh each time so action availability tracks the
+// current clip.
+
+function closeSendMenu(): void {
+  detailSendMenu.hidden = true;
+  detailSendMenu.innerHTML = "";
+  document.removeEventListener("mousedown", onSendMenuOutside, true);
+  document.removeEventListener("keydown", onSendMenuKey, true);
+}
+
+function onSendMenuOutside(e: MouseEvent): void {
+  const t = e.target as Node | null;
+  if (!t) return;
+  if (detailSendMenu.contains(t) || detailSend.contains(t)) return;
+  closeSendMenu();
+}
+
+function onSendMenuKey(e: KeyboardEvent): void {
+  if (e.key === "Escape") {
+    e.stopPropagation();
+    closeSendMenu();
+    detailSend.focus();
+  }
+}
+
+async function openSendMenu(): Promise<void> {
+  if (!detailId) return;
+  if (!detailSendMenu.hidden) {
+    closeSendMenu();
+    return;
+  }
+  const c = await getClip(detailId);
+  if (!c) return;
+  const actions = buildSendActions({
+    id: c.id,
+    kind: c.kind,
+    content: c.content,
+    preview: c.preview,
+    source: c.source,
+  });
+  const available = actions.filter((a) => a.available);
+  if (available.length === 0) {
+    toast("Nothing to send for this clip");
+    return;
+  }
+  detailSendMenu.innerHTML = available
+    .map((a) => {
+      const hint = a.hint ? `<span class="send-row-hint">${escapeHtml(a.hint)}</span>` : "";
+      const verb = a.kind === "copy" ? "copy" : "open";
+      return (
+        `<button type="button" class="send-row" role="menuitem" data-id="${escapeHtml(a.id)}" data-verb="${verb}">` +
+        `<span class="send-row-label">${escapeHtml(a.label)}</span>${hint}` +
+        `</button>`
+      );
+    })
+    .join("");
+  detailSendMenu.hidden = false;
+  // Defer outside-click bind to the next tick so the click that
+  // OPENED the menu (on the button) doesn't immediately close it.
+  setTimeout(() => {
+    document.addEventListener("mousedown", onSendMenuOutside, true);
+    document.addEventListener("keydown", onSendMenuKey, true);
+  }, 0);
+}
+
+detailSend.addEventListener("click", () => void openSendMenu());
+
+detailSendMenu.addEventListener("click", async (e) => {
+  const btn = (e.target as HTMLElement).closest(".send-row") as HTMLButtonElement | null;
+  if (!btn || !detailId) return;
+  const id = btn.dataset.id || "";
+  const c = await getClip(detailId);
+  if (!c) {
+    closeSendMenu();
+    return;
+  }
+  const actions = buildSendActions({
+    id: c.id,
+    kind: c.kind,
+    content: c.content,
+    preview: c.preview,
+    source: c.source,
+  });
+  const action: SendAction | undefined = actions.find((a) => a.id === id);
+  closeSendMenu();
+  if (!action || !action.payload || !action.available) {
+    toast("Action unavailable", "error");
+    return;
+  }
+  if (action.kind === "nav") {
+    try {
+      // mailto: needs api.tabs.create as well — Chrome routes it to
+      // the user's default mail handler. Fall back to window.open for
+      // Firefox / contexts where tabs.create is unavailable.
+      if (api.tabs?.create) {
+        await api.tabs.create({ url: action.payload });
+      } else {
+        window.open(action.payload, "_blank");
+      }
+    } catch {
+      window.open(action.payload, "_blank");
+    }
+    return;
+  }
+  // kind: "copy" — clipboard write. Mirror existing copy-paths
+  // (popup writes natively because the service worker can't reach
+  // navigator.clipboard).
+  try {
+    await navigator.clipboard.writeText(action.payload);
+    toast(`Copied ${action.label.toLowerCase()}`);
+  } catch (err) {
+    console.error(err);
+    toast("Clipboard write failed", "error");
+  }
+});
 
 /**
  * Expand/collapse the nearby-context block in the detail meta row when

@@ -130,6 +130,13 @@ export const icons = {
     svg(
       `<path d="M3 14h4l2 3h6l2-3h4"/><path d="M5 5h14l2 9v6H3v-6z"/>`,
     ),
+  // Send — arrow-out box. Used by the detail-view "Send to..."
+  // sub-menu so the affordance reads as "do something off-platform
+  // with this clip" (open URL, search, email, copy-as-link, etc.).
+  send: () =>
+    svg(
+      `<path d="M15 3h6v6"/><path d="m10 14 11-11"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>`,
+    ),
   imageGeneric: () =>
     svg(
       `<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/>`,
