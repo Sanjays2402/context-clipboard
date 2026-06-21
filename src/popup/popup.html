@@ -324,6 +324,26 @@
       <button class="row-menu-item danger" data-act="trash" role="menuitem"><span class="row-menu-glyph" data-icon="trash"></span><span>Move to trash</span><span class="row-menu-shortcut">⌫</span></button>
     </div>
 
+    <!-- Find duplicates review panel. Toggled by the "Review duplicates"
+         palette command. Lists every hash group with 2+ members; each
+         group exposes a Merge button so the user can pick which to
+         collapse instead of auto-merging the whole DB. Closes on Esc /
+         backdrop click. -->
+    <div id="dupes-panel" class="dupes-panel" hidden role="dialog" aria-modal="true" aria-labelledby="dupes-title">
+      <div class="dupes-card">
+        <div class="dupes-header">
+          <span id="dupes-title" class="dupes-title">Review duplicates</span>
+          <span id="dupes-summary" class="dupes-summary"></span>
+          <button id="dupes-merge-all" class="small" type="button" hidden>Merge all</button>
+          <button id="dupes-close" class="icon-btn" title="Close (Esc)" data-icon="close"></button>
+        </div>
+        <div class="dupes-body" id="dupes-body"></div>
+        <div class="dupes-foot">
+          The most recent clip stays as the survivor; losers move to trash (restorable for 7 days). Tags + hits + pinned bits union together.
+        </div>
+      </div>
+    </div>
+
     <!-- Command palette (Cmd/Ctrl+K). Fuzzy-search every action in the
          popup: filters, bulk ops, export, settings. Keyboard-first; ↑↓
          + Enter to run; Esc to close. -->

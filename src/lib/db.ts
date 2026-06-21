@@ -571,6 +571,110 @@ export async function mergeDuplicatesByHash(): Promise<{
   return { groups, merged, hashesScanned: byHash.size };
 }
 
+// Find duplicates (review-first) ---------------------------------------
+//
+// Sibling of mergeDuplicatesByHash that LISTS the duplicate groups
+// without taking any destructive action. The detail-view caller renders
+// them so the user can pick which group to merge, and which to leave
+// alone (e.g. two clips with the same hash but captured intentionally
+// at different times for archival reasons).
+//
+// Each group is sorted survivor-first (most-recently-seen) so the UI
+// can label the first row "Will keep" and the rest "Will trash" with
+// no extra computation. Pinned bit is OR'd across the group so the
+// caller can flag "merging will inherit pinned" — surfaced as a small
+// dot in the UI. Pure read; no IDB writes.
+
+export interface DuplicateGroup {
+  /** djb2 content hash shared by every member. */
+  hash: string;
+  /** Survivor (most-recently-seen) first, then losers desc. */
+  members: ClipItem[];
+  /** True when ANY member is pinned — surfaced in the UI. */
+  pinnedInGroup: boolean;
+  /** Total hits across the group (informational). */
+  totalHits: number;
+}
+
+export async function findDuplicateGroups(): Promise<DuplicateGroup[]> {
+  const all = await listClips({ limit: 1_000_000 });
+  const byHash = new Map<string, ClipItem[]>();
+  for (const c of all) {
+    if (!c.hash) continue;
+    const arr = byHash.get(c.hash);
+    if (arr) arr.push(c);
+    else byHash.set(c.hash, [c]);
+  }
+  const groups: DuplicateGroup[] = [];
+  for (const [hash, members] of byHash) {
+    if (members.length < 2) continue;
+    members.sort(
+      (a, b) =>
+        (b.lastSeenAt || 0) - (a.lastSeenAt || 0) ||
+        (b.createdAt || 0) - (a.createdAt || 0),
+    );
+    let pinnedInGroup = false;
+    let totalHits = 0;
+    for (const m of members) {
+      if (m.pinned) pinnedInGroup = true;
+      totalHits += m.hitCount || 1;
+    }
+    groups.push({ hash, members, pinnedInGroup, totalHits });
+  }
+  // Largest groups first — the biggest wins come from collapsing huge
+  // dupe clusters. Tie-break on freshness so two equal-size groups
+  // still order deterministically.
+  groups.sort(
+    (a, b) =>
+      b.members.length - a.members.length ||
+      (b.members[0]?.lastSeenAt || 0) - (a.members[0]?.lastSeenAt || 0),
+  );
+  return groups;
+}
+
+/**
+ * Merge a single group identified by content hash. Same math as
+ * mergeDuplicatesByHash but scoped — for review-first UX where the
+ * user picks which groups to collapse. No-op when the hash isn't a
+ * duplicate group anymore (e.g. another tab already merged it).
+ *
+ * Returns the count of losers trashed (0 when the group is gone).
+ */
+export async function mergeDuplicateGroup(hash: string): Promise<number> {
+  if (!hash) return 0;
+  const all = await listClips({ limit: 1_000_000 });
+  const members = all.filter((c) => c.hash === hash);
+  if (members.length < 2) return 0;
+  members.sort(
+    (a, b) =>
+      (b.lastSeenAt || 0) - (a.lastSeenAt || 0) ||
+      (b.createdAt || 0) - (a.createdAt || 0),
+  );
+  const survivor = members[0];
+  const losers = members.slice(1);
+  let earliestCreated = survivor.createdAt;
+  let totalHits = survivor.hitCount || 1;
+  let pinned = !!survivor.pinned;
+  const tagSet = new Set(survivor.tags || []);
+  for (const l of losers) {
+    totalHits += l.hitCount || 1;
+    pinned = pinned || !!l.pinned;
+    if ((l.createdAt || 0) < earliestCreated) earliestCreated = l.createdAt;
+    for (const t of l.tags || []) tagSet.add(t);
+  }
+  survivor.hitCount = totalHits;
+  survivor.pinned = pinned;
+  survivor.createdAt = earliestCreated;
+  survivor.tags = Array.from(tagSet);
+  await putClip(survivor);
+  let trashed = 0;
+  for (const l of losers) {
+    const ok = await trashClip(l.id);
+    if (ok) trashed++;
+  }
+  return trashed;
+}
+
 /**
  * Sweep every text clip in the live store and redact any whose body
  * still contains PII/secrets. Mirrors the auto-redact-at-capture path

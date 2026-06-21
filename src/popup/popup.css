@@ -2984,3 +2984,153 @@ body.compact-rows #list {
   gap: 0;
 }
 
+/* Find duplicates review panel — same overlay model as cheatsheet, but
+ * structured around a list of dupe groups + a single "Merge all" button
+ * in the header. Each group shows the survivor preview, a per-group
+ * Merge button, and a compact list of loser rows so the user can see
+ * what's about to go to trash. */
+.dupes-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 30px 14px;
+  overflow-y: auto;
+  animation: palette-fade 0.14s ease-out;
+}
+.dupes-card {
+  width: 100%;
+  max-width: 520px;
+  background: var(--glass-elevated);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.dupes-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.dupes-title {
+  font-size: 13px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+.dupes-summary {
+  color: var(--muted);
+  font-size: 11px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dupes-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  max-height: 65vh;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dupes-empty {
+  padding: 24px 8px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.dupe-group {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+.dupe-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dupe-survivor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dupe-pin-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  flex: 0 0 7px;
+}
+.dupe-survivor-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dupe-survivor-preview {
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.dupe-survivor-meta {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.dupe-merge-btn {
+  flex: 0 0 auto;
+}
+.dupe-loser-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  border-top: 1px dashed var(--border);
+}
+.dupe-loser {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0 4px 17px;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  align-items: baseline;
+}
+.dupe-loser-when {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.dupe-loser-meta {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dupes-foot {
+  border-top: 1px solid var(--border);
+  padding: 9px 14px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+

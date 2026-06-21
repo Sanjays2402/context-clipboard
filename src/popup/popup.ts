@@ -20,10 +20,13 @@ import {
   getListSort,
   setListSort,
   mergeDuplicatesByHash,
+  findDuplicateGroups,
+  mergeDuplicateGroup,
   scrubClipOrigin,
   retroactiveAutoRedact,
   findSimilarClips,
   type TrashedClip,
+  type DuplicateGroup,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits, redactPii, detectCodeLang } from "../lib/util";
@@ -170,6 +173,11 @@ const cheatsheetClose = $<HTMLButtonElement>("cheatsheet-close");
 const paletteEl = $("palette");
 const paletteInput = $<HTMLInputElement>("palette-input");
 const paletteListEl = $("palette-list");
+const dupesPanel = $("dupes-panel");
+const dupesBody = $("dupes-body");
+const dupesSummary = $("dupes-summary");
+const dupesClose = $<HTMLButtonElement>("dupes-close");
+const dupesMergeAll = $<HTMLButtonElement>("dupes-merge-all");
 
 // State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
@@ -2662,6 +2670,17 @@ function buildPaletteActions(): PaletteAction[] {
         await runMergeDuplicates();
       },
     },
+    {
+      id: "review-duplicates",
+      label: "Review duplicates…",
+      hint: "Browse dupe groups + merge them one at a time",
+      group: "Bulk",
+      keywords: "dedup duplicates review inspect groups picker selective",
+      run: async () => {
+        closePalette();
+        await openDupesPanel();
+      },
+    },
     // Export ---------------------------------------------------------
     {
       id: "export-now",
@@ -2952,6 +2971,126 @@ async function runMergeDuplicates(): Promise<void> {
   await render();
 }
 
+// Find duplicates review panel -----------------------------------------
+//
+// Sibling of runMergeDuplicates that opens a modal listing every dupe
+// group so the user can pick which to collapse. Mirrors the cheatsheet
+// overlay's interaction model: backdrop click + Esc + close button all
+// dismiss; "Merge all" runs the bulk path; individual group buttons
+// run mergeDuplicateGroup(hash) so the rest stay untouched.
+
+async function openDupesPanel(): Promise<void> {
+  const groups = await findDuplicateGroups();
+  paintDupesPanel(groups);
+  dupesPanel.hidden = false;
+}
+
+function closeDupesPanel(): void {
+  dupesPanel.hidden = true;
+}
+
+function paintDupesPanel(groups: DuplicateGroup[]): void {
+  if (groups.length === 0) {
+    dupesSummary.textContent = "no duplicates";
+    dupesMergeAll.hidden = true;
+    dupesBody.innerHTML =
+      `<div class="dupes-empty">No duplicate groups. Your clipboard is clean.</div>`;
+    return;
+  }
+  let totalLosers = 0;
+  for (const g of groups) totalLosers += g.members.length - 1;
+  dupesSummary.textContent = `${groups.length} group${groups.length === 1 ? "" : "s"} · ${totalLosers} extra row${totalLosers === 1 ? "" : "s"}`;
+  dupesMergeAll.hidden = false;
+  dupesMergeAll.textContent = `Merge all (${totalLosers})`;
+  dupesBody.innerHTML = groups
+    .map((g, gi) => renderDupeGroup(g, gi))
+    .join("");
+}
+
+function renderDupeGroup(g: DuplicateGroup, gi: number): string {
+  const survivor = g.members[0];
+  const losers = g.members.slice(1);
+  const survivorMeta = [hostFrom(survivor.source.url), survivor.source.title]
+    .filter(Boolean)
+    .join(" · ");
+  const previewText = (survivor.preview || survivor.content || "Image").slice(0, 120);
+  const pinDot = g.pinnedInGroup
+    ? `<span class="dupe-pin-dot" title="At least one member is pinned — survivor will inherit"></span>`
+    : "";
+  const loserList = losers
+    .map((l) => {
+      const lMeta = [hostFrom(l.source.url), l.source.title]
+        .filter(Boolean)
+        .join(" · ");
+      return `<li class="dupe-loser"><span class="dupe-loser-when">${escapeHtml(timeAgo(l.lastSeenAt))}</span><span class="dupe-loser-meta" title="${escapeHtml(l.source.url || "")}">${escapeHtml(lMeta || "—")}</span></li>`;
+    })
+    .join("");
+  return `
+    <div class="dupe-group" data-hash="${escapeHtml(g.hash)}" data-gi="${gi}">
+      <div class="dupe-group-head">
+        <div class="dupe-survivor">
+          ${pinDot}
+          <div class="dupe-survivor-body">
+            <div class="dupe-survivor-preview">${escapeHtml(previewText)}</div>
+            <div class="dupe-survivor-meta">${escapeHtml(survivorMeta || "—")} · keep</div>
+          </div>
+        </div>
+        <button class="dupe-merge-btn small" type="button" data-act="merge-group" data-hash="${escapeHtml(g.hash)}">Merge ${g.members.length}</button>
+      </div>
+      <ul class="dupe-loser-list">${loserList}</ul>
+    </div>
+  `;
+}
+
+dupesClose.addEventListener("click", () => closeDupesPanel());
+dupesPanel.addEventListener("click", (e) => {
+  // Backdrop click closes; card click stays.
+  if (e.target === dupesPanel) closeDupesPanel();
+});
+dupesBody.addEventListener("click", async (e) => {
+  const btn = (e.target as HTMLElement).closest('[data-act="merge-group"]');
+  if (!(btn instanceof HTMLButtonElement)) return;
+  const hash = btn.dataset.hash || "";
+  if (!hash) return;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "Merging…";
+  try {
+    const trashed = await mergeDuplicateGroup(hash);
+    if (trashed === 0) {
+      toast("Group already merged", "error");
+    } else {
+      toast(`Merged ${trashed} duplicate${trashed === 1 ? "" : "s"}`);
+    }
+    // Re-fetch + re-paint so resolved groups disappear. Don't close —
+    // the user may want to merge several in a row.
+    const groups = await findDuplicateGroups();
+    paintDupesPanel(groups);
+    void render(); // refresh the main list too (survivors changed)
+  } catch (err) {
+    console.error(err);
+    toast("Merge failed", "error");
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+dupesMergeAll.addEventListener("click", async () => {
+  dupesMergeAll.disabled = true;
+  try {
+    const res = await mergeDuplicatesByHash();
+    if (res.merged === 0) {
+      toast("Already clean");
+    } else {
+      toast(`Merged ${res.merged} into ${res.groups} group${res.groups === 1 ? "" : "s"}`);
+    }
+    const groups = await findDuplicateGroups();
+    paintDupesPanel(groups);
+    void render();
+  } finally {
+    dupesMergeAll.disabled = false;
+  }
+});
+
 /**
  * Walk every text clip and redact any that still carry PII or
  * secrets — useful right after a user flips on `autoRedactPii` for
@@ -3111,6 +3250,17 @@ document.addEventListener("keydown", async (e) => {
     if (e.key === "Escape" || e.key === "?") {
       e.preventDefault();
       closeCheatsheet();
+    }
+    return;
+  }
+  if (!dupesPanel.hidden) {
+    // Dupes review modal: Esc closes; everything else falls through to
+    // the input/button handlers. Slots in BETWEEN cheatsheet and the
+    // detail/settings panels so a Cmd+K → "Review duplicates" flow can
+    // be dismissed without nuking another open panel underneath.
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeDupesPanel();
     }
     return;
   }
