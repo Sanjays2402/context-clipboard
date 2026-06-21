@@ -939,6 +939,81 @@ export async function setListSort(mode: SortMode): Promise<void> {
   });
 }
 
+// Similar clips ---------------------------------------------------------
+//
+// Detail-view sidekick: given an open clip, find OTHER clips that share
+// either its host or one of its tags. Useful for "show me the rest of
+// what I copied from this docs page" or "show me other code clips".
+//
+// Pure ranking — no IO beyond the single listClips scan. The pivot
+// clip is excluded from its own result. Trashed clips are ignored
+// (listClips already excludes them).
+
+export interface SimilarClipsOptions {
+  /** Cap returned rows. Default 5. */
+  limit?: number;
+}
+
+/**
+ * Rank every other clip by similarity to `pivotId`. A clip earns:
+ *   - 3 points per shared tag (capped at 9, so a 4-tag match doesn't
+ *     dwarf a different-tags-but-same-host case)
+ *   - 4 points if the host matches (single bonus — one host or none)
+ *   - tie-break: more-recently-seen wins
+ *
+ * Returns the top `limit` matches with score > 0. Pinned clips don't
+ * get a pin-bonus — pinning is about retention intent, not similarity.
+ *
+ * Local-only, bounded; safe to call on every detail open.
+ */
+export async function findSimilarClips(
+  pivotId: string,
+  opts: SimilarClipsOptions = {},
+): Promise<ClipItem[]> {
+  const limit = Math.max(1, Math.min(50, opts.limit ?? 5));
+  const pivot = await getClip(pivotId);
+  if (!pivot) return [];
+  const pivotHost = hostFrom(pivot.source.url);
+  const pivotTags = new Set((pivot.tags || []).map((t) => t.toLowerCase()));
+  // We deliberately exclude noise tags so a `kind:image` clip doesn't
+  // come back as "similar" to every other image. These are the auto-
+  // tags that describe shape, not topic.
+  const NOISE = new Set([
+    "image",
+    "link",
+    "text",
+    "url",
+    "long",
+    "redacted",
+    "scrubbed",
+    "quick-capture",
+  ]);
+  for (const n of NOISE) pivotTags.delete(n);
+
+  const all = await listClips({ limit: 5_000 });
+  type Scored = { clip: ClipItem; score: number };
+  const scored: Scored[] = [];
+  for (const c of all) {
+    if (c.id === pivotId) continue;
+    let score = 0;
+    if (pivotHost && hostFrom(c.source.url) === pivotHost) score += 4;
+    if (pivotTags.size > 0) {
+      let tagHits = 0;
+      for (const t of c.tags || []) {
+        if (pivotTags.has(t.toLowerCase())) tagHits++;
+      }
+      score += Math.min(9, tagHits * 3);
+    }
+    if (score > 0) scored.push({ clip: c, score });
+  }
+  scored.sort(
+    (a, b) =>
+      b.score - a.score ||
+      (b.clip.lastSeenAt || 0) - (a.clip.lastSeenAt || 0),
+  );
+  return scored.slice(0, limit).map((s) => s.clip);
+}
+
 // In-page palette last query --------------------------------------------
 //
 // Persists the most recent search string the user typed into the in-

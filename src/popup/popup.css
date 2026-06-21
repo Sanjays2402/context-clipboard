@@ -2854,3 +2854,70 @@ body.blur-on header::after {
   pointer-events: none;
   font-weight: 700;
 }
+
+/* Detail-view "Similar" sidekick list. Each row is a button so it stays
+   keyboard-actionable + carries the same hover affordance as the rest
+   of the popup. Kept compact — single line, ellipsis truncated, the
+   matching reason (host or shared tag count) sits on the right. */
+.similar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.similar-row {
+  appearance: none;
+  background: var(--surface-2, rgba(120, 120, 140, 0.08));
+  border: 1px solid var(--border, rgba(120, 120, 140, 0.16));
+  border-radius: 8px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.similar-row:hover,
+.similar-row:focus-visible {
+  background: var(--surface-3, rgba(120, 120, 140, 0.14));
+  border-color: var(--accent, #f5b400);
+  outline: none;
+}
+.similar-row .similar-kind {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted, #8a93a6);
+}
+.similar-row .similar-kind svg {
+  width: 14px;
+  height: 14px;
+}
+.similar-row .similar-preview {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.similar-row .similar-reason {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted, #8a93a6);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  background: rgba(120, 120, 140, 0.1);
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.similar-row.pinned .similar-kind {
+  color: var(--accent, #f5b400);
+}

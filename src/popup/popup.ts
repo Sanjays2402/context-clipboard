@@ -22,6 +22,7 @@ import {
   mergeDuplicatesByHash,
   scrubClipOrigin,
   retroactiveAutoRedact,
+  findSimilarClips,
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
@@ -92,6 +93,8 @@ const detailTemplateRow = $("detail-template-row");
 const detailTemplateInfo = $("detail-template-info");
 const detailExpiry = $<HTMLSelectElement>("detail-expiry");
 const detailExpiryHint = $("detail-expiry-hint");
+const detailSimilarRow = $("detail-similar-row");
+const detailSimilar = $("detail-similar");
 const detailCopy = $<HTMLButtonElement>("detail-copy");
 const detailCopyMd = $<HTMLButtonElement>("detail-copy-md");
 
@@ -886,6 +889,67 @@ async function openDetail(id: string) {
   renderRedactButton(c);
   updateDetailNav();
   detailEl.hidden = false;
+  // Similar clips lookup is async + cheap. We render the row separately
+  // so the rest of the detail panel paints immediately and the sidekick
+  // list slots in once IDB returns.
+  void renderSimilarClips(c);
+}
+
+/**
+ * Populate the "Similar" sidekick list for the open clip. We compute
+ * the reason text per row (host match wins over tag overlap because
+ * it's the higher-signal axis) so the user knows WHY this clip is
+ * being suggested. Hidden when nothing similar surfaces — no empty-
+ * state row, just a clean detail panel.
+ *
+ * Refreshes are debounced implicitly by openDetail: each call cancels
+ * the previous one's effects by re-rendering against the new pivot.
+ * Safe to invoke from openDetail() unconditionally.
+ */
+async function renderSimilarClips(pivot: ClipItem): Promise<void> {
+  const pivotId = pivot.id;
+  try {
+    const matches = await findSimilarClips(pivotId, { limit: 5 });
+    // Guard: if the user navigated away mid-flight, drop this paint.
+    if (detailId !== pivotId) return;
+    if (matches.length === 0) {
+      detailSimilarRow.hidden = true;
+      detailSimilar.innerHTML = "";
+      return;
+    }
+    const pivotHost = hostFrom(pivot.source.url);
+    const pivotTagSet = new Set(
+      (pivot.tags || []).map((t) => t.toLowerCase()),
+    );
+    detailSimilarRow.hidden = false;
+    detailSimilar.innerHTML = matches
+      .map((c) => {
+        const previewText =
+          c.kind === "image" ? c.preview || "Image" : c.preview || c.content;
+        const previewSlice = previewText.slice(0, 80).replace(/\s+/g, " ");
+        const hostMatch = !!pivotHost && hostFrom(c.source.url) === pivotHost;
+        let sharedTags = 0;
+        for (const t of c.tags || []) {
+          if (pivotTagSet.has(t.toLowerCase())) sharedTags++;
+        }
+        const reason = hostMatch
+          ? `@${pivotHost}`
+          : sharedTags > 0
+            ? `#${sharedTags} shared`
+            : "related";
+        return (
+          `<button type="button" class="similar-row${c.pinned ? " pinned" : ""}" data-id="${escapeHtml(c.id)}" title="${escapeHtml(previewText.slice(0, 200))}">` +
+          `<span class="similar-kind">${clipKindIcon(c.kind)}</span>` +
+          `<span class="similar-preview">${escapeHtml(previewSlice)}</span>` +
+          `<span class="similar-reason">${escapeHtml(reason)}</span>` +
+          `</button>`
+        );
+      })
+      .join("");
+  } catch (e) {
+    console.debug("[context-clipboard] similar-clips render failed", e);
+    detailSimilarRow.hidden = true;
+  }
 }
 
 /**
@@ -3341,6 +3405,19 @@ detailNearby.addEventListener("click", (e) => {
       `<span class="nearby-text">${escapeHtml(peek)}…</span> ` +
       `<button class="nearby-toggle" type="button" data-act="expand">Show more (+${full.length - peek.length})</button>`;
   }
+});
+
+// Click any "Similar" row to jump to that clip's detail view. We don't
+// add it to the visible-list activeIndex because the similar item may
+// not be in the currently-filtered window — openDetail() handles the
+// orphan case via updateDetailNav (prev/next disable, position pill
+// hides). Esc still closes back to the original filtered list.
+detailSimilar.addEventListener("click", async (e) => {
+  const row = (e.target as HTMLElement).closest(".similar-row") as HTMLElement | null;
+  if (!row) return;
+  const id = row.dataset.id;
+  if (!id) return;
+  await openDetail(id);
 });
 
 // Settings wiring -------------------------------------------------------
