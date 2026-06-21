@@ -47,6 +47,7 @@ import { sortClips, sortLabel } from "../lib/sort";
 import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFilter, type ExportFormat, type ExportFilter } from "../lib/export";
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
 import { rankActions, boldedLabel, type PaletteAction } from "../lib/palette";
+import { contextTagsForTab } from "../lib/context-tags";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -2413,6 +2414,25 @@ async function renderNoteTagSuggestions(): Promise<void> {
     "code",
   ]);
   try {
+    // Active-tab context tags come FIRST so the user sees the most
+    // session-relevant tags at the front of the strip. Pre-active when
+    // the chip's tag is already in the input field (chip already
+    // toggled on by an earlier capture) so the visual state matches.
+    let contextTags: string[] = [];
+    try {
+      const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+      if (activeTab?.url) {
+        contextTags = contextTagsForTab(
+          { url: activeTab.url, title: activeTab.title },
+          5,
+        );
+      }
+    } catch {
+      // No tab access — chrome:// / about: / extension page. Fall
+      // back to historical-tag-only suggestions; not a failure.
+      contextTags = [];
+    }
+
     const all = await listClips({ limit: 2000 });
     const counts = new Map<string, number>();
     for (const c of all) {
@@ -2425,20 +2445,40 @@ async function renderNoteTagSuggestions(): Promise<void> {
     const top = Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8);
-    if (top.length === 0) {
+    // Drop history-tags that the context strip already covers so we
+    // don't render the same chip twice.
+    const ctxSet = new Set(contextTags);
+    const histRows = top.filter(([t]) => !ctxSet.has(t));
+    if (contextTags.length === 0 && histRows.length === 0) {
       noteTagSuggestions.hidden = true;
       noteTagSuggestions.innerHTML = "";
       return;
     }
+    const segments: string[] = [];
+    if (contextTags.length > 0) {
+      segments.push(
+        `<span class="note-tag-suggestions-label">From this tab</span>` +
+          contextTags
+            .map(
+              (t) =>
+                `<button type="button" class="note-tag-chip note-tag-chip-ctx" data-tag="${escapeHtml(t)}" title="From the active tab — ${escapeHtml(t)}">${escapeHtml(t)}</button>`,
+            )
+            .join(""),
+      );
+    }
+    if (histRows.length > 0) {
+      segments.push(
+        `<span class="note-tag-suggestions-label note-tag-suggestions-label-sep">Recent</span>` +
+          histRows
+            .map(
+              ([t, n]) =>
+                `<button type="button" class="note-tag-chip" data-tag="${escapeHtml(t)}" title="${escapeHtml(t)} (${n})">${escapeHtml(t)}</button>`,
+            )
+            .join(""),
+      );
+    }
     noteTagSuggestions.hidden = false;
-    noteTagSuggestions.innerHTML =
-      `<span class="note-tag-suggestions-label">Quick tags</span>` +
-      top
-        .map(
-          ([t, n]) =>
-            `<button type="button" class="note-tag-chip" data-tag="${escapeHtml(t)}" title="${escapeHtml(t)} (${n})">${escapeHtml(t)}</button>`,
-        )
-        .join("");
+    noteTagSuggestions.innerHTML = segments.join("");
   } catch {
     noteTagSuggestions.hidden = true;
   }

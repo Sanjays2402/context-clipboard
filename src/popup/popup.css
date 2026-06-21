@@ -3244,6 +3244,30 @@ body.compact-rows #list {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* Context-tag chips — derived from the active tab's URL/host. Tinted
+ * blue so they read distinctly from the historical "Recent" chips
+ * while still using the same chip shape (interaction model = identical:
+ * click to add to the tag input, click again to remove). */
+.note-tag-chip-ctx {
+  background: rgba(120, 200, 255, 0.08);
+  border-color: rgba(120, 200, 255, 0.32);
+  color: #93c5fd;
+}
+.note-tag-chip-ctx:hover {
+  background: rgba(120, 200, 255, 0.16);
+  border-color: rgba(120, 200, 255, 0.45);
+  color: #cfe5ff;
+}
+.note-tag-chip-ctx.active {
+  background: rgba(120, 200, 255, 0.22);
+  border-color: #93c5fd;
+  color: #e8f3ff;
+}
+.note-tag-suggestions-label-sep {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px dashed var(--border);
+}
 .note-composer-foot {
   display: flex;
   align-items: center;
