@@ -48,33 +48,39 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Search & navigation
 - [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)  <!-- partially covered by quick chips, still keep -->
+- [ ] Saved-search auto-import (a saved search becomes a smart folder pill at the top of the list when active)
+- [ ] Detail-view "similar clips" panel (same host OR shared tags, top 5)
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
 - [ ] Manual quick-tag dropdown when adding notes
 - [ ] Capture into a chosen collection at copy time (depends on collections)
-- [ ] Quick-capture: paste from system clipboard into a fresh clip (popup button)
+- [ ] Auto-detect language / lang-specific code-fence for code clips (md export, copy-as-md)
+- [ ] Link-preview enrichment: fetch og:title / og:image at capture time for kind=link
 
 ### Pasting & flow
 - [ ] Paste-stack mode: queue N clips, paste them in order across multiple inputs
 - [ ] In-page palette: recent-first ordering when no query (vs server order)
-- [ ] In-page palette: keyboard chord (Cmd+Shift+V) to reopen with last-typed query
+- [ ] In-page palette: per-host suggestion ranking (boost clips captured on the same host as the active tab)
+- [ ] Detail-view "Send to..." sub-menu (compose new email / open in editor / share sheet)
 
 ### Privacy & security
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
-- [ ] Per-clip "scrub origin" — drop source URL/title while keeping content
-- [ ] Auto-redact preview rewrite when settings.autoRedactPii flips on (retroactive)
+- [ ] Per-host scrub rule (auto-scrub origin on every capture from this host)
+- [ ] Audit log of redact / scrub / forget operations (last 30 actions)
 
 ### Data lifecycle
 - [ ] Image auto-recapture: rule-based scheduled re-fetch for tracked images
 - [ ] "Find duplicates" panel — list groups w/o auto-merging (review before action)
 - [ ] Clip archive mode: pinned-but-hidden state for very-cold pins
+- [ ] "Empty trash older than 24h" quick action (between empty-all and 7d retention)
 
 ### UI polish (real, not cosmetic)
 - [ ] Inline diff for re-captured clips (show what changed vs previous copy)
 - [ ] Per-collection storage breakdown (when collections ship)
 - [ ] List virtualization for >500 clips (perf)
-- [ ] Clip-row right-click menu (pin/tag/copy-md/forget-host shortcuts)
+- [ ] Compact-row toggle (shrink each row to 36px so 30+ fit on one screen)
+- [ ] "Pinned hits" sparkline in detail (last 30 days of hitCount, ASCII)
 
 ### Shipped (autoship)
 - [x] Smart search operators (kind/host/tag/is/before/after) — `c407d53`
@@ -117,6 +123,11 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Jump-to-host search command (`g <prefix>` + Enter) — `58b599f`
 - [x] Live pattern-test panel inside the rule form — `e056689`
 - [x] Smart dedup across windows (palette command, soft-delete losers) — `b2babea`
+- [x] Quick-capture from system clipboard (popup button + palette) — `61a9e4f`
+- [x] Per-clip "scrub origin" — drop URL/title/context, keep content — `3ce089c`
+- [x] Retroactive PII auto-redact for existing clips — `1e13e0b`
+- [x] Clip-row right-click menu (pin/copy-md/forget-host/select shortcuts) — `b762904`
+- [x] In-page palette remembers last-typed query across opens — `15f227c`
 
 ## Tick log
 
@@ -124,6 +135,44 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 <!-- TICKS BELOW -->
 
+- **2026-06-20 21:03 PT** — 5/5 shipped. Quick-capture from system
+  clipboard: new clipboard icon between save-search + note opens
+  navigator.clipboard.read (images first, text fallback), tags the
+  captured row `quick-capture` by re-reading top-of-list, fails
+  loud on empty / no-permission / unsupported with a one-line
+  toast; also surfaces in Cmd+K palette as "Capture from system
+  clipboard" (61a9e4f). Adds clipboardRead to chrome+firefox
+  manifests + three new icons (clipboard/eraser/globe). Per-clip
+  "scrub origin": new eraser btn in detail header wipes
+  source.url/title/nearbyText/favicon while keeping content +
+  tags + pin + OCR; confirms with concrete loss ("permanently
+  removes URL + title + context"); tags scrubbed; idempotent;
+  re-opens detail to repaint cleared meta rows (3ce089c).
+  Retroactive PII auto-redact: "Redact existing" btn in Settings
+  + palette "Redact PII in every existing clip" walks every text
+  clip, redacts ones with PII via the same redactPii pipeline as
+  on-capture but REVERSIBLE (stashes originalContent — data is on
+  disk anyway, no privacy cost); inline pre-count for confirm
+  ("Redact 14 clips?"); "No PII found" toast when scan is clean
+  (1e13e0b, 9/9 retro-redact sanity). Clip-row right-click menu:
+  popup-side context menu with copy/copy-md/open/pin-toggle/
+  select-toggle/tag/filter-host/forget-host/trash; state-aware
+  labels (Pin <-> Unpin, Add <-> Remove from selection); host
+  items hide on scrubbed clips; position-clamped to viewport;
+  closes on outside click / Esc / scroll / blur; ~80 lines new
+  CSS matches palette card visual; cheatsheet picks up new
+  Right-click row (b762904). In-page palette remembers last
+  query: lib/db gains get/setPaletteLastQuery (single meta row,
+  trimmed + 200-char cap, empty clears); background reads it on
+  every cc-open-palette dispatch (context-menu + Cmd+Shift+V);
+  content pre-fills input + select-alls so first keystroke
+  replaces; closePalette fires-and-forgets cc-rpc setPaletteQuery
+  to persist; works in side-panel mode too (15f227c, 9/9 palette
+  last-query sanity vs in-process IDB shim). tsc + chrome/firefox
+  builds green; 11 template + 9 retro-redact + 9 palette-last-q +
+  11 export + crypto + redact sanity all pass. Roadmap topped up
+  (+11 fresh items across search/capture/paste/privacy/data/
+  polish).
 - **2026-06-20 17:51 PT** — 5/5 shipped. Per-site rule edit: click a
   row to pre-fill the form, "Update rule" button + Cancel pill +
   accent border on the active row; deleting the in-edit rule resets
