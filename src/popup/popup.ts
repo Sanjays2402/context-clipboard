@@ -4363,11 +4363,104 @@ function onSendMenuOutside(e: MouseEvent): void {
   closeSendMenu();
 }
 
+/**
+ * Keyboard nav inside the floating send-to menu. The dropdown lives
+ * as a flat list of .send-row buttons — natural Tab order already
+ * works (since they ARE buttons), but a power user expects ↑↓ to
+ * step between rows without falling out of the menu, Home/End to
+ * jump to the first/last row, type-ahead to focus the first row
+ * starting with the typed letter, and Esc to close + restore focus
+ * to the trigger button. Tab/Shift+Tab wrap inside the menu so the
+ * focus ring never escapes silently (the menu is modal-ish while
+ * open; clicking outside closes it, and we want the same containment
+ * for the keyboard path).
+ *
+ * Enter on a focused row is handled natively by the browser (it's a
+ * <button>), so we don't intercept it here.
+ */
 function onSendMenuKey(e: KeyboardEvent): void {
   if (e.key === "Escape") {
     e.stopPropagation();
+    e.preventDefault();
     closeSendMenu();
     detailSend.focus();
+    return;
+  }
+  const rows = Array.from(
+    detailSendMenu.querySelectorAll<HTMLButtonElement>(".send-row"),
+  );
+  if (rows.length === 0) return;
+  const active = document.activeElement as HTMLElement | null;
+  const idx = active ? rows.indexOf(active as HTMLButtonElement) : -1;
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    e.stopPropagation();
+    // Wrap to top from the last row. If nothing focused yet (or focus
+    // is somewhere outside the menu), land on the first row — that's
+    // the muscle-memory expectation after pressing ↓ inside a menu.
+    const next = idx < 0 || idx === rows.length - 1 ? 0 : idx + 1;
+    rows[next].focus();
+    return;
+  }
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+    e.stopPropagation();
+    const prev = idx <= 0 ? rows.length - 1 : idx - 1;
+    rows[prev].focus();
+    return;
+  }
+  if (e.key === "Home") {
+    e.preventDefault();
+    e.stopPropagation();
+    rows[0].focus();
+    return;
+  }
+  if (e.key === "End") {
+    e.preventDefault();
+    e.stopPropagation();
+    rows[rows.length - 1].focus();
+    return;
+  }
+  if (e.key === "Tab") {
+    // Trap focus inside the menu so Tab can't strand the user on the
+    // page chrome behind a still-open dropdown. Shift+Tab wraps the
+    // other way.
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.shiftKey) {
+      const prev = idx <= 0 ? rows.length - 1 : idx - 1;
+      rows[prev].focus();
+    } else {
+      const next = idx < 0 || idx === rows.length - 1 ? 0 : idx + 1;
+      rows[next].focus();
+    }
+    return;
+  }
+  // Type-ahead: single printable letter jumps focus to the first row
+  // whose label starts with that letter (case-insensitive). Skips when
+  // a modifier is held so we don't fight Cmd+F / Ctrl+R etc.
+  if (
+    e.key.length === 1 &&
+    !e.altKey && !e.ctrlKey && !e.metaKey &&
+    /^[a-zA-Z]$/.test(e.key)
+  ) {
+    const letter = e.key.toLowerCase();
+    // Start the scan AFTER the currently-focused row so repeated
+    // presses cycle through multiple rows starting with the same
+    // letter (e.g. two "C"opy actions).
+    const start = idx >= 0 ? (idx + 1) % rows.length : 0;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[(start + i) % rows.length];
+      const label = (r.querySelector(".send-row-label")?.textContent || "")
+        .trim()
+        .toLowerCase();
+      if (label.startsWith(letter)) {
+        e.preventDefault();
+        e.stopPropagation();
+        r.focus();
+        return;
+      }
+    }
   }
 }
 
@@ -4409,6 +4502,12 @@ async function openSendMenu(): Promise<void> {
   setTimeout(() => {
     document.addEventListener("mousedown", onSendMenuOutside, true);
     document.addEventListener("keydown", onSendMenuKey, true);
+    // Focus the first row so ↑↓/Enter work without an extra Tab.
+    // Without this, focus stays on the trigger button and the first
+    // ↓ has to move out of the button into the menu — a subtle but
+    // jarring extra keystroke.
+    const first = detailSendMenu.querySelector<HTMLButtonElement>(".send-row");
+    first?.focus();
   }, 0);
 }
 
