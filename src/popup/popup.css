@@ -2122,6 +2122,23 @@ kbd {
   background: var(--glass-strong);
 }
 
+/* Retroactive-redact action row — visually a setting tile but acts as a
+   button host, so it stays inline with the auto-redact toggle above it
+   instead of being shoved down with the other settings-action buttons. */
+.retro-redact-row {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.retro-redact-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 12px;
+  letter-spacing: -0.005em;
+}
+
 .setting > span {
   font-weight: 600;
   color: var(--text);

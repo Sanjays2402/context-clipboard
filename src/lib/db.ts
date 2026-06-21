@@ -571,6 +571,61 @@ export async function mergeDuplicatesByHash(): Promise<{
   return { groups, merged, hashesScanned: byHash.size };
 }
 
+/**
+ * Sweep every text clip in the live store and redact any whose body
+ * still contains PII/secrets. Mirrors the auto-redact-at-capture path
+ * but runs *retroactively* — useful when a user flips on
+ * `autoRedactPii` after they've already accumulated a pile of clips
+ * that pre-date the toggle.
+ *
+ * Honors the same rules as the capture path:
+ *   - text clips only (binary blobs untouched)
+ *   - already-redacted clips skipped
+ *   - the original is stashed in `originalContent` so the user can
+ *     unredact later (same as a manual redact). NOT one-way — that's
+ *     only the on-capture path's contract.
+ *
+ * Returns counts so callers can surface a meaningful toast. Pure
+ * over IDB; no network. Pinned status is preserved.
+ */
+export async function retroactiveAutoRedact(): Promise<{
+  scanned: number;
+  redacted: number;
+  alreadyRedacted: number;
+  noPii: number;
+}> {
+  const all = await listClips({ limit: 1_000_000 });
+  let redacted = 0;
+  let alreadyRedacted = 0;
+  let noPii = 0;
+  let scanned = 0;
+  for (const c of all) {
+    if (c.kind !== "text") continue;
+    scanned++;
+    if (c.redacted) {
+      alreadyRedacted++;
+      continue;
+    }
+    const rewritten = redactPii(c.content);
+    if (rewritten === c.content) {
+      noPii++;
+      continue;
+    }
+    // Stash the original so the redact is reversible — different
+    // contract than the on-capture path (which is one-way because
+    // the original never lands on disk). Here the original is
+    // already on disk, so reversibility costs nothing.
+    c.originalContent = c.content;
+    c.content = rewritten;
+    c.preview = redactSensitivePreview(rewritten);
+    c.redacted = true;
+    if (!c.tags.includes("redacted")) c.tags = [...c.tags, "redacted"];
+    await putClip(c);
+    redacted++;
+  }
+  return { scanned, redacted, alreadyRedacted, noPii };
+}
+
 export async function pruneOldUnpinned(maxItems = 500): Promise<number> {
   const all = await listClips({ limit: 100_000 });
   const unpinned = all.filter((c) => !c.pinned);

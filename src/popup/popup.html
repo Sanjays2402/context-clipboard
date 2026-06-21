@@ -139,6 +139,10 @@
           <span>Auto-redact PII in captured text (emails / phones / cards / secrets) — one-way</span>
           <input id="s-autoredact" type="checkbox" />
         </label>
+        <div class="setting retro-redact-row">
+          <span class="retro-redact-label">Sweep existing clips for PII</span>
+          <button id="retro-redact-btn" class="small" type="button" title="Scan every text clip and redact any with PII — reversible per-clip">Redact existing</button>
+        </div>
         <label class="setting toggle">
           <span>Blur previews until I hover (anti-shoulder-surf)</span>
           <input id="s-blur" type="checkbox" />

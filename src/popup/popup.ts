@@ -21,10 +21,11 @@ import {
   setListSort,
   mergeDuplicatesByHash,
   scrubClipOrigin,
+  retroactiveAutoRedact,
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
-import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits } from "../lib/util";
+import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits, redactPii } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
   encryptJson,
@@ -106,6 +107,7 @@ const sPalette = $<HTMLInputElement>("s-palette");
 const sFields = $<HTMLInputElement>("s-fields");
 const sSidePanel = $<HTMLInputElement>("s-sidepanel");
 const sAutoRedact = $<HTMLInputElement>("s-autoredact");
+const retroRedactBtn = $<HTMLButtonElement>("retro-redact-btn");
 const sBlurPreviews = $<HTMLInputElement>("s-blur");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
@@ -2077,6 +2079,17 @@ function buildPaletteActions(): PaletteAction[] {
         void scrubDetailOrigin();
       },
     },
+    {
+      id: "retroactive-redact",
+      label: "Redact PII in every existing clip",
+      hint: "Mask emails / phones / cards / secrets in old captures",
+      group: "Privacy",
+      keywords: "sweep retroactive bulk redaction cleanup history pii",
+      run: () => {
+        closePalette();
+        void runRetroactiveAutoRedact();
+      },
+    },
     // Kind filters ---------------------------------------------------
     {
       id: "filter-all",
@@ -2587,6 +2600,47 @@ async function runMergeDuplicates(): Promise<void> {
     return;
   }
   toast(`Merged ${res.merged} into ${res.groups} group${res.groups === 1 ? "" : "s"}`);
+  await render();
+}
+
+/**
+ * Walk every text clip and redact any that still carry PII or
+ * secrets — useful right after a user flips on `autoRedactPii` for
+ * the first time and realises their accumulated history is full of
+ * emails / phone numbers / leaked API keys.
+ *
+ * Confirms with a concrete count BEFORE acting (no fat-finger 200-
+ * clip mass-redaction). Unlike on-capture auto-redact, the original
+ * is stashed in `originalContent` so the redact is reversible — the
+ * data is already on disk anyway, no privacy cost to keeping a copy.
+ *
+ * Surfaces an "Already clean" toast when scanning finds nothing to
+ * redact so the user gets feedback either way.
+ */
+async function runRetroactiveAutoRedact(): Promise<void> {
+  // First pass: count how many would be touched. Same scan as the
+  // db helper does, but we do it inline so we can show the user a
+  // concrete confirmation BEFORE writing anything.
+  const all = await listClips({ limit: 1_000_000 });
+  let candidates = 0;
+  for (const c of all) {
+    if (c.kind !== "text" || c.redacted) continue;
+    if (redactPii(c.content) !== c.content) candidates++;
+  }
+  if (candidates === 0) {
+    toast("No PII found in existing clips");
+    return;
+  }
+  const msg =
+    `Redact ${candidates} clip${candidates === 1 ? "" : "s"} that still contain ` +
+    `PII (emails, phones, cards, secrets)?\n\nOriginals are kept locally — ` +
+    `you can unmask any clip later from its detail view.`;
+  if (!confirm(msg)) return;
+  const res = await retroactiveAutoRedact();
+  toast(
+    `Redacted ${res.redacted} · scanned ${res.scanned}` +
+      (res.alreadyRedacted > 0 ? ` · ${res.alreadyRedacted} already redacted` : ""),
+  );
   await render();
 }
 
@@ -3122,6 +3176,8 @@ sBlurPreviews.addEventListener("change", () => {
   // background dim). Settings write still happens on Save/Esc/back.
   applyBlurMode(sBlurPreviews.checked);
 });
+
+retroRedactBtn.addEventListener("click", () => void runRetroactiveAutoRedact());
 
 encryptToggle.addEventListener("change", () => {
   encryptPassRow.hidden = !encryptToggle.checked;
