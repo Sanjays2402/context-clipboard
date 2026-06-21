@@ -1122,6 +1122,52 @@ export function matchesHostPattern(pattern: string, host: string): boolean {
   return p === h;
 }
 
+/**
+ * Count, per site rule, how many clips in `clips` are attributable to
+ * that rule under the first-match-wins semantics ingest uses. Mirrors
+ * the background's `findSiteRuleFor` walk:
+ *
+ *   - For each clip, derive its host (hostFrom(source.url)).
+ *   - Walk rules in list order; the FIRST one whose hostPattern
+ *     matches the host owns this clip and gets the +1.
+ *   - Clips with no host (notes, scrubbed) don't count toward any
+ *     rule (the rule pipeline never saw them).
+ *
+ * Pure — no IO. Caller passes the rules + live clips array; this
+ * keeps the helper testable and lets the popup batch it under a
+ * single render pass. Returns a Map<ruleId, count> so callers can
+ * cheaply look up per-rule counts without re-scanning.
+ *
+ * The first-match-wins matters: a clip on `docs.github.com` matched
+ * by both `*.github.com` and `docs.github.com` rules counts ONLY for
+ * the first one in the list (whichever was added/sorted higher). That
+ * matches what ingest actually does, so the count is a true "how
+ * many clips did THIS rule own" rather than "how many would match in
+ * isolation".
+ */
+export function countClipsForRules(
+  rules: SiteRule[],
+  clips: ClipItem[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (rules.length === 0) return counts;
+  // Pre-cache host per clip so the inner loop doesn't re-parse URLs
+  // for every rule iteration.
+  for (const c of clips) {
+    const host = hostFrom(c.source.url);
+    if (!host) continue;
+    // First-match-wins matches background `findSiteRuleFor`. Walk
+    // rules in order; bail as soon as one matches.
+    for (const r of rules) {
+      if (matchesHostPattern(r.hostPattern, host)) {
+        counts.set(r.id, (counts.get(r.id) || 0) + 1);
+        break;
+      }
+    }
+  }
+  return counts;
+}
+
 /** Find the first matching site rule for `host`, or undefined. */
 export async function findSiteRuleFor(host: string): Promise<SiteRule | undefined> {
   if (!host) return undefined;

@@ -1249,6 +1249,45 @@ button.small:disabled {
   text-transform: none;
 }
 
+/* Per-rule clip-count usage badge. Renders to the right of the rule
+ * badge strip and shows "N clips" when the rule has actually caught
+ * captures, or "unused" when it hasn't. Clickable form drops the
+ * settings panel and pivots the main list to host:<pattern> so the
+ * user can verify what's there.
+ *
+ * Distinct from the existing .rule-badge palette — these are rule
+ * BEHAVIOR pills (pin/redact/scrub); usage is rule TELEMETRY. Uses
+ * tabular numbers so two-digit counts line up nicely. */
+.rule-usage {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rule-usage:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.rule-usage.muted {
+  color: var(--muted);
+  cursor: default;
+  font-style: italic;
+}
+.rule-usage.muted:hover {
+  border-color: var(--border);
+  color: var(--muted);
+  background: var(--glass);
+}
+
 .site-rule-del {
   appearance: none;
   background: transparent;

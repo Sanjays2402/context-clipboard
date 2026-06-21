@@ -29,6 +29,7 @@ import {
   appendPrivacyAuditEntry,
   listPrivacyAudit,
   clearPrivacyAudit,
+  countClipsForRules,
   type TrashedClip,
   type DuplicateGroup,
   type PrivacyAuditEntry,
@@ -1763,15 +1764,29 @@ async function renderSiteRules(): Promise<void> {
     siteRulesList.innerHTML = "";
     return;
   }
+  // Compute per-rule clip counts so the user can see which rules are
+  // actually catching captures (and which are dead weight). Single
+  // listClips read + a first-match-wins scan mirrors ingest exactly.
+  // Bounded: scan up to 5000 clips — beyond that the count would
+  // dominate render time and the badge stops being live anyway.
+  const clipsForCount = await listClips({ limit: 5000 });
+  const counts = countClipsForRules(rules, clipsForCount);
   siteRulesList.innerHTML = rules
-    .map(
-      (r) =>
+    .map((r) => {
+      const n = counts.get(r.id) || 0;
+      const usageBadge =
+        n > 0
+          ? `<span class="rule-usage" title="${n} clip${n === 1 ? "" : "s"} captured under this rule — click to filter the list" data-act="filter" data-host="${escapeHtml(r.hostPattern)}">${n} clip${n === 1 ? "" : "s"}</span>`
+          : `<span class="rule-usage muted" title="No clips have matched this rule yet">unused</span>`;
+      return (
         `<div class="site-rule-row${editingRuleId === r.id ? " editing" : ""}" data-id="${escapeHtml(r.id)}" title="Click to edit">
           <div class="site-rule-host" title="${escapeHtml(r.hostPattern)}">${escapeHtml(r.hostPattern)}</div>
           <div class="site-rule-badges">${ruleBadges(r)}</div>
+          ${usageBadge}
           <button class="site-rule-del" data-act="del" title="Remove rule">×</button>
-        </div>`,
-    )
+        </div>`
+      );
+    })
     .join("");
 }
 
@@ -1970,9 +1985,26 @@ siteRulesList.addEventListener("click", async (e) => {
     await renderSiteRules();
     return;
   }
-  // Row click (anywhere outside the × button): load this rule back
-  // into the form for editing. Clicking the same row toggles edit
-  // off so it acts like a quick \"never mind\".
+  if (target.dataset.act === "filter") {
+    e.stopPropagation();
+    // Jump straight to the list filtered to the rule's host. Wildcard
+    // patterns (`*.example.com`) lose the leading wildcard so the
+    // host: operator (which doesn't grok globs) lands on the base
+    // domain — better than no filter at all. Closes settings so the
+    // user sees the result.
+    const raw = (target.dataset.host || "").trim();
+    const host = raw.replace(/^\*\./, "");
+    if (!host) return;
+    closeSettings();
+    searchEl.value = `host:${host}`;
+    searchEl.focus();
+    activeIndex = 0;
+    await render();
+    return;
+  }
+  // Row click (anywhere outside the × button or count badge): load this
+  // rule back into the form for editing. Clicking the same row toggles
+  // edit off so it acts like a quick \"never mind\".
   const resp = await rpcSiteRules("listSiteRules");
   const rule = (resp.rules ?? []).find((r) => r.id === id);
   if (!rule) return;
