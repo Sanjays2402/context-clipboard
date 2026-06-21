@@ -326,6 +326,29 @@ export async function togglePin(id: string): Promise<boolean> {
   return item.pinned;
 }
 
+/**
+ * Flip the archive bit on a clip. Archived clips stay in IDB and stay
+ * pinned if they were pinned (archive is orthogonal to pin) but get
+ * filtered out of the default popup list. The user surfaces them by
+ * typing `is:archived` or running the "Show archived" palette
+ * command.
+ *
+ * Returns the NEW archive state so the caller can show a meaningful
+ * confirmation. No-op when the clip is gone.
+ */
+export async function toggleArchive(id: string): Promise<boolean | null> {
+  const item = await getClip(id);
+  if (!item) return null;
+  item.archived = !item.archived;
+  // Bump lastSeenAt on UNarchive so the clip surfaces near the top of
+  // the daily list — archiving is "tuck this away", unarchiving is
+  // "I need this again". Archiving leaves lastSeenAt alone so the
+  // archive list still orders by recency.
+  if (!item.archived) item.lastSeenAt = Date.now();
+  await putClip(item);
+  return !!item.archived;
+}
+
 export async function updateTags(id: string, tags: string[]): Promise<void> {
   const item = await getClip(id);
   if (!item) return;

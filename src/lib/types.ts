@@ -58,6 +58,18 @@ export interface ClipItem {
    * their expiry (pinning is an explicit "keep this" intent).
    */
   expiresAt?: number;
+  /**
+   * Archive bit. Archived clips stay in IDB (and stay pinned if they
+   * were pinned) but are hidden from the default popup list — they
+   * surface only when the user types `is:archived` or visits the
+   * archive view. Useful for "cold pins": a snippet you want to keep
+   * forever but don't want cluttering the daily list.
+   *
+   * Additive flag — undefined = not archived. Lives at the clip layer
+   * (no IDB schema bump). Trash always wins (archiving an already-
+   * trashed clip is impossible; it's not in the live store).
+   */
+  archived?: boolean;
 }
 
 export interface SearchQuery {

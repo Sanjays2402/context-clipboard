@@ -2984,6 +2984,34 @@ body.compact-rows #list {
   gap: 0;
 }
 
+/* Archive — clip row gets a faint stripe when displayed (only ever
+ * happens under is:archived). The inline pill badge tells the user
+ * "yes this is archived" so it's obvious in mixed views too. */
+.clip.archived {
+  background: linear-gradient(
+    to right,
+    rgba(140, 120, 200, 0.06),
+    transparent 70%
+  );
+}
+.archived-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(140, 120, 200, 0.14);
+  color: #b8a8e6;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: 1px;
+}
+/* Detail-view "currently archived" telegraph on the toolbar button. */
+#detail-archive.active {
+  color: var(--accent);
+}
+
 /* Find duplicates review panel — same overlay model as cheatsheet, but
  * structured around a list of dupe groups + a single "Merge all" button
  * in the header. Each group shows the survivor preview, a per-group

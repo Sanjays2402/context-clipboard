@@ -33,6 +33,14 @@ export interface ParsedQuery {
   templateOnly: boolean;
   /** Only clips with an `expiresAt` set when true. */
   expiringOnly: boolean;
+  /**
+   * Surface archived clips. When false (the default), `applyQuery`
+   * drops archived rows so the daily list stays uncluttered. When
+   * the user types `is:archived` this flips on and we INCLUDE
+   * archived rows AND require the bit, giving them an archive-only
+   * view.
+   */
+  archivedOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -69,6 +77,7 @@ export function parseQuery(raw: string): ParsedQuery {
     ocrOnly: false,
     templateOnly: false,
     expiringOnly: false,
+    archivedOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -99,6 +108,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "ocr") out.ocrOnly = true;
       else if (v === "template") out.templateOnly = true;
       else if (v === "expiring") out.expiringOnly = true;
+      else if (v === "archived") out.archivedOnly = true;
       else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
@@ -141,6 +151,14 @@ export function applyQuery(
     if (q.ocrOnly && !c.ocrText) return false;
     if (q.templateOnly && !c.template) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
+    // Archive bit: by default we DROP archived clips from the list so
+    // the user's daily view stays clean. `is:archived` flips that —
+    // we then REQUIRE the bit, giving an archive-only view.
+    if (q.archivedOnly) {
+      if (!c.archived) return false;
+    } else if (c.archived) {
+      return false;
+    }
     if (q.before != null && c.lastSeenAt >= q.before) return false;
     if (q.after != null && c.lastSeenAt <= q.after) return false;
     for (const t of q.tags) if (!c.tags.includes(t)) return false;
@@ -174,6 +192,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.ocrOnly) bits.push("ocr");
   if (q.templateOnly) bits.push("template");
   if (q.expiringOnly) bits.push("expiring");
+  if (q.archivedOnly) bits.push("archived");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");

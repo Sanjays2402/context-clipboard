@@ -25,6 +25,7 @@ import {
   scrubClipOrigin,
   retroactiveAutoRedact,
   findSimilarClips,
+  toggleArchive,
   type TrashedClip,
   type DuplicateGroup,
 } from "../lib/db";
@@ -81,6 +82,7 @@ const detailRefetch = $<HTMLButtonElement>("detail-refetch");
 const detailReveal = $<HTMLButtonElement>("detail-reveal");
 const detailRedact = $<HTMLButtonElement>("detail-redact");
 const detailScrub = $<HTMLButtonElement>("detail-scrub");
+const detailArchive = $<HTMLButtonElement>("detail-archive");
 const detailBody = $("detail-body");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
@@ -300,6 +302,9 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
     .slice(0, 4)
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join("");
+  const archivedBadge = c.archived
+    ? `<span class="archived-badge" title="Archived — hidden from default list">archived</span>`
+    : "";
   // Highlight the free-text needle inside the preview slice. For images we
   // never highlight (the "preview" is just a placeholder label like "Image").
   const previewSlice = previewText.slice(0, 140);
@@ -308,11 +313,11 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
       ? escapeHtml(previewSlice)
       : highlightHtml(previewSlice, needle);
   return `
-    <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}" data-id="${c.id}" data-idx="${idx}">
+    <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}${c.archived ? " archived" : ""}" data-id="${c.id}" data-idx="${idx}">
       ${selectedIds.size > 0 ? `<div class="select-mark">${selectedIds.has(c.id) ? icons.check() : ""}</div>` : ""}
       ${thumb}
       <div class="body">
-        <div class="preview">${previewHtml}</div>
+        <div class="preview">${previewHtml}${archivedBadge}</div>
         <div class="meta">
           <span class="src" title="${escapeHtml(c.source.url || "")}">${escapeHtml(src || "—")}</span>
           <span>· ${timeAgo(c.lastSeenAt)}${hits}${expiry}</span>
@@ -377,6 +382,7 @@ function renderQuickChips(allClips: ClipItem[]) {
   let images = 0;
   let templates = 0;
   let expiring = 0;
+  let archived = 0;
   for (const c of allClips) {
     const h = hostFrom(c.source.url);
     if (h) hostCounts.set(h, (hostCounts.get(h) || 0) + 1);
@@ -385,6 +391,7 @@ function renderQuickChips(allClips: ClipItem[]) {
     if (c.kind === "image") images++;
     if (c.template) templates++;
     if (typeof c.expiresAt === "number") expiring++;
+    if (c.archived) archived++;
   }
   const topHosts = Array.from(hostCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -410,6 +417,13 @@ function renderQuickChips(allClips: ClipItem[]) {
       op: "is:expiring",
       active: hasOp("is:expiring"),
       count: expiring,
+    });
+  if (archived > 0)
+    pills.push({
+      label: "Archived",
+      op: "is:archived",
+      active: hasOp("is:archived"),
+      count: archived,
     });
   if (redacted > 0)
     pills.push({
@@ -637,7 +651,7 @@ async function render(): Promise<void> {
     activeIndex = Math.max(0, currentClips.length - 1);
   if (currentClips.length === 0) {
     const hint = searchEl.value.trim()
-      ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:template</code> / <code>is:expiring</code> / <code>after:24h</code>.</small></div>`
+      ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:template</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
       : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     listEl.innerHTML = hint;
   } else {
@@ -899,6 +913,7 @@ async function openDetail(id: string) {
   renderExpiryRow(c);
   detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
   renderRedactButton(c);
+  renderArchiveButton(c);
   updateDetailNav();
   detailEl.hidden = false;
   // Similar clips lookup is async + cheap. We render the row separately
@@ -1075,6 +1090,23 @@ function renderRedactButton(c: ClipItem) {
     detailReveal.title = "Show original for 10s, then snap back";
   } else {
     detailReveal.hidden = true;
+  }
+}
+
+/**
+ * Update the detail-view archive button glyph + title from the open
+ * clip's state. Archived clips show the inbox glyph (unarchive ≈ pull
+ * back into the daily list); fresh clips show the archive box.
+ */
+function renderArchiveButton(c: ClipItem) {
+  if (c.archived) {
+    detailArchive.innerHTML = icons.inbox();
+    detailArchive.title = "Unarchive — show in the default list again";
+    detailArchive.classList.add("active");
+  } else {
+    detailArchive.innerHTML = icons.archive();
+    detailArchive.title = "Archive — hide from default list, keep in IDB";
+    detailArchive.classList.remove("active");
   }
 }
 
@@ -2426,6 +2458,29 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      id: "archive-open-clip",
+      label: "Archive / unarchive open clip",
+      hint: "Hide cold pins from the default list",
+      group: "Bulk",
+      keywords: "archive cold hide tuck away inbox",
+      available: detailId != null,
+      run: () => {
+        closePalette();
+        void toggleDetailArchive();
+      },
+    },
+    {
+      id: "show-archived",
+      label: "Show archived clips",
+      hint: "is:archived — only the archive surfaces",
+      group: "Filter",
+      keywords: "archive is:archived cold pins",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:archived");
+      },
+    },
+    {
       id: "retroactive-redact",
       label: "Redact PII in every existing clip",
       hint: "Mask emails / phones / cards / secrets in old captures",
@@ -3626,6 +3681,34 @@ async function scrubDetailOrigin(): Promise<void> {
 }
 
 detailScrub.addEventListener("click", () => void scrubDetailOrigin());
+
+/**
+ * Flip the archive bit on the open clip. Archived clips disappear from
+ * the default list (the parser drops them) so we re-render and close
+ * the detail panel so the user lands back on the visible list instead
+ * of a now-hidden clip. Unarchiving leaves detail open + bumps
+ * lastSeenAt so the clip surfaces at the top.
+ */
+async function toggleDetailArchive(): Promise<void> {
+  if (!detailId) return;
+  const id = detailId;
+  const next = await toggleArchive(id);
+  if (next == null) {
+    toast("Clip not found", "error");
+    return;
+  }
+  if (next) {
+    toast("Archived — find it with is:archived");
+    closeDetail();
+    await render();
+  } else {
+    toast("Pulled back into the list");
+    await openDetail(id);
+    await render();
+  }
+}
+
+detailArchive.addEventListener("click", () => void toggleDetailArchive());
 
 /**
  * Expand/collapse the nearby-context block in the detail meta row when

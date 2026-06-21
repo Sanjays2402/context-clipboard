@@ -116,6 +116,20 @@ export const icons = {
     svg(
       `<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/>`,
     ),
+  // Archive — Phosphor "archive" outline. Used by the detail-view
+  // "Archive / Unarchive" toggle so users can tell at a glance that
+  // it's archive (an open-top box with a lid line) vs trash.
+  archive: () =>
+    svg(
+      `<path d="M3 7h18v3H3z"/><path d="M5 10v10h14V10"/><path d="M10 14h4"/>`,
+    ),
+  // Inbox — paired with the archive icon for the "unarchive / pull
+  // back into list" action. Visually distinct: a tray with an arrow
+  // dropping into it.
+  inbox: () =>
+    svg(
+      `<path d="M3 14h4l2 3h6l2-3h4"/><path d="M5 5h14l2 9v6H3v-6z"/>`,
+    ),
   imageGeneric: () =>
     svg(
       `<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/>`,
