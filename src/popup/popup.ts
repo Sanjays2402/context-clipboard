@@ -158,6 +158,7 @@ const selectAllFilteredBtn = $<HTMLButtonElement>("select-all-filtered");
 const sortModeEl = $<HTMLSelectElement>("sort-mode");
 
 const toastEl = $("toast");
+const rowMenuEl = $("row-menu");
 const cheatsheetEl = $("cheatsheet");
 const cheatsheetClose = $<HTMLButtonElement>("cheatsheet-close");
 const paletteEl = $("palette");
@@ -1698,6 +1699,190 @@ listEl.addEventListener("click", async (e) => {
     await openDetail(id);
   }
 });
+
+// Row context menu --------------------------------------------------
+//
+// Right-clicking a clip in the list opens a compact menu of the
+// actions most users want without hunting through the bulk bar or
+// detail view: copy, copy-as-markdown, open, pin/unpin, toggle
+// selection, add tag, filter-to-host, forget-host, trash.
+//
+// The menu lives in popup.html as a single hidden node; we position
+// + populate it for the right-clicked clip on each open. Closing
+// happens on outside click, Esc, scroll, or any underlying action
+// running. Keyboard accessible — items are real <button>s with
+// data-act attributes so the same code path handles click + Enter.
+
+let rowMenuClipId: string | null = null;
+
+function closeRowMenu(): void {
+  if (rowMenuEl.hidden) return;
+  rowMenuEl.hidden = true;
+  rowMenuClipId = null;
+}
+
+/**
+ * Populate the menu for a specific clip + position it near the
+ * right-click point, clamped to the viewport so it doesn't spill
+ * off-screen. Item labels swap based on the clip's current state
+ * (pinned -> "Unpin"; in selection -> "Remove from selection";
+ * no host -> filter/forget buttons hide entirely).
+ */
+function openRowMenu(c: ClipItem, x: number, y: number): void {
+  rowMenuClipId = c.id;
+  // Swap state-aware labels.
+  const pinLabel = rowMenuEl.querySelector("[data-pin-label]");
+  if (pinLabel) pinLabel.textContent = c.pinned ? "Unpin clip" : "Pin clip";
+  const selectLabel = rowMenuEl.querySelector("[data-select-label]");
+  if (selectLabel) {
+    selectLabel.textContent = selectedIds.has(c.id)
+      ? "Remove from selection"
+      : "Add to selection";
+  }
+  const host = hostFrom(c.source.url);
+  const filterHostBtn = rowMenuEl.querySelector(
+    '[data-act="filter-host"]',
+  ) as HTMLButtonElement | null;
+  const forgetHostBtn = rowMenuEl.querySelector(
+    '[data-act="forget-host"]',
+  ) as HTMLButtonElement | null;
+  if (host) {
+    const fhLabel = filterHostBtn?.querySelector("[data-filter-host-label]");
+    const fgLabel = forgetHostBtn?.querySelector("[data-forget-host-label]");
+    if (fhLabel) fhLabel.textContent = `Filter to ${host}`;
+    if (fgLabel) fgLabel.textContent = `Forget all from ${host}…`;
+    if (filterHostBtn) filterHostBtn.hidden = false;
+    if (forgetHostBtn) forgetHostBtn.hidden = false;
+  } else {
+    // Scrubbed / origin-less clip — no host actions to offer.
+    if (filterHostBtn) filterHostBtn.hidden = true;
+    if (forgetHostBtn) forgetHostBtn.hidden = true;
+  }
+  // Open + measure first so we can clamp into the viewport. Position
+  // the menu so its top-left aligns with the mouse, then nudge it left/
+  // up if it would overflow.
+  rowMenuEl.hidden = false;
+  rowMenuEl.style.left = "0px";
+  rowMenuEl.style.top = "0px";
+  const rect = rowMenuEl.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const left = Math.max(4, Math.min(x, vw - rect.width - 4));
+  const top = Math.max(4, Math.min(y, vh - rect.height - 4));
+  rowMenuEl.style.left = `${left}px`;
+  rowMenuEl.style.top = `${top}px`;
+}
+
+/**
+ * Apply a menu action to the clip the menu was opened for. Runs the
+ * same handlers list/detail code already uses so the behavior stays
+ * in sync (e.g. trash goes through trashWithUndo). Closes the menu
+ * before async work to avoid a frozen-menu feeling.
+ */
+async function runRowMenuAction(act: string): Promise<void> {
+  if (!rowMenuClipId) return;
+  const id = rowMenuClipId;
+  closeRowMenu();
+  const c = await getClip(id);
+  if (!c) return;
+  switch (act) {
+    case "copy":
+      await copyToClipboard(c);
+      return;
+    case "copy-md":
+      await copyAsMarkdown(c);
+      return;
+    case "open":
+      await openDetail(id);
+      return;
+    case "pin":
+      await togglePin(id);
+      await render();
+      return;
+    case "select":
+      toggleSelected(id);
+      await render();
+      return;
+    case "tag": {
+      const raw = prompt("Add tag(s) (comma-separated):");
+      if (!raw) return;
+      const newTags = raw.split(",").map((t) => t.trim()).filter(Boolean);
+      if (newTags.length === 0) return;
+      const merged = Array.from(new Set([...c.tags, ...newTags]));
+      await updateTags(id, merged);
+      toast(`Tagged ${newTags.length === 1 ? newTags[0] : `${newTags.length} tags`}`);
+      await render();
+      return;
+    }
+    case "filter-host": {
+      const host = hostFrom(c.source.url);
+      if (!host) return;
+      // Append `host:` operator. If it's already there, no-op + nudge focus.
+      toggleSearchOp(`host:${host}`);
+      searchEl.focus();
+      return;
+    }
+    case "forget-host": {
+      const host = hostFrom(c.source.url);
+      if (!host) return;
+      forgetHostInput.value = host;
+      // runForgetHost runs the same confirm + RPC the settings panel uses.
+      await openSettings();
+      // Defer one tick so settings panel is visible before the prompt.
+      setTimeout(() => void runForgetHost(), 50);
+      return;
+    }
+    case "trash":
+      await trashWithUndo([id]);
+      return;
+  }
+}
+
+listEl.addEventListener("contextmenu", (e) => {
+  const target = e.target as HTMLElement;
+  const clipEl = target.closest(".clip") as HTMLElement | null;
+  if (!clipEl) return;
+  const id = clipEl.dataset.id;
+  if (!id) return;
+  const c = currentClips.find((x) => x.id === id);
+  if (!c) return;
+  e.preventDefault();
+  openRowMenu(c, e.clientX, e.clientY);
+});
+
+rowMenuEl.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".row-menu-item") as HTMLElement | null;
+  if (!btn) return;
+  const act = btn.dataset.act;
+  if (!act) return;
+  void runRowMenuAction(act);
+});
+
+// Outside click / Esc / scroll / window blur all close the menu.
+document.addEventListener(
+  "mousedown",
+  (e) => {
+    if (rowMenuEl.hidden) return;
+    if (!(e.target instanceof Node)) return;
+    if (rowMenuEl.contains(e.target)) return;
+    closeRowMenu();
+  },
+  true,
+);
+document.addEventListener(
+  "keydown",
+  (e) => {
+    if (rowMenuEl.hidden) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeRowMenu();
+    }
+  },
+  true,
+);
+listEl.addEventListener("scroll", () => closeRowMenu(), true);
+window.addEventListener("blur", () => closeRowMenu());
 
 searchEl.addEventListener("input", () => {
   activeIndex = 0;

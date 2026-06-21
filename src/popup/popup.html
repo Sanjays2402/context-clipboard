@@ -294,6 +294,26 @@
 
     <div id="toast" class="toast"></div>
 
+    <!-- Clip row context menu (right-click on a clip). Single instance
+         per popup — populated + repositioned for the right-clicked clip
+         at open time, hidden on outside click / Escape / scroll. Each
+         menu item is keyboard-actionable too because we mirror the
+         underlying handlers (pin/copy-md/forget-host/select). -->
+    <div id="row-menu" class="row-menu" hidden role="menu" aria-label="Clip actions">
+      <button class="row-menu-item" data-act="copy" role="menuitem"><span class="row-menu-glyph" data-icon="copy"></span><span>Copy</span><span class="row-menu-shortcut">⏎</span></button>
+      <button class="row-menu-item" data-act="copy-md" role="menuitem"><span class="row-menu-glyph" data-icon="copy"></span><span>Copy as Markdown</span><span class="row-menu-shortcut">⇧⏎</span></button>
+      <button class="row-menu-item" data-act="open" role="menuitem"><span class="row-menu-glyph" data-icon="eye"></span><span>Open detail</span></button>
+      <div class="row-menu-sep"></div>
+      <button class="row-menu-item" data-act="pin" role="menuitem"><span class="row-menu-glyph" data-icon="pin"></span><span data-pin-label>Pin clip</span><span class="row-menu-shortcut">P</span></button>
+      <button class="row-menu-item" data-act="select" role="menuitem"><span class="row-menu-glyph" data-icon="check"></span><span data-select-label>Add to selection</span><span class="row-menu-shortcut">X</span></button>
+      <button class="row-menu-item" data-act="tag" role="menuitem"><span class="row-menu-glyph" data-icon="tag"></span><span>Add tag…</span></button>
+      <div class="row-menu-sep"></div>
+      <button class="row-menu-item" data-act="filter-host" role="menuitem"><span class="row-menu-glyph" data-icon="globe"></span><span data-filter-host-label>Filter to this host</span></button>
+      <button class="row-menu-item danger" data-act="forget-host" role="menuitem"><span class="row-menu-glyph" data-icon="trash"></span><span data-forget-host-label>Forget host…</span></button>
+      <div class="row-menu-sep"></div>
+      <button class="row-menu-item danger" data-act="trash" role="menuitem"><span class="row-menu-glyph" data-icon="trash"></span><span>Move to trash</span><span class="row-menu-shortcut">⌫</span></button>
+    </div>
+
     <!-- Command palette (Cmd/Ctrl+K). Fuzzy-search every action in the
          popup: filters, bulk ops, export, settings. Keyboard-first; ↑↓
          + Enter to run; Esc to close. -->
@@ -332,6 +352,7 @@
             <div class="cheatsheet-row"><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Click</kbd><span>Toggle select (multi)</span></div>
             <div class="cheatsheet-row"><kbd>Shift</kbd>+<kbd>Click</kbd><span>Copy as Markdown</span></div>
             <div class="cheatsheet-row"><kbd>Alt</kbd>+<kbd>Click</kbd><span>Copy without opening detail</span></div>
+            <div class="cheatsheet-row"><kbd>Right-click</kbd><span>Open clip action menu</span></div>
           </div>
           <div class="cheatsheet-group">
             <h4>In detail view</h4>
