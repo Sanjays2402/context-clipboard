@@ -8,7 +8,7 @@
  * All work happens in the popup; no network.
  */
 import type { ClipItem } from "./types";
-import { hostFrom } from "./util";
+import { hostFrom, detectCodeLang } from "./util";
 
 export type ExportFormat = "json" | "markdown" | "csv";
 
@@ -67,7 +67,8 @@ export function toMarkdown(clips: ClipItem[]): string {
       const looksLikeCode = /\n/.test(c.content) ||
         /\b(function|const|let|var|class|import|export|=>|<\/?\w|def |print\()/.test(c.content);
       if (looksLikeCode) {
-        out.push("```");
+        const lang = detectCodeLang(c.content) ?? "";
+        out.push("```" + lang);
         out.push(c.content);
         out.push("```");
       } else {

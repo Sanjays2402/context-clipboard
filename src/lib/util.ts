@@ -323,6 +323,144 @@ export function isValidPattern(src: string): boolean {
   }
 }
 
+/**
+ * Detect a Markdown fence language from a code snippet's body. Returns a
+ * short identifier suitable for a fenced block (` ```python `, ` ```ts `,
+ * etc.) or undefined when nothing convincing matches — caller falls back
+ * to an unannotated fence.
+ *
+ * Deliberately conservative: high-precision keyword + structural cues,
+ * not a full tokenizer. Order matters — earlier branches win when a
+ * snippet has weak overlap (e.g. JSX wins over plain HTML when both
+ * shapes appear). Languages covered:
+ *
+ *   json · yaml · sql · diff · markdown · python · go · rust ·
+ *   shell (bash/sh) · css · html · jsx · typescript · javascript
+ *
+ * The list is bounded: adding a new lang is a few lines but every
+ * branch is cheap (one regex test). We never claim a language without
+ * concrete evidence — false positives are worse than ungated fences
+ * because they make the rendered code colour-broken.
+ *
+ * Pure; no IO. Caller passes the raw string.
+ */
+export function detectCodeLang(content: string): string | undefined {
+  const s = content;
+  if (!s || s.length < 4) return undefined;
+  const t = s.trim();
+  if (!t) return undefined;
+  const head = t.slice(0, 4096); // bound the work — last bytes can't change the verdict
+
+  // --- structural one-shots first (cheap, high-precision) ---
+  // JSON: starts with { or [, parses round-trip-ish.
+  if (/^[\[{]/.test(t) && /[}\]]\s*$/.test(t)) {
+    try {
+      JSON.parse(t);
+      return "json";
+    } catch {
+      // fall through — not valid JSON, maybe JS object literal
+    }
+  }
+  // Unified diff: leading +++/--- + @@ hunks.
+  if (/^(diff --git |@@ |\+\+\+ |--- )/m.test(head)) return "diff";
+  // Markdown: heading or fenced block inside the snippet.
+  if (/^(#{1,6} \S|```|\* \S|- \S)/m.test(head) && !/^\s*[{<(]/.test(t)) {
+    if (/^#{1,6} \S/m.test(head) || /^```/m.test(head)) return "markdown";
+  }
+  // Shebang trumps everything.
+  if (/^#!\s*\/.*\b(?:bash|sh|zsh|fish)\b/.test(head)) return "bash";
+  if (/^#!\s*\/.*\b(?:python|python3)\b/.test(head)) return "python";
+  if (/^#!\s*\/.*\bnode\b/.test(head)) return "javascript";
+
+  // --- keyword-based detection ---
+  // SQL — keyword set + statement separators.
+  if (
+    /\b(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE|ALTER TABLE|DROP TABLE|JOIN|FROM|WHERE)\b/i.test(
+      head,
+    ) &&
+    /\bFROM\b|\bINTO\b|\bSET\b|\bVALUES\b|\bWHERE\b/i.test(head)
+  ) {
+    return "sql";
+  }
+  // Go — package + func + import-paren signatures. Checked BEFORE Python
+  // because `import "fmt"` would otherwise match Python's `import \S+`.
+  if (
+    /^\s*package \w+\s*$/m.test(head) ||
+    (/^\s*func\s+(\w+\s*\()/m.test(head) && /\bimport (?:\(|")/.test(head))
+  ) {
+    return "go";
+  }
+  // Rust — fn / let / use combinations with semicolons. Checked early so
+  // Rust's `let mut x: i32 = …` doesn't get swept up by the TypeScript
+  // type-annotation branch.
+  if (
+    /\bfn\s+\w+\s*\([^)]*\)\s*(->|\{)/.test(head) ||
+    /^\s*use\s+\w+(::\w+)+\s*;/m.test(head)
+  ) {
+    return "rust";
+  }
+  // Python — def / import patterns + colon-terminated headers. Python's
+  // `import foo` and `from foo import bar` are the giveaways; we only
+  // claim Python when one of those shows up so a bare `import "fmt"`
+  // (Go) doesn't false-positive.
+  if (
+    /^\s*(def |class \w+:?|from [\w.]+ import|import [a-zA-Z_][\w.]*|@\w[\w.]*\s*$)/m.test(
+      head,
+    ) ||
+    (/:\s*$/m.test(head) &&
+      /^\s*(if|for|while|elif|else|def|class|try|with)\b/m.test(head))
+  ) {
+    return "python";
+  }
+  // Shell — common command prefixes + flag patterns.
+  if (
+    /^\s*(?:\$|#)\s*\w/.test(head) ||
+    /^\s*(?:export |alias |if \[|fi\b|then\b|done\b|case \$\w|for \w+ in )/m.test(
+      head,
+    ) ||
+    /^\s*(?:sudo |curl |git |npm |yarn |pnpm |brew |apt(?:-get)? )/m.test(head)
+  ) {
+    return "bash";
+  }
+  // YAML — flat key: value lines with no JS braces / parens leading the snippet.
+  if (
+    /^[a-zA-Z_][\w-]*\s*:\s*\S/m.test(head) &&
+    !/[{};()]/.test(head.split("\n")[0] || "") &&
+    /\n[a-zA-Z_][\w-]*\s*:\s*/.test(head)
+  ) {
+    return "yaml";
+  }
+  // HTML / JSX — angle-bracket tags. JSX has braces too.
+  if (/<\/?[a-zA-Z][\w-]*[\s/>]/.test(head)) {
+    if (/\{[\w]+\}/.test(head) || /\bclassName=/.test(head)) return "jsx";
+    return "html";
+  }
+  // CSS — selector + braces.
+  if (
+    /^\s*(?:[.#]?[a-zA-Z][\w-]*|\*)\s*\{[^}]*[a-zA-Z-]+\s*:/m.test(head) &&
+    /;\s*\}/.test(head)
+  ) {
+    return "css";
+  }
+  // TypeScript — type/interface/generic syntax.
+  if (
+    /\binterface\s+\w+\s*\{/.test(head) ||
+    /:\s*\w+(\s*\|\s*\w+)+/.test(head) ||
+    /\btype\s+\w+\s*=\s*/.test(head) ||
+    /\b(?:as\s+\w+|<\w+>)\b/.test(head) && /\bconst |let |function /.test(head)
+  ) {
+    return "typescript";
+  }
+  // JavaScript — broad fallback for function/const/etc.
+  if (
+    /\b(?:function|const|let|var|class|import|export|=>)\b/.test(head) ||
+    /^\s*[a-zA-Z_$][\w$]*\s*\(/m.test(head)
+  ) {
+    return "javascript";
+  }
+  return undefined;
+}
+
 /** Heuristic auto-tags. Avoid LLMs; keep this local + instant. */
 export function autoTag(content: string, kind: string, host?: string): string[] {
   const tags = new Set<string>();

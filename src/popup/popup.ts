@@ -26,7 +26,7 @@ import {
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
-import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits, redactPii } from "../lib/util";
+import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits, redactPii, detectCodeLang } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
   encryptJson,
@@ -784,7 +784,8 @@ async function copyAsMarkdown(c: ClipItem) {
   } else if (c.kind === "link") {
     md = `[${c.preview || c.content}](${c.content})`;
   } else if (c.tags.includes("code") || looksLikeCode(c.content)) {
-    md = "```\n" + c.content + "\n```";
+    const lang = detectCodeLang(c.content) ?? "";
+    md = "```" + lang + "\n" + c.content + "\n```";
   } else {
     const cite = c.source.url
       ? `\n\n— [${c.source.title || c.source.url}](${c.source.url})`

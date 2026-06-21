@@ -441,6 +441,60 @@ function escapeHtml(s: string): string {
   );
 }
 
+/**
+ * Lightweight language detector for the in-page palette's Markdown-paste
+ * path. Mirrors a subset of `lib/util.detectCodeLang`'s heuristics — we
+ * deliberately do NOT import the lib helper here because the content
+ * script bundle stays small (no extra IDB / regex helpers cross over).
+ * Returns "" when nothing matches so the caller can splice it straight
+ * into the fence without a separator.
+ */
+function detectLangLite(content: string): string {
+  const head = (content || "").trim().slice(0, 2048);
+  if (!head) return "";
+  if (/^[\[{]/.test(head) && /[}\]]\s*$/.test(head)) {
+    try {
+      JSON.parse(head);
+      return "json";
+    } catch {
+      /* fall through */
+    }
+  }
+  if (/^(diff --git |@@ |\+\+\+ |--- )/m.test(head)) return "diff";
+  if (/^#!\s*\/.*\b(?:bash|sh|zsh|fish)\b/.test(head)) return "bash";
+  if (/^#!\s*\/.*\b(?:python|python3)\b/.test(head)) return "python";
+  if (
+    /\b(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE|JOIN|FROM|WHERE)\b/i.test(
+      head,
+    ) &&
+    /\bFROM\b|\bINTO\b|\bSET\b|\bVALUES\b|\bWHERE\b/i.test(head)
+  ) {
+    return "sql";
+  }
+  if (/^\s*(def |class |from \S+ import|import \S+)/m.test(head)) return "python";
+  if (/^\s*package \w+\s*$/m.test(head) || /^\s*func\s+\w+\s*\(/m.test(head)) return "go";
+  if (/\bfn\s+\w+\s*\(/.test(head) || /^\s*use\s+\w+(::\w+)+\s*;/m.test(head)) return "rust";
+  if (/^\s*(?:export |alias |sudo |curl |npm |git )/m.test(head)) return "bash";
+  if (/<\/?[a-zA-Z][\w-]*[\s/>]/.test(head)) {
+    if (/\bclassName=/.test(head) || /\{\w+\}/.test(head)) return "jsx";
+    return "html";
+  }
+  if (/^\s*[.#]?[a-zA-Z][\w-]*\s*\{[^}]*[a-zA-Z-]+\s*:/m.test(head) && /;\s*\}/.test(head)) {
+    return "css";
+  }
+  if (
+    /\binterface\s+\w+\s*\{/.test(head) ||
+    /:\s*\w+(\s*\|\s*\w+)+/.test(head) ||
+    /\btype\s+\w+\s*=\s*/.test(head)
+  ) {
+    return "typescript";
+  }
+  if (/\b(?:function|const|let|var|class|import|export|=>)\b/.test(head)) {
+    return "javascript";
+  }
+  return "";
+}
+
 function openPalette(clips: PaletteClip[], initialQuery = "") {
   closePalette();
   const root = document.createElement("div");
@@ -620,7 +674,8 @@ function openPalette(clips: PaletteClip[], initialQuery = "") {
       } else if (c.kind === "link") {
         out = `[${(c.preview || c.content).slice(0, 80)}](${c.content})`;
       } else if (/\n/.test(c.content)) {
-        out = `\n\n\`\`\`\n${c.content}\n\`\`\`\n`;
+        const lang = detectLangLite(c.content);
+        out = `\n\n\`\`\`${lang}\n${c.content}\n\`\`\`\n`;
       }
     }
     // If the user opened the palette via right-click on an editable
