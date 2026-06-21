@@ -20,6 +20,7 @@ import {
   getListSort,
   setListSort,
   mergeDuplicatesByHash,
+  scrubClipOrigin,
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
@@ -74,6 +75,7 @@ const detailOcr = $<HTMLButtonElement>("detail-ocr");
 const detailRefetch = $<HTMLButtonElement>("detail-refetch");
 const detailReveal = $<HTMLButtonElement>("detail-reveal");
 const detailRedact = $<HTMLButtonElement>("detail-redact");
+const detailScrub = $<HTMLButtonElement>("detail-scrub");
 const detailBody = $("detail-body");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
@@ -2063,6 +2065,18 @@ function buildPaletteActions(): PaletteAction[] {
         toast(next ? "Blur on" : "Blur off");
       },
     },
+    {
+      id: "scrub-open-clip",
+      label: "Scrub origin from open clip",
+      hint: "Drop URL/title/context, keep content",
+      group: "Privacy",
+      keywords: "forget source unlink anonymize",
+      available: detailId != null,
+      run: () => {
+        closePalette();
+        void scrubDetailOrigin();
+      },
+    },
     // Kind filters ---------------------------------------------------
     {
       id: "filter-all",
@@ -3011,6 +3025,54 @@ async function refetchDetailImage(): Promise<void> {
 }
 
 detailRefetch.addEventListener("click", () => void refetchDetailImage());
+
+/**
+ * Scrub the source metadata off the open clip: wipe URL, title,
+ * nearby-text, favicon — keep the content, tags, pin, OCR. Tags the
+ * clip `scrubbed` so it's findable later. Confirms first because the
+ * metadata can't be reconstructed (the original page URL is gone for
+ * good unless the user explicitly remembers it).
+ *
+ * Idempotent: scrubbing an already-scrubbed clip is a no-op toast.
+ * After a successful scrub, we re-open the detail to repaint the
+ * meta rows in their cleared state — easier than reaching into the
+ * DOM ourselves and keeps openDetail() the single source of truth.
+ */
+async function scrubDetailOrigin(): Promise<void> {
+  if (!detailId) return;
+  const c = await getClip(detailId);
+  if (!c) return;
+  const hadAny =
+    !!c.source.url ||
+    !!c.source.title ||
+    !!c.source.nearbyText ||
+    !!c.source.favicon;
+  if (!hadAny) {
+    toast("Nothing to scrub");
+    return;
+  }
+  // Confirm with the concrete loss so users know what's about to go.
+  const bits: string[] = [];
+  if (c.source.url) bits.push("URL");
+  if (c.source.title) bits.push("title");
+  if (c.source.nearbyText) bits.push("context");
+  if (c.source.favicon) bits.push("favicon");
+  const msg =
+    `Scrub origin?\n\nThis permanently removes ${bits.join(" + ")} from this clip — ` +
+    `the content stays. Can't be undone (the original page is forgotten).`;
+  if (!confirm(msg)) return;
+  const ok = await scrubClipOrigin(c.id);
+  if (!ok) {
+    toast("Couldn't scrub clip", "error");
+    return;
+  }
+  toast(`Scrubbed origin · ${bits.join(", ")} cleared`);
+  // Re-open so the meta rows render in their cleared state.
+  await openDetail(c.id);
+  await render();
+}
+
+detailScrub.addEventListener("click", () => void scrubDetailOrigin());
 
 /**
  * Expand/collapse the nearby-context block in the detail meta row when

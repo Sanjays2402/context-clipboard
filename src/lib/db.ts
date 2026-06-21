@@ -334,6 +334,42 @@ export async function updateTags(id: string, tags: string[]): Promise<void> {
 }
 
 /**
+ * Scrub the source metadata off a clip while keeping the content,
+ * tags, pin, and OCR. Used by the detail-view "scrub origin" button
+ * and the Cmd+K palette command — handy when you want to keep a
+ * snippet but lose every trace of where it came from (privacy
+ * cleanup after copying from a sensitive page).
+ *
+ * Clears:
+ *   - source.url
+ *   - source.title
+ *   - source.nearbyText (the surrounding paragraph)
+ *   - source.favicon
+ *
+ * Keeps:
+ *   - content, preview, kind, mime, tags, pinned, hitCount, bytes,
+ *     hash, redacted bit, ocrText, template flag, expiresAt.
+ *
+ * Adds a `scrubbed` tag so users can `tag:scrubbed` to find what
+ * they cleaned (and so the action is visible in the row). Idempotent:
+ * scrubbing an already-scrubbed clip returns true without changes.
+ */
+export async function scrubClipOrigin(id: string): Promise<boolean> {
+  const item = await getClip(id);
+  if (!item) return false;
+  const hadAny =
+    !!item.source.url ||
+    !!item.source.title ||
+    !!item.source.nearbyText ||
+    !!item.source.favicon;
+  if (!hadAny && item.tags.includes("scrubbed")) return true;
+  item.source = {};
+  if (!item.tags.includes("scrubbed")) item.tags = [...item.tags, "scrubbed"];
+  await putClip(item);
+  return true;
+}
+
+/**
  * Mask PII/secrets in this clip's stored content.
  * If the clip has remembered original content (manual redaction), we keep
  * it stashed so unredactClip() can restore. Image clips are no-ops.
