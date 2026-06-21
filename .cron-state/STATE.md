@@ -70,16 +70,16 @@ Status: ` ` open / `~` in-progress / `x` shipped
 ### New (added this tick — refill toward 15-25)
 - [ ] Saved searches auto-import (a saved search becomes a smart folder pill at the top of the list when active)
 - [ ] Recent-host quick filter strip (top 5 hosts as toggle pills) — partially covered by quick chips
-- [ ] Quick-filter chips: "Archived (N)" tier should hide when is:archived is already active
-- [ ] Empty-state for archive view: distinct copy + "Show daily list" shortcut chip
-- [ ] Audit log group-by-day rollup (collapse same-day entries into a single row)
+- [x] Quick-filter chips: "Archived (N)" tier should hide when is:archived is already active — `b73a934`
+- [x] Empty-state for archive view: distinct copy + "Show daily list" shortcut chip — `b73a934`
+- [x] Audit log group-by-day rollup (collapse same-day entries into a single row) — `fabfb98`
 - [x] Audit log: per-entry "show me the clip" jump (clipId already in the row, just wire detail open) — `7d3cf61`
 - [x] Send-to: add "Open in private/incognito window" row (chrome.windows.create with incognito flag) — `fa72405`
 - [x] Send-to: add "Copy as JSON" row (single-clip envelope, mirror exportAll shape) — `9c8aea5`
-- [ ] Bulk archive: confirm dialog should preview the first 3 clips so the user knows what's about to vanish
-- [ ] Note composer: remember "Pin" checkbox state across opens (per-session, no IDB)
+- [x] Bulk archive: confirm dialog should preview the first 3 clips so the user knows what's about to vanish — `c4da145`
+- [x] Note composer: remember "Pin" checkbox state across opens (per-session, no IDB) — `edeed31`
 - [ ] Note composer: focus survives quick-tag chip click (already works, but verify on Firefox)
-- [ ] Detail "Send to…": remember last-picked action so re-open puts it first
+- [x] Detail "Send to…": remember last-picked action so re-open puts it first — `09b0a07`
 - [x] Export bundle: include search history alongside audit log — `e7017f3`
 - [x] Per-host capture rule edit panel: show "X clips captured under this rule" stat — `9ce47b9`
 - [ ] In-page palette: hostBoost should also apply to keywords (title + nearbyText matches from same host get the bump)
@@ -91,7 +91,7 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Search history: "pin a recent query" — promote to saved search in one click
 - [ ] Audit row: long-press / right-click for "Forget this action" (drop just this entry from the ring)
 - [x] Detail Send-to: "Copy as plain text (strip tokens)" — explicit non-templated copy for template clips — `31bef7a`
-- [ ] Site-rule row: show "last matched X ago" alongside the clip count
+- [x] Site-rule row: show "last matched X ago" alongside the clip count — `081603f`
 - [x] Settings: Privacy audit retention slider (10 / 30 / 60 / 100 entries) — currently hard-coded at 30 — `66aabec`
 - [ ] Per-host capture rule: regex pattern test panel should also show what `applyCustomPatterns` would do to a real captured clip from that host (not just a textarea)
 - [ ] Import: surface `historyMerged` in a per-section breakdown card (audit, history, clips) instead of just the toast
@@ -103,9 +103,22 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Bulk-bar: live storage delta — "Free 4.2 MB" when delete is the bulk action
 - [ ] List drag-to-reorder for pinned clips (manual order within the pinned tier)
 - [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier (Tab → Enter sequence)
-- [ ] Detail: copy URL only (strip body, just `c.source.url`) — common workflow for sharing the page, not the snippet
+- [x] Detail: copy URL only (strip body, just `c.source.url`) — common workflow for sharing the page, not the snippet — `40a581c`
 - [ ] Settings: per-kind retention (text vs image, separate maxUnpinned)
 - [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview)
+
+### New (added this tick — 2026-06-21 15:48 PT refill)
+- [ ] Audit row long-press: drop just this entry from the ring (single-entry forget)
+- [ ] Settings: per-kind retention (text vs image, separate maxUnpinned)
+- [ ] Bulk-bar storage delta: "Free 4.2 MB" hint when delete is the bulk action (popup-only, uses bytes per selected clip)
+- [ ] Cmd+K palette: "Jump to next archived clip" — cycles through is:archived results without leaving daily view
+- [ ] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs)
+- [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin)
+- [ ] In-page palette: copy-URL-only with `Alt+Enter` (mirrors detail send-to)
+- [ ] Detail-view: copy-as-table-row for clips where content looks tab/comma-separated
+- [ ] Saved search: rename inline by clicking the chip label (no `prompt()` dance)
+- [ ] Trash row: "Restore + pin" combo button — one click to bring back AND mark important
+- [ ] Per-site rule: import/export the rule set (JSON snippet, paste into another device)
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -178,12 +191,101 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Send-to: "Copy as plain text" — strip-tokens row for template clips — `31bef7a`
 - [x] Privacy audit retention slider (10/30/60/100) — was hard-coded 30 — `66aabec`
 - [x] Bulk-archive confirm previews first 3 clips + "+N more" tail — `c4da145`
+- [x] Audit log day-rollup — Today/Yesterday/older groups with fold — `fabfb98`
+- [x] Send-to: "Copy URL only" — bare http(s) URL, no body — `40a581c`
+- [x] Site-rule row: "last matched X ago" tail alongside clip count — `081603f`
+- [x] Note composer: per-session "Pin" checkbox memory — `edeed31`
+- [x] Archive view: distinct empty-state + chip-hide redundancy fix — `b73a934`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-21 15:48 PT** — 5/5 shipped. Audit day-rollup: new pure
+  `src/lib/audit-rollup.ts` with `groupAuditByDay(entries, now?)` +
+  `labelForDay(date, now)` + `totalAuditEntries(groups)`; buckets by
+  local-day key (NOT toISOString — UTC-based slicing would split
+  midnight-adjacent local entries across two groups in late tz
+  offsets), preserves newest-first within each day, sorts groups by
+  date desc so a shuffled import (non-monotonic audit timestamps) still
+  lands newest-day-first; labels read "Today" / "Yesterday" / "Wed,
+  May 18" (or "Wed, May 18 2024" when the year differs — covers
+  archaeology + clock-skew), Intl.DateTimeFormat with toDateString
+  fallback for exotic envs; defaultOpen hint = Today+Yesterday so
+  recent activity stays one click away while older days fold; popup
+  `renderAudit` splits into thin filter pass + new
+  `renderAuditGroupsHtml` emitting `<div.audit-day>` containers with
+  `<button.audit-day-head>` headers carrying chevron + label + count;
+  per-day collapse in module-scope `Map<key, bool>` override (NOT IDB —
+  collapse is a glance, resets on popup close, matches auditFilter
+  chip behaviour); auditList click handler grows leading
+  `button.audit-day-head` branch that reads wasOpen from DOM + flips
+  the override; CSS uppercase tracked headers, accent-tinted chevron
+  when open, hover/focus-visible feedback, indented rows under each
+  header; 36/36 audit-rollup sanity covers empty/today-only/mixed
+  buckets/sort-desc-on-shuffled/midnight-local-day-boundary/year-
+  rollover-label/totalAuditEntries-math/single-entry/labelForDay
+  direct probes (fabfb98). Send-to "Copy URL only": new pure
+  `urlOnlyForClip(c)` in lib/send-to — link clips return c.content
+  (the body IS the URL), text/image clips return c.source.url, both
+  validate http(s); undefined for scrubbed/empty-link/non-http(s)
+  schemes (data:/file:/chrome:/mailto:)/whitespace-only; new
+  `SendAction id="url-only"` between md-link and fenced-code so the
+  copy-variants cluster reads md-link / url-only / fenced-code /
+  raw-text / json; distinct from md-link (which gives
+  `[title](url)`) and from open-source (which navigates) — this is
+  the bare URL for paste into chat / search box; send-to sanity grew
+  to 111/111 with 17 new url-only cases (40a581c). Site-rule
+  "last matched X ago": new `usagesForRules(rules, clips)` in
+  lib/db returns `Map<id, {count, lastMatchedAt}>` in one scan
+  (max of c.lastSeenAt across attributable clips, same first-match-
+  wins semantics as countClipsForRules); kept countClipsForRules
+  untouched for backwards-compat — usagesForRules is opt-in;
+  popup renderSiteRules switches to usagesForRules, each badge
+  grows a softer "last 3d ago" tail right after "12 clips" with
+  hover title popping the full timestamp; "unused" muted variant
+  unchanged for zero-match rules; drops the now-unused
+  countClipsForRules import; CSS .rule-usage-ago — 60% opacity italic;
+  rule-count sanity grew to 28/28 with 15 new usagesForRules cases —
+  multi-clip max-math/empty-rules/empty-clips/absent-when-zero/no-
+  host-skip/first-match-wins parity/max-not-last-iterated (081603f).
+  Note composer per-session pin memory: new module-scope
+  `notePinSticky` bool; openNoteComposer reads it into the checkbox
+  on every open (replaces hard-coded false); saveNoteFromComposer
+  stamps on save (happy path); pin-checkbox `change` listener stamps
+  on every explicit toggle so a check-then-cancel cycle still sticks
+  (intent matters even when draft was abandoned); per spec — NO IDB
+  write, popup-close is the reset boundary (matches the audit
+  day-collapse model from this same tick) (edeed31). Archive view
+  empty-state + redundant chip fix: renderQuickChips wraps the
+  Archived push in a `hasOp("is:archived")` guard so the chip stays
+  out of the strip while the user is already in archive view (where
+  it would just toggle them back out, same visual weight as the
+  other filter chips — confusing); render() branches on
+  parsed.archivedOnly when currentClips is empty — distinct copy
+  ("No archived clips yet." vs "...match this filter.") + new
+  `<button.empty-action>` "Show daily list" pill that strips
+  is:archived from the search box via whitespace-bound regex (mirrors
+  toggleSearchOp's pass so adjacent ops survive); listEl click
+  handler grows leading branch for the exit-archive button; CSS
+  .empty.archive-empty (softer text-secondary tone) + .empty-action
+  (pill-shaped, accent-tinted hover, focus-visible ring); no
+  separate sanity test — render-path branching + chip-visibility
+  guard covered by tsc + existing archive sanity (b73a934). tsc +
+  chrome/firefox builds green (popup 188.7KB +4.9 vs last tick,
+  background 44.5KB, content 23.8KB); ALL 21 sanity suites pass —
+  514 total checks (11 archive + 20 audit-export + 30 audit-filter
+  + 21 audit-retention + 36 audit-rollup + 30 bulk-preview + 32
+  context-tags + 11 export + 15 find-dupes + 9 highlight + 27
+  history-export + 14 import-dedup + 14 jump + 25 merge-dupes + 11
+  palette + 23 pattern-hits + 15 privacy-audit + 28 rule-count + 18
+  send-to-reorder + 111 send-to + 13 sort); 16 script tests pass too
+  (templates + export + lang-detect + retro-redact + site-rule-scrub
+  + palette-host-boost + palette-last-query + redact + crypto +
+  popup-encrypt). Pre-existing playwright redact-ui DB-version
+  mismatch unrelated.
 
 - **2026-06-21 12:13 PT** — 5/5 shipped. Send-to keyboard nav:
   auto-focus first row on menu open so muscle-memory ↓/Enter
