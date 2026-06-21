@@ -86,16 +86,26 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Detail-view: add a thin "Copies in the last 30 days" sparkline (already on roadmap but worth flagging)
 
 ### New (added this tick — refill, 5+ open items)
-- [ ] Send-to: keyboard navigation inside the menu (↑↓ to step, Enter to fire, Tab focuses first row)
+- [x] Send-to: keyboard navigation inside the menu (↑↓ to step, Enter to fire, Tab focuses first row) — `9f74676`
 - [ ] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs)
 - [ ] Search history: "pin a recent query" — promote to saved search in one click
 - [ ] Audit row: long-press / right-click for "Forget this action" (drop just this entry from the ring)
-- [ ] Detail Send-to: "Copy as plain text (strip tokens)" — explicit non-templated copy for template clips
+- [x] Detail Send-to: "Copy as plain text (strip tokens)" — explicit non-templated copy for template clips — `31bef7a`
 - [ ] Site-rule row: show "last matched X ago" alongside the clip count
-- [ ] Settings: Privacy audit retention slider (10 / 30 / 60 / 100 entries) — currently hard-coded at 30
+- [x] Settings: Privacy audit retention slider (10 / 30 / 60 / 100 entries) — currently hard-coded at 30 — `66aabec`
 - [ ] Per-host capture rule: regex pattern test panel should also show what `applyCustomPatterns` would do to a real captured clip from that host (not just a textarea)
 - [ ] Import: surface `historyMerged` in a per-section breakdown card (audit, history, clips) instead of just the toast
 - [ ] Audit log: filter by clipId so clicking a clip's row in audit pre-filters to its action history
+
+### New (added this tick — refill toward 15-25)
+- [ ] Detail Send-to: "Copy as table row" (Markdown table row) for tabular text clips
+- [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin)
+- [ ] Bulk-bar: live storage delta — "Free 4.2 MB" when delete is the bulk action
+- [ ] List drag-to-reorder for pinned clips (manual order within the pinned tier)
+- [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier (Tab → Enter sequence)
+- [ ] Detail: copy URL only (strip body, just `c.source.url`) — common workflow for sharing the page, not the snippet
+- [ ] Settings: per-kind retention (text vs image, separate maxUnpinned)
+- [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview)
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -163,12 +173,93 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Audit log row click → jump to live / trash / "gone" — `7d3cf61`
 - [x] Per-site rule clip-count badge (clickable → host: filter) — `9ce47b9`
 - [x] Export bundle includes search history (round-trips Recent chips) — `e7017f3`
+- [x] Send-to: keyboard navigation (↑↓/Home/End/Tab trap/type-ahead/Esc) — `9f74676`
+- [x] Send-to: remember last-picked action, float it to top with dot cue — `09b0a07`
+- [x] Send-to: "Copy as plain text" — strip-tokens row for template clips — `31bef7a`
+- [x] Privacy audit retention slider (10/30/60/100) — was hard-coded 30 — `66aabec`
+- [x] Bulk-archive confirm previews first 3 clips + "+N more" tail — `c4da145`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-21 12:13 PT** — 5/5 shipped. Send-to keyboard nav:
+  auto-focus first row on menu open so muscle-memory ↓/Enter
+  works without a Tab dance; ArrowDown/Up step with wrap-around,
+  Home/End jump to first/last, Tab/Shift+Tab cycle inside the
+  menu (focus trap — closing via outside-click already worked
+  but Tab used to strand the user on page chrome behind a still-
+  open dropdown), type-ahead single-letter focuses next row whose
+  label starts with that letter (case-insensitive, wraps, repeated
+  presses cycle through same-letter rows, skipped under modifier
+  so Cmd+F/Ctrl+R aren't intercepted), Esc restores focus to
+  trigger; Enter handled natively (it's a <button>); all keys
+  preventDefault+stopPropagation inside the menu so popup-level
+  j/k/?/Cmd+K don't fire while steering (9f74676). Send-to remember
+  last-picked action: new `get/setSendToLast` meta row in lib/db
+  (single key, 32-char id cap, fire-and-forget writes); new pure
+  `reorderSendActionsByLast(actions, lastId)` in lib/send-to.ts —
+  bumps matching row to index 0, stable for everything else,
+  no-op for empty/unknown/unavailable ids (never bump a disabled
+  row); openSendMenu awaits getSendToLast and reorders before
+  availability filter; click handler stamps setSendToLast BEFORE
+  the action fires so a misbehaving incognito/nav path doesn't
+  drop the muscle-memory bit; visual cue — `.send-row-recent`
+  class + 6px accent dot before label + "Most-recent send-to
+  action" tooltip; 18/18 send-to-reorder sanity covers empty /
+  first-row / middle-bump / unknown id / array immutability /
+  unavailable-skip / double-bump idempotency / image clip matrix
+  (09b0a07). Send-to "Copy as plain text" (strip tokens): new pure
+  `rawTextForClip(c)` in lib/send-to.ts — returns body unchanged
+  for template clips only (kind text + non-empty + at least one
+  `{{token}}` placeholder via self-contained TEMPLATE_TOKEN_PROBE
+  regex matching `{{name}}` or `{{name|fallback}}` shape), hidden
+  on non-template/image/empty so it doesn't duplicate default Copy;
+  row sits between fenced-code and json so "copy variants" cluster
+  reads tight (md-link/fenced-code/raw-text/json); send-to sanity
+  grew to 94/94 with 7 new template-cases (31bef7a). Privacy audit
+  retention slider: additive `Settings.privacyAuditRetention:
+  10|30|60|100` (default 30, junk values snap to 30 on load); new
+  hard ceiling `PRIVACY_AUDIT_MAX = 100`; new `getPrivacyAuditCap()`
+  in lib/db reads settings + snaps to allowed quartet;
+  `appendPrivacyAuditEntry` + importAll's audit-merge both slice
+  to live cap; new exported `trimPrivacyAuditToCap()` shrinks
+  oversized log immediately when user lowers slider (without it
+  a 100→10 lower-and-stop wouldn't shrink until next append),
+  returns drop count for toast; new `<select id="audit-retention">`
+  in audit header (10/30/60/100); foot text "Last 30 privacy
+  actions" → "Last <N>" from live span; empty-state ("No redact
+  actions in the last 30") reads live cap too; live save on
+  change writes setting + trims + repaints + toasts ("Audit
+  retention set to 10 (trimmed 21)" when lower drops entries);
+  21/21 audit-retention sanity covers default/raise/lower/junk/
+  no-op/boundary/each-quartet end-to-end (66aabec). Bulk-archive
+  confirm previews first 3 clips: refactor into new pure
+  `src/lib/bulk-preview.ts` with `buildBulkPreviewMessage(verb,
+  totalCount, sample, opts?)` + `truncatePreview(c, max)` —
+  multi-line confirm reads "Archive 47 clips? / / First 3: /
+    • Hello world / • function foo() {/ • Image · 800×600 / +
+  44 more", singular when count=1, defensive on count=0; pulls
+  from targets list (only the clips that will flip), not the
+  broader filtered window; previewMax 60 + sampleSize 3 by
+  default, both opt-overridable; reused-ready for tag-all/pin-
+  all/forget-host bulk paths; 30/30 bulk-preview sanity covers
+  singular/plural heads + fallback chain + whitespace collapse +
+  ellipsis boundary + custom opts + multi-line flatten + empty-
+  body fallback + +N tail math (c4da145). tsc + chrome/firefox
+  builds green (popup 183.8KB +5.9 vs last tick, background
+  44.5KB, content 23.8KB); ALL 20 sanity suites pass — 456 total
+  checks (11 archive + 20 audit-export + 30 audit-filter + 21
+  audit-retention + 30 bulk-preview + 32 context-tags + 11 export
+  + 15 find-dupes + 9 highlight + 27 history-export + 14 import-
+  dedup + 14 jump + 25 merge-dupes + 11 palette + 23 pattern-hits +
+  15 privacy-audit + 13 rule-count + 18 send-to-reorder + 94
+  send-to + 13 sort); 16 script tests pass too (templates + export
+  + lang-detect + retro-redact + site-rule-scrub + palette-host-
+  boost + palette-last-query + redact + crypto + popup-encrypt).
+  Pre-existing playwright redact-ui DB-version mismatch unrelated.
 
 - **2026-06-21 08:57 PT** — 5/5 shipped. Send-to JSON envelope:
   new pure `jsonEnvelopeForClip` + `ClipForJson` shape on
