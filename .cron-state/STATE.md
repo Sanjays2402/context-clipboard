@@ -49,31 +49,26 @@ Status: ` ` open / `~` in-progress / `x` shipped
 ### Search & navigation
 - [ ] Recent-host quick filter strip (top 5 hosts as toggle pills)  <!-- partially covered by quick chips, still keep -->
 - [ ] Saved-search auto-import (a saved search becomes a smart folder pill at the top of the list when active)
-- [ ] Detail-view "similar clips" panel (same host OR shared tags, top 5)
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
 - [ ] Manual quick-tag dropdown when adding notes
 - [ ] Capture into a chosen collection at copy time (depends on collections)
-- [ ] Auto-detect language / lang-specific code-fence for code clips (md export, copy-as-md)
 - [ ] Link-preview enrichment: fetch og:title / og:image at capture time for kind=link
 
 ### Pasting & flow
 - [ ] Paste-stack mode: queue N clips, paste them in order across multiple inputs
 - [ ] In-page palette: recent-first ordering when no query (vs server order)
-- [ ] In-page palette: per-host suggestion ranking (boost clips captured on the same host as the active tab)
 - [ ] Detail-view "Send to..." sub-menu (compose new email / open in editor / share sheet)
 
 ### Privacy & security
 - [ ] Vault-lock: encrypt IndexedDB at rest with passphrase (session unlock)
-- [ ] Per-host scrub rule (auto-scrub origin on every capture from this host)
 - [ ] Audit log of redact / scrub / forget operations (last 30 actions)
 
 ### Data lifecycle
 - [ ] Image auto-recapture: rule-based scheduled re-fetch for tracked images
 - [ ] "Find duplicates" panel — list groups w/o auto-merging (review before action)
 - [ ] Clip archive mode: pinned-but-hidden state for very-cold pins
-- [ ] "Empty trash older than 24h" quick action (between empty-all and 7d retention)
 
 ### UI polish (real, not cosmetic)
 - [ ] Inline diff for re-captured clips (show what changed vs previous copy)
@@ -128,12 +123,67 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Retroactive PII auto-redact for existing clips — `1e13e0b`
 - [x] Clip-row right-click menu (pin/copy-md/forget-host/select shortcuts) — `b762904`
 - [x] In-page palette remembers last-typed query across opens — `15f227c`
+- [x] Detail-view "Similar clips" panel (host or shared-tag matches, top 5) — `d76041a`
+- [x] "Purge trash older than 24h" quick action (button + palette) — `9f80c02`
+- [x] Auto-detect language / lang-specific code-fence (copy-md + export) — `e549438`
+- [x] In-page palette: per-host suggestion ranking (boost same-host clips) — `dc6c5b4`
+- [x] Per-host scrub rule (auto-scrub origin on every capture from this host) — `f27c95b`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-20 23:32 PT** — 5/5 shipped. Detail-view "Similar
+  clips" sidekick: new `findSimilarClips(pivotId)` in lib/db
+  scores other clips by shared host (+4) and shared topic tags
+  (+3 per, capped at 9); noise tags (image/link/text/url/long/
+  redacted/scrubbed/quick-capture) filtered so kind:image pivots
+  don't pull every image; detail meta gets new "Similar" row +
+  CSS, each entry a button with kind glyph + preview + reason
+  pill (@host or #N shared); race guard drops stale paints when
+  user steps via prev/next; click jumps to that clip's detail
+  (d76041a). "Purge >24h" trash quick action: new button between
+  Empty + 7-day retention foot wired via new `purgeTrashOlderThan`
+  RPC over existing purgeOldTrash helper; label live-counts
+  qualifying rows ("Purge >24h (12)") and disables when nothing's
+  old enough; Cmd+K palette entry under Bulk; new neutral
+  `button.small` CSS so it pairs visually with Empty without the
+  danger tone (9f80c02). Lang-aware code fence: new
+  `detectCodeLang(content)` in lib/util covering 14 languages
+  (json/yaml/sql/diff/md/python/go/rust/bash/css/html/jsx/ts/js)
+  with ordering tuned so Go's `import "fmt"` doesn't read as
+  Python and Rust's typed-let doesn't read as TS; conservative
+  (returns undefined on prose); wired into copyAsMarkdown,
+  toMarkdown export, and content.ts in-page palette Shift+Enter
+  path (with a tiny mirror `detectLangLite` to keep the content
+  bundle from importing IDB code); 22/22 sanity tests pass
+  including 3 negatives (e549438). In-page palette per-host
+  ranking: background attaches active tab's `tabHost` to every
+  cc-open-palette message; openPalette sorts pinned-first then
+  host-match within each tier then stable recency; matching rows
+  get a "this site" badge (blue tint) + faint blue divider
+  between host-boost cluster and the rest in unpinned tier; 8/8
+  sanity tests cover empty/pinned-only/no-match passthrough plus
+  github.com/example.com/docs.github.com/www.example.com
+  orderings and pinned-tier boost (dc6c5b4). Per-host
+  auto-scrub-origin site rule: new optional
+  `autoScrubOrigin?: boolean` on SiteRule (additive, no IDB bump);
+  ingest wipes source={} + pushes `scrubbed` tag BEFORE putClip
+  when matched, AFTER auto-redact + custom patterns so the
+  typical (redact+scrub) rule produces a body-masked
+  origin-wiped clip; image previews that mentioned the dropped
+  page get a generic "Image · 800×600" rewrite; popup settings
+  gets new "scrub origin" checkbox in rule form with full edit/
+  reset wiring; rule list summary gets "scrub" pill; 16/16
+  sanity tests cover round-trip, wildcard, edit-mode preservation,
+  pure scrub transform (wipe/preserve/tag/idempotent), and image
+  preview rewrite (f27c95b). tsc + chrome/firefox builds green
+  (popup 138.7KB, background 39.5KB, content 23.8KB); 22+8+16+11+9+9+11
+  sanity tests pass across crypto/export/lang-detect/host-boost/
+  scrub-rule/templates/retro-redact/palette-last-q/export. Pre-
+  existing playwright redact-ui DB-version mismatch unrelated.
 
 - **2026-06-20 21:03 PT** — 5/5 shipped. Quick-capture from system
   clipboard: new clipboard icon between save-search + note opens
