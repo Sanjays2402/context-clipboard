@@ -2938,6 +2938,30 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      id: "archive-all-filtered",
+      label: `Archive all ${visible} filtered`,
+      hint: "Tuck the whole filtered view into the archive (cold storage)",
+      group: "Bulk",
+      keywords: "archive cold hide tuck batch bulk",
+      available: visible > 0 && currentClips.some((c) => !c.archived),
+      run: async () => {
+        closePalette();
+        await archiveAllFiltered(true);
+      },
+    },
+    {
+      id: "unarchive-all-filtered",
+      label: `Unarchive all ${visible} filtered`,
+      hint: "Resurface every archived clip in the current view",
+      group: "Bulk",
+      keywords: "unarchive inbox resurface batch bulk",
+      available: visible > 0 && currentClips.some((c) => !!c.archived),
+      run: async () => {
+        closePalette();
+        await archiveAllFiltered(false);
+      },
+    },
+    {
       id: "clear-unpinned",
       label: "Clear all unpinned clips",
       hint: "Keeps pins, drops the rest",
@@ -3167,6 +3191,59 @@ async function pinAllFiltered(pin: boolean): Promise<void> {
   }
   for (const c of targets) await togglePin(c.id);
   toast(`${pin ? "Pinned" : "Unpinned"} ${targets.length}`);
+  await render();
+}
+
+/**
+ * Bulk archive / unarchive every clip in the current filtered view.
+ * Mirrors `pinAllFiltered` shape: skips no-ops, confirms above 25 to
+ * stop fat-fingered mass actions, fires per-clip privacy-audit
+ * entries so the action shows up in the Settings audit log.
+ *
+ * Archive semantics: archiving leaves `lastSeenAt` alone (so the
+ * archive view stays ordered by recency); unarchiving bumps it so
+ * the clip resurfaces near the top of the daily list. Both come for
+ * free from `toggleArchive()` — we just flip the bit toward the
+ * target state for any clip that doesn't already match.
+ *
+ * Useful workflow: `is:archived host:docs.github.com` → palette →
+ * "Unarchive all 12 filtered" to bring a batch back to the daily
+ * list without opening each one.
+ */
+async function archiveAllFiltered(archive: boolean): Promise<void> {
+  if (currentClips.length === 0) return;
+  const verb = archive ? "Archive" : "Unarchive";
+  const targets = currentClips.filter((c) => !!c.archived !== archive);
+  if (targets.length === 0) {
+    toast(`Already ${archive ? "archived" : "unarchived"}`);
+    return;
+  }
+  if (
+    targets.length > 25 &&
+    !confirm(
+      `${verb} ${targets.length} clip${targets.length === 1 ? "" : "s"}?`,
+    )
+  ) {
+    return;
+  }
+  let flipped = 0;
+  for (const c of targets) {
+    const next = await toggleArchive(c.id);
+    if (next == null) continue;
+    if (next === archive) {
+      flipped++;
+      void appendPrivacyAuditEntry({
+        kind: archive ? "archive" : "unarchive",
+        clipId: c.id,
+        host: hostFrom(c.source.url),
+      });
+    }
+  }
+  if (flipped === 0) {
+    toast(`Already ${archive ? "archived" : "unarchived"}`);
+    return;
+  }
+  toast(`${archive ? "Archived" : "Unarchived"} ${flipped}`);
   await render();
 }
 
