@@ -123,6 +123,68 @@ try {
   ]);
   check('wildcard catches apex', counts.get('r5'), 1);
 
+  // 11) usagesForRules: mirrors countClipsForRules math + tracks
+  //     lastMatchedAt across attributable clips.
+  const seenClip = (id, url, lastSeenAt) => ({
+    id, kind: 'text', content: 'x',
+    source: url ? { url } : {},
+    pinned: false, tags: [], createdAt: 0, lastSeenAt,
+    hitCount: 1, bytes: 1, hash: id,
+  });
+  const rA = { id: 'rA', hostPattern: 'github.com', createdAt: 0 };
+  const rB = { id: 'rB', hostPattern: '*.example.com', createdAt: 0 };
+  let usages = mod.usagesForRules([rA, rB], [
+    seenClip('a', 'https://github.com/a', 100),
+    seenClip('b', 'https://github.com/b', 500), // newer
+    seenClip('c', 'https://github.com/c', 200), // older than b
+    seenClip('d', 'https://docs.example.com/x', 700),
+    seenClip('e', 'https://api.example.com/y', 300),
+    seenClip('f', 'https://other.com/z', 999), // matches no rule
+  ]);
+  check('usages: rA count', usages.get('rA').count, 3);
+  check('usages: rA lastMatchedAt (max across rA clips)', usages.get('rA').lastMatchedAt, 500);
+  check('usages: rB count', usages.get('rB').count, 2);
+  check('usages: rB lastMatchedAt (max across rB clips)', usages.get('rB').lastMatchedAt, 700);
+
+  // 12) usagesForRules: empty input -> empty map
+  check('usages: empty rules -> size 0', mod.usagesForRules([], [seenClip('a', 'https://x.com/', 1)]).size, 0);
+  check('usages: empty clips -> size 0', mod.usagesForRules([rA], []).size, 0);
+
+  // 13) usagesForRules: unused rule absent from map (consistent with counts)
+  usages = mod.usagesForRules([rA, rB], [seenClip('a', 'https://github.com/', 1)]);
+  check('usages: matched rule present', usages.has('rA'), true);
+  check('usages: unmatched rule absent', usages.has('rB'), false);
+
+  // 14) usagesForRules: clips with no host skipped (consistent with counts)
+  usages = mod.usagesForRules([rA], [
+    seenClip('note', undefined, 100),
+    seenClip('a', 'https://github.com/', 500),
+  ]);
+  check('usages: no-host skipped, count is 1', usages.get('rA').count, 1);
+  check('usages: lastMatchedAt is the surviving clip', usages.get('rA').lastMatchedAt, 500);
+
+  // 15) usagesForRules: first-match-wins matches countClipsForRules (a clip
+  //     on docs.github.com counts ONLY for whichever rule wins first)
+  const rSpec = { id: 'rSpec', hostPattern: 'docs.github.com', createdAt: 0 };
+  const rWild = { id: 'rWild', hostPattern: '*.github.com', createdAt: 0 };
+  usages = mod.usagesForRules([rSpec, rWild], [
+    seenClip('a', 'https://docs.github.com/x', 100),
+    seenClip('b', 'https://api.github.com/y', 200),
+  ]);
+  check('usages: first-match rSpec count', usages.get('rSpec').count, 1);
+  check('usages: first-match rSpec lastMatchedAt', usages.get('rSpec').lastMatchedAt, 100);
+  check('usages: first-match rWild count', usages.get('rWild').count, 1);
+  check('usages: first-match rWild lastMatchedAt', usages.get('rWild').lastMatchedAt, 200);
+
+  // 16) usagesForRules: lastMatchedAt is the MAX, not the last-iterated value
+  //     (so input order shouldn't matter for the stamp).
+  usages = mod.usagesForRules([rA], [
+    seenClip('a', 'https://github.com/a', 999),
+    seenClip('b', 'https://github.com/b', 1),
+    seenClip('c', 'https://github.com/c', 500),
+  ]);
+  check('usages: lastMatchedAt picks max regardless of order', usages.get('rA').lastMatchedAt, 999);
+
   if (pass === total) {
     console.log(`PASS — ${pass}/${total} rule-count sanity checks`);
   } else {

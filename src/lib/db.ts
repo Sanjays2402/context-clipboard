@@ -1192,6 +1192,22 @@ export function matchesHostPattern(pattern: string, host: string): boolean {
 }
 
 /**
+ * Per-rule usage stat. `count` is the same first-match-wins count
+ * `countClipsForRules` returns; `lastMatchedAt` is the most recent
+ * `lastSeenAt` across the clips attributable to that rule (undefined
+ * when count===0).
+ *
+ * Lets the popup render a richer "active" / "stale" cue alongside the
+ * raw count - a rule that caught 12 clips three months ago is far less
+ * interesting than one that's still firing weekly.
+ */
+export interface RuleUsage {
+  count: number;
+  /** Most recent lastSeenAt across attributable clips. Undefined when count=0. */
+  lastMatchedAt?: number;
+}
+
+/**
  * Count, per site rule, how many clips in `clips` are attributable to
  * that rule under the first-match-wins semantics ingest uses. Mirrors
  * the background's `findSiteRuleFor` walk:
@@ -1235,6 +1251,52 @@ export function countClipsForRules(
     }
   }
   return counts;
+}
+
+/**
+ * Richer variant of `countClipsForRules` — returns both the count
+ * AND the most-recent `lastSeenAt` per rule, so the popup can show
+ * "12 clips · 3d ago" instead of just "12 clips". Same first-match-
+ * wins semantics; identical host-cache layout. Cheap to compute
+ * alongside the count (single scan, no extra IDB hit).
+ *
+ * Rules with zero clips are absent from the map (consistent with
+ * `countClipsForRules`). Callers that want a "show 0 for inactive
+ * rules" view fall back to `Map.get(id) ?? { count: 0 }`.
+ *
+ * Why a separate function instead of changing the existing one's
+ * return shape? Backwards-compatibility — `countClipsForRules` is
+ * exported and tested; bumping its shape would force a coordinated
+ * update across every caller. The new helper composes the same scan
+ * with one extra max-comparison, and we drop the old helper down to
+ * a `usagesForRules(...).get(id)?.count ?? 0` shim if the popup ever
+ * wants to deduplicate.
+ */
+export function usagesForRules(
+  rules: SiteRule[],
+  clips: ClipItem[],
+): Map<string, RuleUsage> {
+  const out = new Map<string, RuleUsage>();
+  if (rules.length === 0) return out;
+  for (const c of clips) {
+    const host = hostFrom(c.source.url);
+    if (!host) continue;
+    for (const r of rules) {
+      if (matchesHostPattern(r.hostPattern, host)) {
+        const prev = out.get(r.id);
+        if (prev) {
+          prev.count += 1;
+          if (c.lastSeenAt > (prev.lastMatchedAt ?? 0)) {
+            prev.lastMatchedAt = c.lastSeenAt;
+          }
+        } else {
+          out.set(r.id, { count: 1, lastMatchedAt: c.lastSeenAt });
+        }
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 /** Find the first matching site rule for `host`, or undefined. */

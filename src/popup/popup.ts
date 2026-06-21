@@ -30,7 +30,7 @@ import {
   listPrivacyAudit,
   clearPrivacyAudit,
   trimPrivacyAuditToCap,
-  countClipsForRules,
+  usagesForRules,
   getSendToLast,
   setSendToLast,
   type TrashedClip,
@@ -1883,15 +1883,22 @@ async function renderSiteRules(): Promise<void> {
   // actually catching captures (and which are dead weight). Single
   // listClips read + a first-match-wins scan mirrors ingest exactly.
   // Bounded: scan up to 5000 clips — beyond that the count would
-  // dominate render time and the badge stops being live anyway.
+  // dominate render time and the badge stops being live anyway. We
+  // pull richer usage stats (count + lastMatchedAt) so the badge can
+  // also surface "last X ago" — kept under the same scan for free.
   const clipsForCount = await listClips({ limit: 5000 });
-  const counts = countClipsForRules(rules, clipsForCount);
+  const usages = usagesForRules(rules, clipsForCount);
   siteRulesList.innerHTML = rules
     .map((r) => {
-      const n = counts.get(r.id) || 0;
+      const u = usages.get(r.id);
+      const n = u?.count ?? 0;
+      const ago = u?.lastMatchedAt ? ` · ${timeAgo(u.lastMatchedAt)}` : "";
+      const exact = u?.lastMatchedAt
+        ? ` (last match ${new Date(u.lastMatchedAt).toLocaleString()})`
+        : "";
       const usageBadge =
         n > 0
-          ? `<span class="rule-usage" title="${n} clip${n === 1 ? "" : "s"} captured under this rule — click to filter the list" data-act="filter" data-host="${escapeHtml(r.hostPattern)}">${n} clip${n === 1 ? "" : "s"}</span>`
+          ? `<span class="rule-usage" title="${n} clip${n === 1 ? "" : "s"} captured under this rule${exact} — click to filter the list" data-act="filter" data-host="${escapeHtml(r.hostPattern)}">${n} clip${n === 1 ? "" : "s"}<span class="rule-usage-ago">${escapeHtml(ago)}</span></span>`
           : `<span class="rule-usage muted" title="No clips have matched this rule yet">unused</span>`;
       return (
         `<div class="site-rule-row${editingRuleId === r.id ? " editing" : ""}" data-id="${escapeHtml(r.id)}" title="Click to edit">

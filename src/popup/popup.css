@@ -1287,6 +1287,20 @@ button.small:disabled {
   color: var(--muted);
   background: var(--glass);
 }
+/* "Last X ago" telemetry tail inside the usage badge — softer color
+ * so the primary clip count still reads first; falls back to nothing
+ * when no clip has ever matched (the badge becomes the muted "unused"
+ * variant instead). */
+.rule-usage-ago {
+  font-weight: 500;
+  font-style: italic;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+}
+.rule-usage:hover .rule-usage-ago {
+  opacity: 0.9;
+}
 
 .site-rule-del {
   appearance: none;
