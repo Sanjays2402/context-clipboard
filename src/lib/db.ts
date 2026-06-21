@@ -465,6 +465,76 @@ export async function clearAll(): Promise<void> {
   });
 }
 
+/**
+ * Merge clips that share a content hash but exist as separate rows
+ * (because they were captured outside the dedup window). The most-
+ * recently-seen row in each group becomes the survivor; we sum
+ * `hitCount`, union `tags`, OR-merge `pinned`, keep the earliest
+ * `createdAt`, latest `lastSeenAt`, and preserve any `template` or
+ * `ocrText` from the survivor (the freshest signal wins). Losers
+ * are soft-deleted via the trash path so the user has the standard
+ * 7-day grace window if the merge ever feels wrong.
+ *
+ * Returns counts so callers can surface a meaningful toast:
+ *   - groups: how many duplicate groups existed (>= 2 rows each)
+ *   - merged: how many losing rows were trashed
+ *   - hashesScanned: how many distinct hashes we saw across all clips
+ *
+ * Local-only; no network. Pinned losers are STILL merged (the survivor
+ * inherits their pinned bit) — pinning is an intent that should
+ * survive consolidation, but having two identical pinned clips isn't
+ * useful storage.
+ */
+export async function mergeDuplicatesByHash(): Promise<{
+  groups: number;
+  merged: number;
+  hashesScanned: number;
+}> {
+  const all = await listClips({ limit: 1_000_000 });
+  const byHash = new Map<string, ClipItem[]>();
+  for (const c of all) {
+    if (!c.hash) continue;
+    const arr = byHash.get(c.hash);
+    if (arr) arr.push(c);
+    else byHash.set(c.hash, [c]);
+  }
+  let groups = 0;
+  let merged = 0;
+  for (const [, members] of byHash) {
+    if (members.length < 2) continue;
+    groups++;
+    // Survivor = most-recently-seen. Sort desc by lastSeenAt; ties
+    // keep deterministic order via createdAt.
+    members.sort(
+      (a, b) =>
+        (b.lastSeenAt || 0) - (a.lastSeenAt || 0) ||
+        (b.createdAt || 0) - (a.createdAt || 0),
+    );
+    const survivor = members[0];
+    const losers = members.slice(1);
+    let earliestCreated = survivor.createdAt;
+    let totalHits = survivor.hitCount || 1;
+    let pinned = !!survivor.pinned;
+    const tagSet = new Set(survivor.tags || []);
+    for (const l of losers) {
+      totalHits += l.hitCount || 1;
+      pinned = pinned || !!l.pinned;
+      if ((l.createdAt || 0) < earliestCreated) earliestCreated = l.createdAt;
+      for (const t of l.tags || []) tagSet.add(t);
+    }
+    survivor.hitCount = totalHits;
+    survivor.pinned = pinned;
+    survivor.createdAt = earliestCreated;
+    survivor.tags = Array.from(tagSet);
+    await putClip(survivor);
+    for (const l of losers) {
+      const ok = await trashClip(l.id);
+      if (ok) merged++;
+    }
+  }
+  return { groups, merged, hashesScanned: byHash.size };
+}
+
 export async function pruneOldUnpinned(maxItems = 500): Promise<number> {
   const all = await listClips({ limit: 100_000 });
   const unpinned = all.filter((c) => !c.pinned);

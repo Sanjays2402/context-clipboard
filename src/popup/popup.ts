@@ -19,6 +19,7 @@ import {
   clearSearchHistory,
   getListSort,
   setListSort,
+  mergeDuplicatesByHash,
   type TrashedClip,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
@@ -2141,6 +2142,17 @@ function buildPaletteActions(): PaletteAction[] {
         clearBtn.click();
       },
     },
+    {
+      id: "merge-duplicates",
+      label: "Merge duplicate clips by content",
+      hint: "Combine same-content clips across windows · pinned bit OR'd",
+      group: "Bulk",
+      keywords: "dedup duplicates hash collapse merge",
+      run: async () => {
+        closePalette();
+        await runMergeDuplicates();
+      },
+    },
     // Export ---------------------------------------------------------
     {
       id: "export-now",
@@ -2376,6 +2388,58 @@ async function tagAllFiltered(): Promise<void> {
     return;
   }
   toast(`Tagged ${updated}`);
+  await render();
+}
+
+/**
+ * Smart dedup across windows: groups every clip by content hash and
+ * collapses duplicates that escaped the dedup-window check at capture
+ * time (e.g. you copied the same code snippet on Monday and Friday).
+ * Survivor keeps the freshest `lastSeenAt` + sums hitCount + unions
+ * tags + OR-merges pinned + keeps earliest createdAt. Losers go to
+ * the trash via the standard soft-delete path so the user has 7 days
+ * to undo.
+ *
+ * Confirms before running so a user can't fat-finger 50 duplicates
+ * into the trash unintentionally. Skips silently when there's
+ * nothing to merge.
+ */
+async function runMergeDuplicates(): Promise<void> {
+  // Quick read first to decide whether to confirm + what the
+  // potential impact looks like. Bounded at the same 1M as the merge
+  // call itself; both are streaming reads over IDB.
+  const all = await listClips({ limit: 1_000_000 });
+  const groups = new Map<string, number>();
+  for (const c of all) {
+    if (!c.hash) continue;
+    groups.set(c.hash, (groups.get(c.hash) || 0) + 1);
+  }
+  let dupGroups = 0;
+  let dupRows = 0;
+  for (const [, n] of groups) {
+    if (n > 1) {
+      dupGroups++;
+      dupRows += n - 1;
+    }
+  }
+  if (dupRows === 0) {
+    toast("No duplicates found");
+    return;
+  }
+  if (
+    !confirm(
+      `Merge ${dupRows} duplicate row${dupRows === 1 ? "" : "s"} across ${dupGroups} group${dupGroups === 1 ? "" : "s"}?\n` +
+        `Survivors keep your pins, tags, and hit counts. Losers go to Trash (restorable for 7 days).`,
+    )
+  ) {
+    return;
+  }
+  const res = await mergeDuplicatesByHash();
+  if (res.merged === 0) {
+    toast("No duplicates found");
+    return;
+  }
+  toast(`Merged ${res.merged} into ${res.groups} group${res.groups === 1 ? "" : "s"}`);
   await render();
 }
 
