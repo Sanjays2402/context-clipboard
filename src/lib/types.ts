@@ -185,6 +185,20 @@ export interface SiteRule {
   /** Don't capture anything from this site at all. */
   skipCapture?: boolean;
   /**
+   * Strip source URL/title/nearby-context/favicon on capture. Different
+   * from skipCapture in that the CONTENT is kept — useful for sites
+   * where the snippets matter but the page metadata is sensitive (a
+   * partner portal, a private repo, a draft URL with a secret token).
+   * Tags + auto-redact still apply BEFORE the scrub, so a
+   * `redacted,scrubbed` clip is the typical outcome.
+   *
+   * Applied after dedup/tags/redact so the existing capture pipeline
+   * stays untouched on hosts without this flag. The resulting clip
+   * carries the `scrubbed` tag the same way the per-clip scrub
+   * affordance does.
+   */
+  autoScrubOrigin?: boolean;
+  /**
    * Extra redaction regexes to apply to text captures from this site,
    * on top of the built-in PII patterns. Each entry is a JS regex source
    * (no slashes/flags); the runtime compiles each with `gi` and replaces

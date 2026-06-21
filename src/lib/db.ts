@@ -868,6 +868,7 @@ export async function upsertSiteRule(
     autoPin: !!rule.autoPin,
     autoRedact: !!rule.autoRedact,
     skipCapture: !!rule.skipCapture,
+    autoScrubOrigin: !!rule.autoScrubOrigin,
     customPatterns: cleanPatterns.length ? cleanPatterns : undefined,
     createdAt: idx >= 0 ? list[idx].createdAt : Date.now(),
   };

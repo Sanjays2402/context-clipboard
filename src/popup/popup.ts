@@ -144,6 +144,7 @@ const ruleTagsInput = $<HTMLInputElement>("rule-tags");
 const rulePatternsInput = $<HTMLTextAreaElement>("rule-patterns");
 const rulePinInput = $<HTMLInputElement>("rule-pin");
 const ruleRedactInput = $<HTMLInputElement>("rule-redact");
+const ruleScrubInput = $<HTMLInputElement>("rule-scrub");
 const ruleSkipInput = $<HTMLInputElement>("rule-skip");
 const ruleAddBtn = $<HTMLButtonElement>("rule-add");
 const ruleCancelBtn = $<HTMLButtonElement>("rule-cancel");
@@ -1423,6 +1424,7 @@ function ruleBadges(r: SiteRule): string {
   if (r.skipCapture) bits.push(`<span class="rule-badge danger-tone">skip</span>`);
   if (r.autoPin) bits.push(`<span class="rule-badge">pin</span>`);
   if (r.autoRedact) bits.push(`<span class="rule-badge">redact</span>`);
+  if (r.autoScrubOrigin) bits.push(`<span class="rule-badge">scrub</span>`);
   const npatterns = r.customPatterns?.length || 0;
   if (npatterns > 0) {
     bits.push(
@@ -1470,6 +1472,7 @@ function loadRuleIntoForm(rule: SiteRule): void {
   rulePatternsInput.value = (rule.customPatterns || []).join("\n");
   rulePinInput.checked = !!rule.autoPin;
   ruleRedactInput.checked = !!rule.autoRedact;
+  ruleScrubInput.checked = !!rule.autoScrubOrigin;
   ruleSkipInput.checked = !!rule.skipCapture;
   ruleAddBtn.textContent = "Update rule";
   ruleCancelBtn.hidden = false;
@@ -1490,6 +1493,7 @@ function resetRuleForm(): void {
   rulePatternsInput.value = "";
   rulePinInput.checked = false;
   ruleRedactInput.checked = false;
+  ruleScrubInput.checked = false;
   ruleSkipInput.checked = false;
   ruleAddBtn.textContent = "Add rule";
   ruleCancelBtn.hidden = true;
@@ -1517,6 +1521,7 @@ async function addSiteRuleFromForm(): Promise<void> {
   const skip = ruleSkipInput.checked;
   const pin = rulePinInput.checked;
   const redact = ruleRedactInput.checked;
+  const scrub = ruleScrubInput.checked;
   // Custom redaction patterns: one per line. We validate per-line so we
   // can tell the user *which* line is wrong instead of silently dropping it.
   const rawPatterns = rulePatternsInput.value
@@ -1538,7 +1543,7 @@ async function addSiteRuleFromForm(): Promise<void> {
     return;
   }
   // A rule with zero behavior is just visual noise.
-  if (!skip && !pin && !redact && tags.length === 0 && patterns.length === 0) {
+  if (!skip && !pin && !redact && !scrub && tags.length === 0 && patterns.length === 0) {
     toast("Pick at least one effect", "error");
     return;
   }
@@ -1549,6 +1554,7 @@ async function addSiteRuleFromForm(): Promise<void> {
     autoPin: pin,
     autoRedact: redact,
     skipCapture: skip,
+    autoScrubOrigin: scrub,
     customPatterns: patterns.length ? patterns : undefined,
   });
   if (!resp.ok) {

@@ -534,6 +534,7 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
             autoPin: p.autoPin,
             autoRedact: p.autoRedact,
             skipCapture: p.skipCapture,
+            autoScrubOrigin: p.autoScrubOrigin,
             customPatterns: p.customPatterns,
           });
           return sendResponse({ ok: true, rule: saved });
@@ -680,6 +681,25 @@ async function ingest(inp: IngestInput, rule?: SiteRule): Promise<string> {
     hash,
     ...(redacted ? { redacted: true } : {}),
   };
+  // Per-host auto-scrub: drop URL / title / nearby-context / favicon
+  // BEFORE the clip lands on disk so the page identity never makes
+  // it into IndexedDB. Different from skipCapture (which discards
+  // the whole clip) — here we keep the content + tags + auto-redact
+  // outcome and only wipe the where-it-came-from. Tags get `scrubbed`
+  // so the user can `tag:scrubbed` later, matching the per-clip
+  // affordance's contract.
+  if (rule?.autoScrubOrigin) {
+    item.source = {};
+    if (!item.tags.includes("scrubbed")) item.tags.push("scrubbed");
+    // Preview was built from the (now-discarded) page title for image
+    // clips — rewrite it so the user doesn't see "Image copied from
+    // <page>" with the page reference gone. Text/link previews come
+    // from the body itself, so they're already safe.
+    if (inp.kind === "image" && item.preview && /copied from/i.test(item.preview)) {
+      const dims = /\b\d+×\d+\b/.exec(item.preview)?.[0];
+      item.preview = dims ? `Image · ${dims}` : "Image";
+    }
+  }
   // Template detection (text only): when the captured body contains
   // {{tokens}}, flag the clip so the popup expands at copy time. Image
   // and link clips don't carry templates.
