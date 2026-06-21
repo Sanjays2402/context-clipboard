@@ -4295,7 +4295,7 @@ async function openSendMenu(): Promise<void> {
   detailSendMenu.innerHTML = available
     .map((a) => {
       const hint = a.hint ? `<span class="send-row-hint">${escapeHtml(a.hint)}</span>` : "";
-      const verb = a.kind === "copy" ? "copy" : "open";
+      const verb = a.kind === "copy" ? "copy" : a.kind === "incognito" ? "incognito" : "open";
       return (
         `<button type="button" class="send-row" role="menuitem" data-id="${escapeHtml(a.id)}" data-verb="${verb}">` +
         `<span class="send-row-label">${escapeHtml(a.label)}</span>${hint}` +
@@ -4335,6 +4335,43 @@ detailSendMenu.addEventListener("click", async (e) => {
   closeSendMenu();
   if (!action || !action.payload || !action.available) {
     toast("Action unavailable", "error");
+    return;
+  }
+  if (action.kind === "incognito") {
+    // chrome.windows.create with incognito:true. Two failure modes
+    // worth handling out loud:
+    //  1) The extension isn't enabled for incognito — windows.create
+    //     throws and the user has no idea why nothing happened.
+    //  2) The browser doesn't support a separate private window from
+    //     an extension call (Firefox-on-Android, certain enterprise
+    //     policies) — same throw.
+    // Fall back to a normal new tab + toast so the user knows
+    // private mode wasn't honored and can decide what to do.
+    try {
+      if (api.windows?.create) {
+        await api.windows.create({ url: action.payload, incognito: true });
+        return;
+      }
+      // No windows API at all (very rare) — fall through to nav path.
+    } catch (err) {
+      console.error(err);
+      try {
+        if (api.tabs?.create) await api.tabs.create({ url: action.payload });
+        else window.open(action.payload, "_blank");
+        toast("Opened in a normal tab — private mode unavailable", "error");
+      } catch {
+        toast("Couldn't open URL", "error");
+      }
+      return;
+    }
+    // Reached here when api.windows.create was absent. Try tabs.
+    try {
+      if (api.tabs?.create) await api.tabs.create({ url: action.payload });
+      else window.open(action.payload, "_blank");
+      toast("Opened in a normal tab — private mode unavailable", "error");
+    } catch {
+      toast("Couldn't open URL", "error");
+    }
     return;
   }
   if (action.kind === "nav") {

@@ -151,7 +151,7 @@ try {
 
   // buildSendActions matrix
   const textActs = mod.buildSendActions(textClip);
-  total++; if (textActs.length === 7) pass++;
+  total++; if (textActs.length === 8) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
@@ -202,6 +202,43 @@ try {
   // here too because the data URL lives inside content. Empty clips
   // (no body) drop the row entirely so users never copy an envelope
   // with no payload.
+
+  // --- incognito open row ---
+  //
+  // Mirrors urlForOpenSource availability (no http(s) -> no incognito).
+  // Routed by the popup through chrome.windows.create({incognito:true})
+  // with a tabs.create fallback when private mode is disabled.
+
+  check('incognito: text+url -> URL', mod.urlForIncognitoOpen(textClip), 'https://github.com/foo/bar');
+  check('incognito: scrubbed -> undefined', mod.urlForIncognitoOpen(scrubbedClip), undefined);
+  check('incognito: chrome:// -> undefined',
+    mod.urlForIncognitoOpen({ ...textClip, source: { url: 'chrome://newtab' } }), undefined);
+  check('incognito: data: -> undefined',
+    mod.urlForIncognitoOpen({ ...textClip, source: { url: 'data:text/plain;base64,foo' } }), undefined);
+  check('incognito: image+url -> URL', mod.urlForIncognitoOpen(imageClip), 'https://imgur.com/foo');
+  check('incognito: note (no url) -> undefined', mod.urlForIncognitoOpen(noteClip), undefined);
+
+  const incogText = textActs.find((a) => a.id === 'open-incognito');
+  checkTruthy('actions: incognito row exists', incogText);
+  check('actions: incognito kind is "incognito"', incogText.kind, 'incognito');
+  check('actions: incognito available for text+url', incogText.available, true);
+  check('actions: incognito payload matches open-source',
+    incogText.payload, textActs.find((a) => a.id === 'open-source').payload);
+
+  const incogScrub = scrubbedActs.find((a) => a.id === 'open-incognito');
+  check('actions: incognito unavailable for scrubbed', incogScrub.available, false);
+
+  const incogImg = imageActs.find((a) => a.id === 'open-incognito');
+  check('actions: incognito available for image (has url)', incogImg.available, true);
+
+  const incogNote = noteActs.find((a) => a.id === 'open-incognito');
+  check('actions: incognito unavailable for note (no url)', incogNote.available, false);
+
+  // Row order: incognito sits right after open-source for muscle memory
+  // (open vs open-private side by side).
+  check('actions: incognito follows open-source in row order',
+    textActs.findIndex((a) => a.id === 'open-incognito') - textActs.findIndex((a) => a.id === 'open-source'),
+    1);
 
   const json1 = mod.jsonEnvelopeForClip(textClip);
   checkTruthy('json: returns non-empty string for text', json1);

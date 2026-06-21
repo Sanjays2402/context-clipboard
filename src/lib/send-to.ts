@@ -236,13 +236,34 @@ export interface SendAction {
   id: string;
   label: string;
   hint?: string;
-  kind: "nav" | "copy";
+  /**
+   * - `nav`        → open URL in a new normal tab
+   * - `copy`       → write the payload string to the clipboard
+   * - `incognito`  → open URL in a new private/incognito window
+   */
+  kind: "nav" | "copy" | "incognito";
   payload?: string;
   available: boolean;
 }
 
+/**
+ * "Open in private / incognito window" — same URL math as urlForOpenSource,
+ * but the caller routes the URL through chrome.windows.create({ incognito: true })
+ * instead of chrome.tabs.create. We keep the math here so the unit tests
+ * cover the same availability rules (no http(s) → no incognito), and so
+ * the popup just looks at action.kind === "incognito" to pick the
+ * routing path.
+ *
+ * Returns undefined when there's no openable http(s) source (scrubbed,
+ * note, file:/data: URLs, etc.) — same shape as urlForOpenSource.
+ */
+export function urlForIncognitoOpen(c: SendableClip): string | undefined {
+  return urlForOpenSource(c);
+}
+
 export function buildSendActions(c: ClipForJson): SendAction[] {
   const open = urlForOpenSource(c);
+  const incognito = urlForIncognitoOpen(c);
   const google = urlForGoogleSearch(c);
   const site = urlForSiteSearch(c);
   const mail = mailtoForClip(c);
@@ -257,6 +278,14 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "nav",
       payload: open,
       available: !!open,
+    },
+    {
+      id: "open-incognito",
+      label: "Open in private window",
+      hint: "Incognito tab",
+      kind: "incognito",
+      payload: incognito,
+      available: !!incognito,
     },
     {
       id: "site-search",
