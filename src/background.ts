@@ -22,6 +22,8 @@ import {
   listSiteRules,
   upsertSiteRule,
   removeSiteRule,
+  getPaletteLastQuery,
+  setPaletteLastQuery,
 } from "./lib/db";
 import type { ClipItem, ClipSource, FieldMapEntry, SiteRule } from "./lib/types";
 import { uid, quickHash, hostFrom, autoTag, redactSensitivePreview, redactPii, applyCustomPatterns } from "./lib/util";
@@ -118,7 +120,8 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
         pinned: !!c.pinned,
         source: { url: c.source.url, title: c.source.title },
       }));
-      await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite });
+      const lastQuery = await getPaletteLastQuery();
+      await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite, lastQuery });
       return;
     }
     if (info.menuItemId === "cc-capture-image" && info.srcUrl) {
@@ -167,7 +170,8 @@ if (api.commands) {
             pinned: !!c.pinned,
             source: { url: c.source.url, title: c.source.title },
           }));
-          await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite });
+          const lastQuery = await getPaletteLastQuery();
+          await api.tabs.sendMessage(tab.id, { type: "cc-open-palette", clips: lite, lastQuery });
           return;
         }
       } catch (_e) {
@@ -535,6 +539,16 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           const ok = await removeSiteRule(p.id);
           return sendResponse({ ok });
         }
+        if (msg.action === "setPaletteQuery") {
+          // Persist the in-page palette's most recent query so the next
+          // Cmd+Shift+V chord pre-fills the input. Empty string clears
+          // the slot (intentional — user cleared their search before
+          // closing). No need to await the response; content fires
+          // and forgets.
+          const p = msg.payload as { query?: string } | undefined;
+          await setPaletteLastQuery(p?.query || "");
+          return sendResponse({ ok: true });
+        }
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
         return sendResponse({ ok: false, error: err });
@@ -752,7 +766,8 @@ interface RpcMsg {
     | "refetchImage"
     | "listSiteRules"
     | "upsertSiteRule"
-    | "removeSiteRule";
+    | "removeSiteRule"
+    | "setPaletteQuery";
   payload?: unknown;
 }
 

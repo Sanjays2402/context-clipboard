@@ -938,3 +938,37 @@ export async function setListSort(mode: SortMode): Promise<void> {
     req.onerror = () => reject(req.error);
   });
 }
+
+// In-page palette last query --------------------------------------------
+//
+// Persists the most recent search string the user typed into the in-
+// page palette (the Cmd+Shift+V overlay) so re-opening the chord pre-
+// fills the input. Stored in IDB meta — survives popup reloads, restarts,
+// and works in side-panel mode too. Capped at 200 chars + trimmed; empty
+// strings clear the slot so a "I searched, then cleared, then closed"
+// flow doesn't trap stale text.
+
+const PALETTE_LAST_QUERY_KEY = "palette_last_query";
+const PALETTE_LAST_QUERY_MAX = 200;
+
+export async function getPaletteLastQuery(): Promise<string> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(PALETTE_LAST_QUERY_KEY);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: string } | undefined;
+      resolve(typeof row?.value === "string" ? row.value.slice(0, PALETTE_LAST_QUERY_MAX) : "");
+    };
+    req.onerror = () => resolve("");
+  });
+}
+
+export async function setPaletteLastQuery(query: string): Promise<void> {
+  const next = (query || "").trim().slice(0, PALETTE_LAST_QUERY_MAX);
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: PALETTE_LAST_QUERY_KEY, value: next });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}

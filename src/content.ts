@@ -119,7 +119,8 @@ api.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
     msg !== null &&
     (msg as { type?: string }).type === "cc-open-palette"
   ) {
-    openPalette((msg as { clips: PaletteClip[] }).clips || []);
+    const m = msg as { clips?: PaletteClip[]; lastQuery?: string };
+    openPalette(m.clips || [], m.lastQuery || "");
     sendResponse({ ok: true });
   }
   return false;
@@ -440,7 +441,7 @@ function escapeHtml(s: string): string {
   );
 }
 
-function openPalette(clips: PaletteClip[]) {
+function openPalette(clips: PaletteClip[], initialQuery = "") {
   closePalette();
   const root = document.createElement("div");
   root.id = "__context_clipboard_palette__";
@@ -714,10 +715,41 @@ function openPalette(clips: PaletteClip[]) {
 
   renderChips();
   setTimeout(() => input.focus(), 0);
+  // Pre-fill the input from the persisted last query so re-opening
+  // the chord lands the cursor next to whatever the user was looking
+  // for last time. After paint so we can `.select()` the text in one
+  // go — the next keystroke replaces it, but Arrow keys / Backspace
+  // resume editing. Empty string = no last query, leave the field
+  // blank.
+  if (initialQuery) {
+    input.value = initialQuery;
+    input.select();
+  }
   filter();
 }
 
 function closePalette() {
+  // Persist the current input value so the next open pre-fills it.
+  // Fire-and-forget — we don't await the round-trip; the user is
+  // already moving on. Wrapped in try/catch because the runtime can
+  // be torn down (e.g. extension reload) mid-close, and we don't
+  // want that to throw into the page console.
+  if (paletteRoot) {
+    const input = paletteRoot.shadowRoot?.querySelector(
+      "input",
+    ) as HTMLInputElement | null;
+    const query = (input?.value || "").trim();
+    try {
+      api.runtime.sendMessage(
+        { type: "cc-rpc", action: "setPaletteQuery", payload: { query } },
+        () => {
+          /* ignore */
+        },
+      );
+    } catch {
+      // runtime gone — nothing to persist
+    }
+  }
   paletteRoot?.remove();
   paletteRoot = null;
 }
