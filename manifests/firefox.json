@@ -3,7 +3,7 @@
   "name": "Context Clipboard",
   "version": "0.6.2",
   "description": "Smart clipboard with image capture, in-page palette, source context, and tag search.",
-  "permissions": ["contextMenus", "storage", "clipboardWrite", "tabs"],
+  "permissions": ["contextMenus", "storage", "clipboardWrite", "clipboardRead", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "scripts": ["background.js"]
@@ -11,6 +11,9 @@
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Context Clipboard"
+  },
+  "omnibox": {
+    "keyword": "cc"
   },
   "content_scripts": [
     {

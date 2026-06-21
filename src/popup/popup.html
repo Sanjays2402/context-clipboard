@@ -8,10 +8,14 @@
   <body data-theme="auto">
     <header>
       <div class="search-row">
-        <input id="search" type="search" placeholder="Search clips, sources, tags…" autocomplete="off" />
+        <input id="search" type="search" placeholder="Search · text, kind:image, host:github.com, tag:code, g github → jump" autocomplete="off" />
+        <button id="save-search-btn" class="icon-btn" title="Save current search" data-icon="bookmark" hidden></button>
+        <button id="quick-capture-btn" class="icon-btn" title="Capture from system clipboard" data-icon="clipboard"></button>
         <button id="note-btn" class="icon-btn" title="Add note" data-icon="plus"></button>
         <button id="settings-btn" class="icon-btn" title="Settings" data-icon="settings"></button>
       </div>
+      <div id="saved-searches" class="saved-searches" hidden></div>
+      <div id="search-history" class="search-history" hidden></div>
       <div class="filters">
         <button data-kind="all" class="active" title="All clips">
           <span class="filter-icon" data-icon="all"></span>
@@ -22,6 +26,7 @@
         <button data-kind="link" title="Links only" data-icon="link"></button>
         <button id="pinned-toggle" title="Pinned only" data-icon="pin"></button>
       </div>
+      <div id="quick-chips" class="quick-chips"></div>
       <div id="tag-chips" class="tag-chips" hidden></div>
     </header>
 
@@ -35,8 +40,14 @@
       <div class="detail-header">
         <button id="detail-back" class="icon-btn" title="Back" data-icon="back"></button>
         <span class="detail-title">Clip</span>
+        <span id="detail-nav-pos" class="detail-nav-pos" hidden></span>
+        <button id="detail-prev" class="icon-btn" title="Previous clip ([)" data-icon="chevronUp"></button>
+        <button id="detail-next" class="icon-btn" title="Next clip (])" data-icon="chevronDown"></button>
         <button id="detail-ocr" class="icon-btn" title="OCR text from image" data-icon="eye" hidden></button>
+        <button id="detail-refetch" class="icon-btn" title="Re-fetch image from source URL" data-icon="refresh" hidden></button>
+        <button id="detail-reveal" class="icon-btn" title="Reveal original for 10 seconds" data-icon="eye" hidden></button>
         <button id="detail-redact" class="icon-btn" title="Redact emails / phones / secrets in this clip" data-icon="shield"></button>
+        <button id="detail-scrub" class="icon-btn" title="Scrub origin — drop URL / title / context, keep content" data-icon="eraser"></button>
         <button id="detail-pin" class="icon-btn" title="Pin" data-icon="pin"></button>
         <button id="detail-delete" class="icon-btn" title="Delete" data-icon="trash"></button>
       </div>
@@ -53,9 +64,35 @@
           <strong>Context</strong>
           <div id="detail-nearby" class="nearby"></div>
         </div>
+        <div class="meta-row" id="detail-image-row" hidden>
+          <strong>Image</strong>
+          <span id="detail-image-info"></span>
+        </div>
         <div class="meta-row" id="detail-ocr-row" hidden>
           <strong>OCR text</strong>
           <div id="detail-ocr-text" class="nearby"></div>
+        </div>
+        <div class="meta-row" id="detail-template-row" hidden>
+          <strong>Template tokens</strong>
+          <div id="detail-template-info" class="template-info"></div>
+        </div>
+        <div class="meta-row" id="detail-expiry-row">
+          <strong>Expires</strong>
+          <div class="expiry-row">
+            <select id="detail-expiry">
+              <option value="">Never (keep until I delete)</option>
+              <option value="3600000">In 1 hour</option>
+              <option value="14400000">In 4 hours</option>
+              <option value="86400000">In 24 hours</option>
+              <option value="604800000">In 7 days</option>
+              <option value="2592000000">In 30 days</option>
+            </select>
+            <span id="detail-expiry-hint" class="expiry-hint"></span>
+          </div>
+        </div>
+        <div class="meta-row" id="detail-similar-row" hidden>
+          <strong>Similar</strong>
+          <div id="detail-similar" class="similar-list"></div>
         </div>
       </div>
       <div class="detail-actions">
@@ -106,6 +143,14 @@
           <span>Auto-redact PII in captured text (emails / phones / cards / secrets) — one-way</span>
           <input id="s-autoredact" type="checkbox" />
         </label>
+        <div class="setting retro-redact-row">
+          <span class="retro-redact-label">Sweep existing clips for PII</span>
+          <button id="retro-redact-btn" class="small" type="button" title="Scan every text clip and redact any with PII — reversible per-clip">Redact existing</button>
+        </div>
+        <label class="setting toggle">
+          <span>Blur previews until I hover (anti-shoulder-surf)</span>
+          <input id="s-blur" type="checkbox" />
+        </label>
         <label class="setting toggle">
           <span>Open in side panel (Chrome) instead of popup</span>
           <input id="s-sidepanel" type="checkbox" />
@@ -128,15 +173,98 @@
         </label>
         <div id="storage-info" class="storage-info"></div>
         <label class="setting toggle" id="encrypt-toggle-row">
-          <span>Encrypt export with passphrase</span>
+          <span>Encrypt export with passphrase (JSON only)</span>
           <input id="s-encrypt-export" type="checkbox" />
         </label>
         <label class="setting" id="encrypt-pass-row" hidden>
           <span>Export passphrase</span>
           <input id="export-pass" type="password" autocomplete="new-password" placeholder="min 4 chars — you'll need this to restore" />
         </label>
+        <label class="setting">
+          <span>Export format</span>
+          <select id="export-format">
+            <option value="json">JSON (round-trippable)</option>
+            <option value="markdown">Markdown (human-readable)</option>
+            <option value="csv">CSV (spreadsheet)</option>
+          </select>
+        </label>
+        <div class="setting export-filter-setting">
+          <span>Export filter</span>
+          <div class="export-filter-grid">
+            <label class="rule-toggle"><input id="exp-pinned" type="checkbox" /> pinned only</label>
+            <label class="rule-toggle"><input id="exp-skip-images" type="checkbox" /> skip images</label>
+            <label class="rule-toggle"><input id="exp-redacted-only" type="checkbox" /> redacted only</label>
+            <input id="exp-tag" type="text" placeholder="tag (optional)" autocomplete="off" spellcheck="false" />
+            <input id="exp-after" type="date" />
+            <input id="exp-before" type="date" />
+          </div>
+          <div class="export-filter-hint" id="export-filter-hint">All clips will be exported.</div>
+        </div>
+        <div class="trash-section" id="trash-section">
+          <div class="trash-header">
+            <span class="trash-title">Trash</span>
+            <span class="trash-summary" id="trash-summary">empty</span>
+            <button id="trash-purge-24h" class="small" title="Permanently delete trashed clips that have been there more than 24h">Purge &gt;24h</button>
+            <button id="trash-empty" class="danger small" title="Permanently delete all trashed clips">Empty</button>
+          </div>
+          <div class="trash-list" id="trash-list"></div>
+          <div class="trash-foot">Deleted clips live here for 7 days, then disappear forever.</div>
+        </div>
+        <div class="trash-section" id="forget-section">
+          <div class="trash-header">
+            <span class="trash-title">Forget host</span>
+            <span class="trash-summary">all clips from a hostname</span>
+          </div>
+          <div class="forget-row">
+            <input id="forget-host-input" type="text" placeholder="e.g. bank.com" autocomplete="off" spellcheck="false" />
+            <button id="forget-host-btn" class="danger small" type="button">Forget</button>
+          </div>
+          <div class="trash-foot">
+            Soft-deletes every clip whose source matches this host. Pinned clips
+            are skipped — unpin them first if you really want them gone. Restorable
+            from Trash for 7 days.
+          </div>
+        </div>
+        <div class="trash-section" id="site-rules-section">
+          <div class="trash-header">
+            <span class="trash-title">Per-site rules</span>
+            <span class="trash-summary" id="site-rules-summary">none</span>
+          </div>
+          <div class="site-rules-list" id="site-rules-list"></div>
+          <div class="site-rule-form">
+            <div class="site-rule-form-head">
+              <span id="rule-form-title" class="site-rule-form-title">Add a rule</span>
+              <button id="rule-cancel" class="rule-cancel" type="button" hidden>Cancel edit</button>
+            </div>
+            <input id="rule-host" type="text" placeholder="host or *.example.com" autocomplete="off" spellcheck="false" />
+            <input id="rule-tags" type="text" placeholder="tags (comma-sep)" autocomplete="off" spellcheck="false" />
+            <textarea id="rule-patterns" rows="2" placeholder="custom redaction regex (one per line, optional)&#10;e.g. ACC-\d{6,}" autocomplete="off" spellcheck="false"></textarea>
+            <details class="rule-test" id="rule-test">
+              <summary>Test patterns on sample text</summary>
+              <textarea id="rule-test-input" rows="2" placeholder="paste sample text here — see live what the patterns redact" autocomplete="off" spellcheck="false"></textarea>
+              <div class="rule-test-output">
+                <span class="rule-test-label">Result</span>
+                <pre id="rule-test-result" class="rule-test-result"></pre>
+              </div>
+            </details>
+            <div class="site-rule-toggles">
+              <label class="rule-toggle"><input id="rule-pin" type="checkbox" /> auto-pin</label>
+              <label class="rule-toggle"><input id="rule-redact" type="checkbox" /> auto-redact</label>
+              <label class="rule-toggle"><input id="rule-scrub" type="checkbox" title="Drop URL / title / context on capture from this host — keep the content" /> scrub origin</label>
+              <label class="rule-toggle"><input id="rule-skip" type="checkbox" /> skip capture</label>
+              <button id="rule-add" class="small" type="button">Add rule</button>
+            </div>
+          </div>
+          <div class="trash-foot">
+            Rules apply when a clip's source matches. First match wins. `*.example.com`
+            matches example.com and any subdomain. Skip-capture short-circuits ingest
+            on that host entirely (more granular than the block list). Custom regex
+            patterns layer on top of built-in PII redaction — text clips only.
+            Click a row to load it back into the form for editing.
+          </div>
+        </div>
         <div class="settings-actions">
-          <button id="export-btn">Export JSON</button>
+          <button id="export-btn">Export</button>
           <button id="import-btn">Import JSON</button>
           <button id="clear-all-btn" class="danger">Delete everything</button>
         </div>
@@ -149,12 +277,21 @@
 
     <footer>
       <span id="count"></span>
-      <span class="hint">Shift+Click MD · ⌘/Ctrl+Click select · ↑↓ ⏎ / · X select</span>
+      <button id="select-all-filtered" class="select-all-btn" type="button" hidden></button>
+      <span class="hint">? cheatsheet · Shift+Click MD · ⌘/Ctrl+Click select · ↑↓ ⏎ / · X select · [ ] next/prev</span>
+      <select id="sort-mode" class="sort-mode" title="Sort the list">
+        <option value="recent">Most recent</option>
+        <option value="oldest">Oldest first</option>
+        <option value="hits">Most copied</option>
+        <option value="size">Largest first</option>
+        <option value="alpha">A to Z</option>
+      </select>
       <button id="clear">Clear unpinned</button>
     </footer>
 
     <div id="bulk-bar" class="bulk-bar" hidden>
       <span id="bulk-count">0 selected</span>
+      <button id="bulk-select-all" title="Select all filtered (⌘/Ctrl+A)" data-icon="check"></button>
       <button id="bulk-pin" title="Toggle pin on selection" data-icon="pin"></button>
       <button id="bulk-tag" title="Add tag to selection" data-icon="tag"></button>
       <button id="bulk-del" class="danger" title="Delete selection" data-icon="trash"></button>
@@ -162,6 +299,91 @@
     </div>
 
     <div id="toast" class="toast"></div>
+
+    <!-- Clip row context menu (right-click on a clip). Single instance
+         per popup — populated + repositioned for the right-clicked clip
+         at open time, hidden on outside click / Escape / scroll. Each
+         menu item is keyboard-actionable too because we mirror the
+         underlying handlers (pin/copy-md/forget-host/select). -->
+    <div id="row-menu" class="row-menu" hidden role="menu" aria-label="Clip actions">
+      <button class="row-menu-item" data-act="copy" role="menuitem"><span class="row-menu-glyph" data-icon="copy"></span><span>Copy</span><span class="row-menu-shortcut">⏎</span></button>
+      <button class="row-menu-item" data-act="copy-md" role="menuitem"><span class="row-menu-glyph" data-icon="copy"></span><span>Copy as Markdown</span><span class="row-menu-shortcut">⇧⏎</span></button>
+      <button class="row-menu-item" data-act="open" role="menuitem"><span class="row-menu-glyph" data-icon="eye"></span><span>Open detail</span></button>
+      <div class="row-menu-sep"></div>
+      <button class="row-menu-item" data-act="pin" role="menuitem"><span class="row-menu-glyph" data-icon="pin"></span><span data-pin-label>Pin clip</span><span class="row-menu-shortcut">P</span></button>
+      <button class="row-menu-item" data-act="select" role="menuitem"><span class="row-menu-glyph" data-icon="check"></span><span data-select-label>Add to selection</span><span class="row-menu-shortcut">X</span></button>
+      <button class="row-menu-item" data-act="tag" role="menuitem"><span class="row-menu-glyph" data-icon="tag"></span><span>Add tag…</span></button>
+      <div class="row-menu-sep"></div>
+      <button class="row-menu-item" data-act="filter-host" role="menuitem"><span class="row-menu-glyph" data-icon="globe"></span><span data-filter-host-label>Filter to this host</span></button>
+      <button class="row-menu-item danger" data-act="forget-host" role="menuitem"><span class="row-menu-glyph" data-icon="trash"></span><span data-forget-host-label>Forget host…</span></button>
+      <div class="row-menu-sep"></div>
+      <button class="row-menu-item danger" data-act="trash" role="menuitem"><span class="row-menu-glyph" data-icon="trash"></span><span>Move to trash</span><span class="row-menu-shortcut">⌫</span></button>
+    </div>
+
+    <!-- Command palette (Cmd/Ctrl+K). Fuzzy-search every action in the
+         popup: filters, bulk ops, export, settings. Keyboard-first; ↑↓
+         + Enter to run; Esc to close. -->
+    <div id="palette" class="palette" hidden role="dialog" aria-modal="true" aria-labelledby="palette-input">
+      <div class="palette-card">
+        <input id="palette-input" class="palette-input" type="text" placeholder="Search actions… (Cmd+K)" autocomplete="off" spellcheck="false" />
+        <div id="palette-list" class="palette-list" role="listbox"></div>
+        <div class="palette-foot"><kbd>↑</kbd><kbd>↓</kbd> navigate · <kbd>Enter</kbd> run · <kbd>Esc</kbd> close</div>
+      </div>
+    </div>
+
+    <!-- Keyboard cheatsheet overlay. Toggled with `?` (Shift+/) when no
+         input is focused, or by closing with Esc / clicking the backdrop. -->
+    <div id="cheatsheet" class="cheatsheet" hidden role="dialog" aria-modal="true" aria-labelledby="cheatsheet-title">
+      <div class="cheatsheet-card">
+        <div class="cheatsheet-header">
+          <span id="cheatsheet-title" class="cheatsheet-title">Keyboard shortcuts</span>
+          <button id="cheatsheet-close" class="icon-btn" title="Close (Esc)" data-icon="close"></button>
+        </div>
+        <div class="cheatsheet-body">
+          <div class="cheatsheet-group">
+            <h4>Navigate</h4>
+            <div class="cheatsheet-row"><kbd>↑</kbd> / <kbd>↓</kbd><span>Move selection</span></div>
+            <div class="cheatsheet-row"><kbd>Enter</kbd><span>Copy active clip</span></div>
+            <div class="cheatsheet-row"><kbd>Shift</kbd>+<kbd>Enter</kbd><span>Copy as Markdown</span></div>
+            <div class="cheatsheet-row"><kbd>/</kbd><span>Focus search</span></div>
+            <div class="cheatsheet-row"><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd><span>Command palette</span></div>
+            <div class="cheatsheet-row"><kbd>Esc</kbd><span>Clear selection / close panel</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>Clip actions</h4>
+            <div class="cheatsheet-row"><kbd>P</kbd><span>Pin / unpin active</span></div>
+            <div class="cheatsheet-row"><kbd>X</kbd><span>Toggle select on active</span></div>
+            <div class="cheatsheet-row"><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>A</kbd><span>Select all visible</span></div>
+            <div class="cheatsheet-row"><kbd>Delete</kbd> / <kbd>⌫</kbd><span>Trash active (with Undo toast)</span></div>
+            <div class="cheatsheet-row"><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Click</kbd><span>Toggle select (multi)</span></div>
+            <div class="cheatsheet-row"><kbd>Shift</kbd>+<kbd>Click</kbd><span>Copy as Markdown</span></div>
+            <div class="cheatsheet-row"><kbd>Alt</kbd>+<kbd>Click</kbd><span>Copy without opening detail</span></div>
+            <div class="cheatsheet-row"><kbd>Right-click</kbd><span>Open clip action menu</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>In detail view</h4>
+            <div class="cheatsheet-row"><kbd>[</kbd> / <kbd>]</kbd><span>Previous / next clip</span></div>
+            <div class="cheatsheet-row"><kbd>Esc</kbd><span>Back to list</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>Address bar</h4>
+            <div class="cheatsheet-row"><kbd>cc</kbd> <kbd>Tab</kbd> note<span>Quick-capture note</span></div>
+            <div class="cheatsheet-row"><kbd>cc</kbd> matches recent<span>Recall a tagged omnibox note</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>Search operators</h4>
+            <div class="cheatsheet-row"><kbd>kind:image</kbd><span>image / text / link</span></div>
+            <div class="cheatsheet-row"><kbd>host:github.com</kbd><span>match exact host</span></div>
+            <div class="cheatsheet-row"><kbd>tag:code</kbd><span>repeat to AND tags</span></div>
+            <div class="cheatsheet-row"><kbd>is:pinned</kbd><span>pinned / redacted / ocr / template / expiring</span></div>
+            <div class="cheatsheet-row"><kbd>after:24h</kbd><span>last 24h (units: s/m/h/d/w)</span></div>
+            <div class="cheatsheet-row"><kbd>before:7d</kbd><span>older than 7d</span></div>
+            <div class="cheatsheet-row"><kbd>g github</kbd><span>jump to first github clip (Enter)</span></div>
+          </div>
+        </div>
+        <div class="cheatsheet-foot">Press <kbd>?</kbd> anytime to open · <kbd>Esc</kbd> to close</div>
+      </div>
+    </div>
 
     <script type="module" src="popup.js"></script>
   </body>

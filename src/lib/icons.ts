@@ -49,11 +49,17 @@ export const icons = {
     svg(
       `<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>`,
     ),
+  clock: () =>
+    svg(
+      `<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`,
+    ),
   trash: () =>
     svg(
       `<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m5 6 1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/>`,
     ),
   back: () => svg(`<path d="m15 18-6-6 6-6"/>`),
+  chevronUp: () => svg(`<path d="m18 15-6-6-6 6"/>`),
+  chevronDown: () => svg(`<path d="m6 9 6 6 6-6"/>`),
   close: () => svg(`<path d="M18 6 6 18M6 6l12 12"/>`),
   eye: () =>
     svg(
@@ -69,14 +75,46 @@ export const icons = {
     ),
   search: () =>
     svg(`<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>`),
+  refresh: () =>
+    svg(
+      `<path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/>`,
+    ),
   tag: () =>
     svg(
       `<path d="M20.6 13.4 12 22 2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/>`,
     ),
   check: () => svg(`<path d="M20 6 9 17l-5-5"/>`),
+  bookmark: () =>
+    svg(
+      `<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>`,
+    ),
+  bookmarkFilled: () =>
+    svg(
+      `<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>`,
+      { fill: true },
+    ),
   noteText: () =>
     svg(
       `<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6M9 17h6"/>`,
+    ),
+  // Clipboard with checkmark — quick-capture button. Distinct silhouette
+  // from `copy` (which is two pages) so users don't confuse "paste a new
+  // clip in" with "copy this clip to clipboard".
+  clipboard: () =>
+    svg(
+      `<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="m9 14 2 2 4-4"/>`,
+    ),
+  // Eraser — used by the "scrub origin" affordance to telegraph
+  // "remove the source metadata, keep the content".
+  eraser: () =>
+    svg(
+      `<path d="m3 21 9-9 9 9"/><path d="m7 17 10-10 5 5L12 22z"/><path d="M14 4 20 10"/>`,
+    ),
+  // Globe — used by the "Forget host" right-click menu entry so the
+  // intent is unambiguous (the action is about origin host, not content).
+  globe: () =>
+    svg(
+      `<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/>`,
     ),
   imageGeneric: () =>
     svg(
