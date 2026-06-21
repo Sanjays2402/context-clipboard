@@ -26,8 +26,12 @@ import {
   retroactiveAutoRedact,
   findSimilarClips,
   toggleArchive,
+  appendPrivacyAuditEntry,
+  listPrivacyAudit,
+  clearPrivacyAudit,
   type TrashedClip,
   type DuplicateGroup,
+  type PrivacyAuditEntry,
 } from "../lib/db";
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits, redactPii, detectCodeLang } from "../lib/util";
@@ -141,6 +145,9 @@ const trashSummary = $("trash-summary");
 const trashList = $("trash-list");
 const trashEmpty = $<HTMLButtonElement>("trash-empty");
 const trashPurge24h = $<HTMLButtonElement>("trash-purge-24h");
+const auditSummary = $("audit-summary");
+const auditList = $("audit-list");
+const auditClearBtn = $<HTMLButtonElement>("audit-clear");
 const forgetHostInput = $<HTMLInputElement>("forget-host-input");
 const forgetHostBtn = $<HTMLButtonElement>("forget-host-btn");
 const siteRulesList = $("site-rules-list");
@@ -1146,6 +1153,7 @@ async function openSettings() {
   await renderStorage();
   await renderTrash();
   await renderSiteRules();
+  await renderAudit();
   settingsPanel.hidden = false;
 }
 
@@ -1285,6 +1293,64 @@ function formatBytes(n: number): string {
 // Trash --------------------------------------------------------------------
 
 const TRASH_RETENTION_MS = 7 * 86_400_000;
+
+// Privacy audit -----------------------------------------------------------
+//
+// Renders the meta-store audit ring into the Settings panel. Read-only;
+// the "Clear" button is the only mutation and lives next to the title.
+// Hidden when empty so the section doesn't shout at users who haven't
+// taken any privacy actions yet.
+
+/** Short human label for each audit kind. Matches the action verbs the
+ *  user sees in toasts / confirms so the log reads as a diary. */
+function auditKindLabel(k: PrivacyAuditEntry["kind"]): string {
+  switch (k) {
+    case "redact": return "Redacted";
+    case "unredact": return "Unredacted";
+    case "scrub-origin": return "Scrubbed origin";
+    case "retro-redact": return "Retroactive redact";
+    case "forget-host": return "Forgot host";
+    case "set-ttl": return "Set TTL";
+    case "clear-ttl": return "Cleared TTL";
+    case "archive": return "Archived";
+    case "unarchive": return "Unarchived";
+    case "trash": return "Trashed";
+    case "restore": return "Restored";
+  }
+}
+
+async function renderAudit(): Promise<void> {
+  const entries = await listPrivacyAudit();
+  if (entries.length === 0) {
+    auditSummary.textContent = "no actions yet";
+    auditList.innerHTML = `<div class="audit-empty">When you redact, scrub, forget a host, or archive a clip, the action shows up here.</div>`;
+    return;
+  }
+  auditSummary.textContent =
+    `${entries.length} action${entries.length === 1 ? "" : "s"}`;
+  auditList.innerHTML = entries
+    .map((e) => {
+      const subjectBits: string[] = [];
+      if (e.host) subjectBits.push(`@${e.host}`);
+      if (e.detail) subjectBits.push(e.detail);
+      const subject = subjectBits.join(" · ");
+      return (
+        `<div class="audit-row audit-${e.kind}">` +
+        `<span class="audit-kind">${escapeHtml(auditKindLabel(e.kind))}</span>` +
+        `<span class="audit-subject" title="${escapeHtml(subject)}">${escapeHtml(subject || "—")}</span>` +
+        `<span class="audit-time" title="${escapeHtml(new Date(e.at).toLocaleString())}">${escapeHtml(timeAgo(e.at))}</span>` +
+        `</div>`
+      );
+    })
+    .join("");
+}
+
+auditClearBtn.addEventListener("click", async () => {
+  if (!confirm("Clear the privacy audit log? This only wipes the log — your clips and settings stay untouched.")) return;
+  await clearPrivacyAudit();
+  await renderAudit();
+  toast("Audit log cleared");
+});
 
 function trashRow(t: TrashedClip): string {
   const previewText =
@@ -1436,6 +1502,14 @@ async function runForgetHost(): Promise<void> {
   forgetHostInput.value = "";
   const trashed = resp.trashed ?? 0;
   const skipped = resp.pinnedSkipped ?? 0;
+  if (trashed > 0) {
+    void appendPrivacyAuditEntry({
+      kind: "forget-host",
+      clipId: "",
+      host: raw,
+      detail: `${trashed} clip${trashed === 1 ? "" : "s"}${skipped > 0 ? ` · ${skipped} pinned kept` : ""}`,
+    });
+  }
   const msg =
     skipped > 0
       ? `Forgot ${trashed} from ${raw} (${skipped} pinned kept)`
@@ -2393,6 +2467,22 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      id: "open-audit",
+      label: "Show privacy audit log",
+      hint: "Last 30 redact / scrub / forget / archive actions",
+      group: "Privacy",
+      keywords: "audit log history privacy actions trail diary",
+      run: async () => {
+        closePalette();
+        await openSettings();
+        // Scroll the audit section into view after the panel paints.
+        setTimeout(() => {
+          const el = document.getElementById("audit-section");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+      },
+    },
+    {
       id: "add-note",
       label: "Add note",
       hint: "Save a quick text clip",
@@ -3180,6 +3270,13 @@ async function runRetroactiveAutoRedact(): Promise<void> {
     `you can unmask any clip later from its detail view.`;
   if (!confirm(msg)) return;
   const res = await retroactiveAutoRedact();
+  if (res.redacted > 0) {
+    void appendPrivacyAuditEntry({
+      kind: "retro-redact",
+      clipId: "",
+      detail: `${res.redacted} clip${res.redacted === 1 ? "" : "s"} · scanned ${res.scanned}`,
+    });
+  }
   toast(
     `Redacted ${res.redacted} · scanned ${res.scanned}` +
       (res.alreadyRedacted > 0 ? ` · ${res.alreadyRedacted} already redacted` : ""),
@@ -3457,6 +3554,14 @@ detailRedact.addEventListener("click", async () => {
         detailTags.value = updated.tags.join(", ");
         renderRedactButton(updated);
       }
+      // Privacy audit: record once the underlying op succeeds. Fire-
+      // and-forget — failures inside the audit writer are swallowed
+      // there, never block the user.
+      void appendPrivacyAuditEntry({
+        kind: action === "redactClip" ? "redact" : "unredact",
+        clipId: detailId!,
+        host: hostFrom(c.source.url) || undefined,
+      });
       toast(action === "redactClip" ? "Redacted" : "Restored");
       await render();
     },
@@ -3572,6 +3677,12 @@ detailExpiry.addEventListener("change", async () => {
   const updated = await getClip(id);
   if (updated) renderExpiryRow(updated);
   detailExpiry.value = "";
+  void appendPrivacyAuditEntry({
+    kind: raw ? "set-ttl" : "clear-ttl",
+    clipId: id,
+    host: hostFrom(updated?.source.url) || undefined,
+    detail: raw ? `in ${formatDuration(Number(raw))}` : undefined,
+  });
   toast(raw ? "TTL set" : "TTL cleared");
   await render();
 });
@@ -3674,6 +3785,12 @@ async function scrubDetailOrigin(): Promise<void> {
     toast("Couldn't scrub clip", "error");
     return;
   }
+  void appendPrivacyAuditEntry({
+    kind: "scrub-origin",
+    clipId: c.id,
+    host: hostFrom(c.source.url) || undefined,
+    detail: bits.join("+"),
+  });
   toast(`Scrubbed origin · ${bits.join(", ")} cleared`);
   // Re-open so the meta rows render in their cleared state.
   await openDetail(c.id);
@@ -3692,11 +3809,17 @@ detailScrub.addEventListener("click", () => void scrubDetailOrigin());
 async function toggleDetailArchive(): Promise<void> {
   if (!detailId) return;
   const id = detailId;
+  const c = await getClip(id);
   const next = await toggleArchive(id);
   if (next == null) {
     toast("Clip not found", "error");
     return;
   }
+  void appendPrivacyAuditEntry({
+    kind: next ? "archive" : "unarchive",
+    clipId: id,
+    host: hostFrom(c?.source.url) || undefined,
+  });
   if (next) {
     toast("Archived — find it with is:archived");
     closeDetail();

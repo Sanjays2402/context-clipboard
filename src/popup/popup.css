@@ -3012,6 +3012,73 @@ body.compact-rows #list {
   color: var(--accent);
 }
 
+/* Privacy audit log — same visual language as the trash list but
+ * lower density (one row per action, no per-row buttons). Each row
+ * shows kind / subject / when. Kinds are colour-coded by privacy
+ * intent: redact + scrub get a "shielded" accent, forget-host gets
+ * danger red, archive uses the same purple as the badge. */
+.audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.audit-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+  border: 1px solid var(--border);
+  font-size: 11px;
+}
+.audit-kind {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+.audit-subject {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.audit-time {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.audit-row.audit-redact .audit-kind,
+.audit-row.audit-retro-redact .audit-kind,
+.audit-row.audit-scrub-origin .audit-kind {
+  color: var(--accent);
+}
+.audit-row.audit-unredact .audit-kind {
+  color: var(--text-secondary);
+}
+.audit-row.audit-forget-host .audit-kind {
+  color: var(--danger);
+}
+.audit-row.audit-archive .audit-kind,
+.audit-row.audit-unarchive .audit-kind {
+  color: #b8a8e6;
+}
+.audit-empty {
+  padding: 12px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
 /* Find duplicates review panel — same overlay model as cheatsheet, but
  * structured around a list of dupe groups + a single "Merge all" button
  * in the header. Each group shows the survivor preview, a per-group

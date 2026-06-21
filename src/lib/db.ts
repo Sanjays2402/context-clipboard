@@ -1175,3 +1175,112 @@ export async function setPaletteLastQuery(query: string): Promise<void> {
     req.onerror = () => reject(req.error);
   });
 }
+
+// Privacy audit log ----------------------------------------------------
+//
+// Ring buffer of the user's last N privacy-impacting actions: per-clip
+// redact / unredact / scrub-origin, retroactive PII sweeps, forget-host
+// soft-deletes, per-clip TTL set, manual trash, etc. Used by the
+// Settings panel to surface "what did I do?" so users can verify the
+// extension's privacy posture without browsing IDB by hand.
+//
+// Stored as a single meta row to avoid an IDB schema bump. Capped at
+// PRIVACY_AUDIT_MAX (default 30) — anything older falls off the back.
+// Entries are intentionally small + structured: kind + clip-id-or-host
+// + a tiny detail string + when. No clip content ever lands in the
+// log (the whole point of these actions is privacy — a verbose log
+// would defeat that).
+//
+// Writers in background.ts (redact/unredact/scrub/forget) call
+// `appendPrivacyAuditEntry()` after the underlying op succeeds.
+// Readers in popup settings call `listPrivacyAudit()` to paint.
+
+export type PrivacyAuditKind =
+  | "redact"
+  | "unredact"
+  | "scrub-origin"
+  | "retro-redact"
+  | "forget-host"
+  | "set-ttl"
+  | "clear-ttl"
+  | "archive"
+  | "unarchive"
+  | "trash"
+  | "restore";
+
+export interface PrivacyAuditEntry {
+  /** Stable id (timestamp + nonce) for React-style keys. */
+  id: string;
+  kind: PrivacyAuditKind;
+  /** Capture time (ms since epoch). */
+  at: number;
+  /** Target clip id, or "" for non-clip actions (forget-host). */
+  clipId: string;
+  /** Optional host context — set for scrub/forget so the row reads well. */
+  host?: string;
+  /**
+   * Free-form tail (short!). Examples: "12 clips" for retro-redact,
+   * "in 7 days" for set-ttl, "from 4 clips" for forget-host. Capped
+   * at 80 chars to keep the row scannable.
+   */
+  detail?: string;
+}
+
+const PRIVACY_AUDIT_KEY = "privacy_audit";
+const PRIVACY_AUDIT_MAX = 30;
+
+export async function listPrivacyAudit(): Promise<PrivacyAuditEntry[]> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(PRIVACY_AUDIT_KEY);
+    req.onsuccess = () => {
+      const row = req.result as
+        | { key: string; value: PrivacyAuditEntry[] }
+        | undefined;
+      resolve(Array.isArray(row?.value) ? row.value : []);
+    };
+    req.onerror = () => resolve([]);
+  });
+}
+
+/**
+ * Push one entry onto the head of the audit log and prune to
+ * PRIVACY_AUDIT_MAX. Newest first so the settings view doesn't have
+ * to reverse the array. Callers fire-and-forget; failures are logged
+ * but never throw because audit-write should never block the underlying
+ * privacy op from succeeding.
+ */
+export async function appendPrivacyAuditEntry(
+  entry: Omit<PrivacyAuditEntry, "id" | "at">,
+): Promise<void> {
+  try {
+    const list = await listPrivacyAudit();
+    const next: PrivacyAuditEntry = {
+      id: `pa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+      at: Date.now(),
+      clipId: entry.clipId || "",
+      kind: entry.kind,
+      host: entry.host,
+      detail: entry.detail ? entry.detail.slice(0, 80) : undefined,
+    };
+    const trimmed = [next, ...list].slice(0, PRIVACY_AUDIT_MAX);
+    const store = await metaTx("readwrite");
+    await new Promise<void>((resolve, reject) => {
+      const req = store.put({ key: PRIVACY_AUDIT_KEY, value: trimmed });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn("[context-clipboard] audit append failed", e);
+  }
+}
+
+/** Wipe the audit log. Used by the Settings "Clear" button. */
+export async function clearPrivacyAudit(): Promise<void> {
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: PRIVACY_AUDIT_KEY, value: [] });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
