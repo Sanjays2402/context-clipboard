@@ -54,6 +54,7 @@ import { rankActions, boldedLabel, type PaletteAction } from "../lib/palette";
 import { contextTagsForTab } from "../lib/context-tags";
 import { buildSendActions, reorderSendActionsByLast, type SendAction } from "../lib/send-to";
 import { buildBulkPreviewMessage } from "../lib/bulk-preview";
+import { groupAuditByDay } from "../lib/audit-rollup";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -1374,6 +1375,19 @@ type AuditFilter =
 
 let auditFilter: AuditFilter = "all";
 
+/**
+ * Per-day collapse state for the rolled-up audit panel — sticky across
+ * re-renders so the user's manual fold/unfold survives a clip jump or
+ * filter chip click. Keyed by `groupAuditByDay`'s YYYY-MM-DD local
+ * keys. Absent key = "use the group's defaultOpen" (Today + Yesterday
+ * open by default; older days fold).
+ *
+ * In-memory only — collapse is a glance, not a preference, and it
+ * resets when the popup re-opens (consistent with the audit filter
+ * chip behaviour above).
+ */
+const auditDayCollapsed = new Map<string, boolean>();
+
 function auditKindBucket(k: PrivacyAuditEntry["kind"]): Exclude<AuditFilter, "all"> {
   switch (k) {
     case "redact":
@@ -1465,28 +1479,61 @@ async function renderAudit(): Promise<void> {
     auditList.innerHTML = `<div class="audit-empty">No ${escapeHtml(auditFilter)} actions in the last ${escapeHtml(capLabel)}.</div>`;
     return;
   }
-  auditList.innerHTML = filtered
-    .map((e) => {
-      const subjectBits: string[] = [];
-      if (e.host) subjectBits.push(`@${e.host}`);
-      if (e.detail) subjectBits.push(e.detail);
-      const subject = subjectBits.join(" · ");
-      // Rows tied to a specific clip render as a button so the user
-      // can jump straight to detail (or trash) for spot-checking what
-      // the redaction / scrub / archive actually did. Non-clip rows
-      // (forget-host) stay as plain divs — no single target to jump
-      // to (the action operated on N clips, all now in trash).
-      const jumpable = !!e.clipId;
-      const tag = jumpable ? "button" : "div";
-      const extra = jumpable
-        ? ` type="button" data-act="jump" data-clip-id="${escapeHtml(e.clipId)}" title="Show this clip"`
+  auditList.innerHTML = renderAuditGroupsHtml(filtered);
+}
+
+/**
+ * Render the filtered audit entries as day-grouped collapsible
+ * sections. Per-day header carries the count + a chevron; clicking
+ * toggles the section open/closed (state stored in `auditDayCollapsed`
+ * so it survives re-renders).
+ *
+ * Non-clip rows (forget-host) render as <div>; clip-tied rows render
+ * as <button> with a `jumpable` class — the existing click handler
+ * on `auditList` already routes those, no per-day wiring needed.
+ */
+function renderAuditGroupsHtml(entries: PrivacyAuditEntry[]): string {
+  if (entries.length === 0) return "";
+  const groups = groupAuditByDay(entries);
+  return groups
+    .map((g) => {
+      // Resolve effective open state: sticky override → group default.
+      const sticky = auditDayCollapsed.get(g.key);
+      const open = sticky != null ? !sticky : g.defaultOpen;
+      const rowsHtml = open
+        ? g.entries
+            .map((e) => {
+              const subjectBits: string[] = [];
+              if (e.host) subjectBits.push(`@${e.host}`);
+              if (e.detail) subjectBits.push(e.detail);
+              const subject = subjectBits.join(" · ");
+              const jumpable = !!e.clipId;
+              const tag = jumpable ? "button" : "div";
+              const extra = jumpable
+                ? ` type="button" data-act="jump" data-clip-id="${escapeHtml(e.clipId)}" title="Show this clip"`
+                : "";
+              return (
+                `<${tag} class="audit-row audit-${e.kind}${jumpable ? " jumpable" : ""}"${extra}>` +
+                `<span class="audit-kind">${escapeHtml(auditKindLabel(e.kind))}</span>` +
+                `<span class="audit-subject" title="${escapeHtml(subject)}">${escapeHtml(subject || "—")}</span>` +
+                `<span class="audit-time" title="${escapeHtml(new Date(e.at).toLocaleString())}">${escapeHtml(timeAgo(e.at))}</span>` +
+                `</${tag}>`
+              );
+            })
+            .join("")
         : "";
+      const chev = open ? "▾" : "▸";
+      const aria = open ? "true" : "false";
+      const n = g.entries.length;
       return (
-        `<${tag} class="audit-row audit-${e.kind}${jumpable ? " jumpable" : ""}"${extra}>` +
-        `<span class="audit-kind">${escapeHtml(auditKindLabel(e.kind))}</span>` +
-        `<span class="audit-subject" title="${escapeHtml(subject)}">${escapeHtml(subject || "—")}</span>` +
-        `<span class="audit-time" title="${escapeHtml(new Date(e.at).toLocaleString())}">${escapeHtml(timeAgo(e.at))}</span>` +
-        `</${tag}>`
+        `<div class="audit-day${open ? " open" : ""}" data-day-key="${escapeHtml(g.key)}">` +
+        `<button type="button" class="audit-day-head" data-act="toggle-day" aria-expanded="${aria}" title="${open ? "Collapse" : "Expand"} ${escapeHtml(g.label)}">` +
+        `<span class="audit-day-chev">${chev}</span>` +
+        `<span class="audit-day-label">${escapeHtml(g.label)}</span>` +
+        `<em class="audit-day-count">${n}</em>` +
+        `</button>` +
+        (open ? `<div class="audit-day-rows">${rowsHtml}</div>` : "") +
+        `</div>`
       );
     })
     .join("");
@@ -1518,6 +1565,23 @@ auditFiltersEl.addEventListener("click", (e) => {
  * this handler — they render as plain divs above.
  */
 auditList.addEventListener("click", async (e) => {
+  // Day-header toggle: collapse / expand a day group. Stops here —
+  // the "jump to clip" handler below ignores non-row targets.
+  const dayHead = (e.target as HTMLElement).closest("button.audit-day-head") as
+    | HTMLButtonElement
+    | null;
+  if (dayHead) {
+    const dayEl = dayHead.closest(".audit-day") as HTMLElement | null;
+    const key = dayEl?.dataset.dayKey || "";
+    if (!key) return;
+    // Read current state from the DOM so we don't have to recompute
+    // defaultOpen here (the renderer already resolved it). Toggle the
+    // override map: true = collapsed, false = expanded.
+    const wasOpen = dayEl?.classList.contains("open") ?? false;
+    auditDayCollapsed.set(key, wasOpen);
+    void renderAudit();
+    return;
+  }
   const btn = (e.target as HTMLElement).closest("button.audit-row.jumpable") as
     | HTMLButtonElement
     | null;
