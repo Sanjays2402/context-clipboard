@@ -157,6 +157,69 @@ export function fencedCodeForClip(c: SendableClip): string | undefined {
 }
 
 /**
+ * Serialize this clip as a single-clip JSON envelope shaped like a
+ * one-entry `exportAll` bundle — same field names, same versioning.
+ * Importing the result with the normal Import button puts the clip
+ * back into IDB exactly as it was (id-dedup hits if it's still there,
+ * otherwise it inserts cleanly).
+ *
+ * Why an envelope instead of just the bare ClipItem? Because the bare
+ * shape isn't valid input for `importAll` — it expects `{ clips: [...] }`
+ * with a version stamp. Wrapping at the source means "Copy as JSON" →
+ * paste into Import dialog "just works" with no manual reshaping.
+ *
+ * Image clips are SUPPORTED here even though most other send-to
+ * actions skip them — the JSON carries the data URL inline (same as
+ * exportAll). Users who want to share a single image clip with a
+ * friend on the same extension can copy → paste → import in one go.
+ *
+ * The clip's stored ClipItem is what we serialise. Caller passes the
+ * full ClipItem (not just SendableClip) via the `full` field on the
+ * extended ClipForJson shape — keeping the pure module DOM/IDB-free
+ * while still letting the popup hand us a complete object.
+ */
+export interface ClipForJson extends SendableClip {
+  /**
+   * The full ClipItem record (or any object) — we round-trip it
+   * untouched inside the envelope. Caller is expected to pass the
+   * stored ClipItem so the JSON is import-compatible.
+   */
+  full?: unknown;
+}
+
+export function jsonEnvelopeForClip(c: ClipForJson): string | undefined {
+  // Envelope requires a payload — if the clip has nothing to put inside
+  // (empty content AND no source AND not an image with data URL), skip.
+  const hasBody = !!(c.content && c.content.length > 0);
+  if (!hasBody) return undefined;
+  const payload = c.full ?? {
+    id: c.id,
+    kind: c.kind,
+    content: c.content,
+    preview: c.preview,
+    source: c.source,
+  };
+  const envelope = {
+    // version: we're shaping like exportAll which carries the DB
+    // version. Keep it conservative — version 1 means "you have to
+    // accept whatever the importer's current DB version is". The
+    // popup-side caller is encouraged to override this with the
+    // live DB_VERSION when it has access; the pure builder can't
+    // reach DB constants without dragging IDB into this module.
+    version: 1,
+    clips: [payload],
+    exportedAt: Date.now(),
+    /**
+     * Marker so we can tell at a glance that this bundle came from
+     * a "Copy as JSON" action vs a full Export — useful for support
+     * questions ("how did this user end up with a 1-clip JSON?").
+     */
+    source: "send-to-json" as const,
+  };
+  return JSON.stringify(envelope, null, 2);
+}
+
+/**
  * Build the full set of send-to actions for a given clip. Caller
  * filters by `available` before rendering so each row in the menu
  * is actually invokable.
@@ -178,13 +241,14 @@ export interface SendAction {
   available: boolean;
 }
 
-export function buildSendActions(c: SendableClip): SendAction[] {
+export function buildSendActions(c: ClipForJson): SendAction[] {
   const open = urlForOpenSource(c);
   const google = urlForGoogleSearch(c);
   const site = urlForSiteSearch(c);
   const mail = mailtoForClip(c);
   const mdLink = markdownLinkForClip(c);
   const fence = fencedCodeForClip(c);
+  const json = jsonEnvelopeForClip(c);
   return [
     {
       id: "open-source",
@@ -232,6 +296,14 @@ export function buildSendActions(c: SendableClip): SendAction[] {
       kind: "copy",
       payload: fence,
       available: !!fence,
+    },
+    {
+      id: "json",
+      label: "Copy as JSON",
+      hint: "single-clip envelope",
+      kind: "copy",
+      payload: json,
+      available: !!json,
     },
   ];
 }

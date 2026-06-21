@@ -4285,6 +4285,7 @@ async function openSendMenu(): Promise<void> {
     content: c.content,
     preview: c.preview,
     source: c.source,
+    full: c,
   });
   const available = actions.filter((a) => a.available);
   if (available.length === 0) {
@@ -4328,6 +4329,7 @@ detailSendMenu.addEventListener("click", async (e) => {
     content: c.content,
     preview: c.preview,
     source: c.source,
+    full: c,
   });
   const action: SendAction | undefined = actions.find((a) => a.id === id);
   closeSendMenu();

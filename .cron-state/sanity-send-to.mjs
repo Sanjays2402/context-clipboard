@@ -151,7 +151,7 @@ try {
 
   // buildSendActions matrix
   const textActs = mod.buildSendActions(textClip);
-  total++; if (textActs.length === 6) pass++;
+  total++; if (textActs.length === 7) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
@@ -193,6 +193,77 @@ try {
 
   const mailNote = noteActs.find((a) => a.id === 'email');
   check('actions: email available for note (no URL needed)', mailNote.available, true);
+
+  // --- new in this tick: JSON envelope row ---
+  //
+  // The envelope is shaped to round-trip through importAll — same fields
+  // (clips, version, exportedAt) and an extra "source" marker so we can
+  // distinguish a 1-clip send-to from a full export. Image clips work
+  // here too because the data URL lives inside content. Empty clips
+  // (no body) drop the row entirely so users never copy an envelope
+  // with no payload.
+
+  const json1 = mod.jsonEnvelopeForClip(textClip);
+  checkTruthy('json: returns non-empty string for text', json1);
+  const parsed1 = JSON.parse(json1);
+  check('json: envelope has clips array of length 1', Array.isArray(parsed1.clips) && parsed1.clips.length === 1, true);
+  check('json: envelope.source marker', parsed1.source, 'send-to-json');
+  check('json: envelope has version field', typeof parsed1.version, 'number');
+  check('json: envelope has exportedAt', typeof parsed1.exportedAt, 'number');
+  check('json: clip payload has content', parsed1.clips[0].content, 'function hello() {\n  return 42;\n}');
+
+  // Empty clip → undefined
+  check('json: empty -> undefined', mod.jsonEnvelopeForClip(emptyClip), undefined);
+
+  // Image clip carries data URL through
+  const jsonImg = mod.jsonEnvelopeForClip(imageClip);
+  checkTruthy('json: image returns envelope (data URL is content)', jsonImg);
+  checkContains('json: image clip preserves data URL', jsonImg, 'data:image/png');
+
+  // `full` override is round-tripped untouched — the popup passes the
+  // entire stored ClipItem so the JSON carries hitCount / pinned / tags
+  // / hash / archived / template etc. through importAll cleanly.
+  const fullClip = {
+    id: 'f1',
+    kind: 'text',
+    content: 'short',
+    source: { url: 'https://x.com' },
+    full: {
+      id: 'f1',
+      kind: 'text',
+      content: 'short',
+      preview: 'short',
+      source: { url: 'https://x.com', title: 'X' },
+      pinned: true,
+      tags: ['extra'],
+      createdAt: 1700000000000,
+      lastSeenAt: 1700000000000,
+      hitCount: 7,
+      bytes: 5,
+      hash: 'abc123',
+      archived: false,
+    },
+  };
+  const jsonFull = mod.jsonEnvelopeForClip(fullClip);
+  const parsedFull = JSON.parse(jsonFull);
+  check('json: full override carries pinned bit', parsedFull.clips[0].pinned, true);
+  check('json: full override carries hitCount', parsedFull.clips[0].hitCount, 7);
+  check('json: full override carries hash', parsedFull.clips[0].hash, 'abc123');
+  check('json: full override carries tags', Array.isArray(parsedFull.clips[0].tags) && parsedFull.clips[0].tags[0] === 'extra', true);
+
+  // No `full` → fallback shape carries SendableClip fields
+  const noFull = { id: 'x', kind: 'text', content: 'hello', source: {} };
+  const jsonNoFull = JSON.parse(mod.jsonEnvelopeForClip(noFull));
+  check('json: no-full fallback has id', jsonNoFull.clips[0].id, 'x');
+  check('json: no-full fallback has content', jsonNoFull.clips[0].content, 'hello');
+
+  // JSON action row
+  const jsonAct = textActs.find((a) => a.id === 'json');
+  checkTruthy('actions: json row exists', jsonAct);
+  check('actions: json kind is "copy"', jsonAct.kind, 'copy');
+  check('actions: json available for text', jsonAct.available, true);
+  check('actions: json available for image', imageActs.find((a) => a.id === 'json').available, true);
+  check('actions: json unavailable for empty', mod.buildSendActions(emptyClip).find((a) => a.id === 'json').available, false);
 
   if (pass === total) {
     console.log(`PASS — ${pass}/${total} send-to sanity checks`);
