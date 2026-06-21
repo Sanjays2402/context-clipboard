@@ -3079,6 +3079,53 @@ body.compact-rows #list {
   text-align: center;
 }
 
+/* Audit chip strip — sub-filter the privacy audit log by bucket.
+ * Same visual language as the quick-chip strip on the main list so
+ * the affordance reads as familiar (chip = filter). Hidden when the
+ * audit log is empty; chips with zero matches don't render. */
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px 0 8px;
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 4px;
+}
+.audit-chip {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.audit-chip:hover {
+  color: var(--text);
+  border-color: var(--text-secondary);
+}
+.audit-chip.active {
+  background: rgba(245, 180, 0, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.audit-chip em {
+  font-style: normal;
+  opacity: 0.6;
+  font-weight: 500;
+  font-size: 10px;
+}
+.audit-chip.active em {
+  opacity: 0.9;
+}
+
 /* Note composer — same backdrop model as the dupes panel/cheatsheet,
  * but the card has its own structure: title bar + textarea + tag
  * input + chip strip + footer (pin + hint + Save). Floats above

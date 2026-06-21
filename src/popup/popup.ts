@@ -147,6 +147,7 @@ const trashEmpty = $<HTMLButtonElement>("trash-empty");
 const trashPurge24h = $<HTMLButtonElement>("trash-purge-24h");
 const auditSummary = $("audit-summary");
 const auditList = $("audit-list");
+const auditFiltersEl = $("audit-filters");
 const auditClearBtn = $<HTMLButtonElement>("audit-clear");
 const forgetHostInput = $<HTMLInputElement>("forget-host-input");
 const forgetHostBtn = $<HTMLButtonElement>("forget-host-btn");
@@ -1326,16 +1327,110 @@ function auditKindLabel(k: PrivacyAuditEntry["kind"]): string {
   }
 }
 
+// Audit-log filter chips. The raw log can fill up fast on an active
+// device — flipping on a category narrows the visible rows to "what
+// did I redact this week?" without trashing entries. Persisted only
+// in module state (intentional — chip state is a glance, not a
+// preference). `all` is the default whenever the audit section
+// re-opens.
+type AuditFilter =
+  | "all"
+  | "redact"        // redact + unredact + retro-redact
+  | "scrub"         // scrub-origin
+  | "lifecycle"     // trash + restore + archive + unarchive
+  | "host"          // forget-host
+  | "ttl";          // set-ttl + clear-ttl
+
+let auditFilter: AuditFilter = "all";
+
+function auditKindBucket(k: PrivacyAuditEntry["kind"]): Exclude<AuditFilter, "all"> {
+  switch (k) {
+    case "redact":
+    case "unredact":
+    case "retro-redact":
+      return "redact";
+    case "scrub-origin":
+      return "scrub";
+    case "trash":
+    case "restore":
+    case "archive":
+    case "unarchive":
+      return "lifecycle";
+    case "forget-host":
+      return "host";
+    case "set-ttl":
+    case "clear-ttl":
+      return "ttl";
+  }
+}
+
+interface AuditChipDef {
+  id: AuditFilter;
+  label: string;
+}
+
+const AUDIT_CHIP_DEFS: AuditChipDef[] = [
+  { id: "all", label: "All" },
+  { id: "redact", label: "Redact" },
+  { id: "scrub", label: "Scrub" },
+  { id: "lifecycle", label: "Lifecycle" },
+  { id: "host", label: "Host" },
+  { id: "ttl", label: "TTL" },
+];
+
 async function renderAudit(): Promise<void> {
   const entries = await listPrivacyAudit();
   if (entries.length === 0) {
     auditSummary.textContent = "no actions yet";
+    auditFiltersEl.hidden = true;
+    auditFiltersEl.innerHTML = "";
     auditList.innerHTML = `<div class="audit-empty">When you redact, scrub, forget a host, or archive a clip, the action shows up here.</div>`;
     return;
   }
+  // Bucket counts so chips can show the right N inline — and so we can
+  // hide chips that would match zero rows (no point offering a "TTL"
+  // pill if the user has never set one).
+  const counts: Record<Exclude<AuditFilter, "all">, number> = {
+    redact: 0,
+    scrub: 0,
+    lifecycle: 0,
+    host: 0,
+    ttl: 0,
+  };
+  for (const e of entries) counts[auditKindBucket(e.kind)]++;
+  // If the currently-active filter has zero rows (because the user
+  // cleared the only matching entry, or the ring rotated past it),
+  // snap back to `all` so the panel never looks empty for no reason.
+  if (auditFilter !== "all" && counts[auditFilter] === 0) auditFilter = "all";
+
+  const visibleChips = AUDIT_CHIP_DEFS.filter(
+    (c) => c.id === "all" || counts[c.id as Exclude<AuditFilter, "all">] > 0,
+  );
+  auditFiltersEl.hidden = false;
+  auditFiltersEl.innerHTML = visibleChips
+    .map((c) => {
+      const n = c.id === "all" ? entries.length : counts[c.id as Exclude<AuditFilter, "all">];
+      const active = c.id === auditFilter ? " active" : "";
+      return (
+        `<button type="button" class="audit-chip${active}" data-filter="${escapeHtml(c.id)}" title="${escapeHtml(c.label)} (${n})">` +
+        `<span>${escapeHtml(c.label)}</span><em>${n}</em></button>`
+      );
+    })
+    .join("");
+
+  const filtered =
+    auditFilter === "all"
+      ? entries
+      : entries.filter((e) => auditKindBucket(e.kind) === auditFilter);
   auditSummary.textContent =
-    `${entries.length} action${entries.length === 1 ? "" : "s"}`;
-  auditList.innerHTML = entries
+    auditFilter === "all"
+      ? `${entries.length} action${entries.length === 1 ? "" : "s"}`
+      : `${filtered.length} of ${entries.length}`;
+  if (filtered.length === 0) {
+    auditList.innerHTML = `<div class="audit-empty">No ${escapeHtml(auditFilter)} actions in the last 30.</div>`;
+    return;
+  }
+  auditList.innerHTML = filtered
     .map((e) => {
       const subjectBits: string[] = [];
       if (e.host) subjectBits.push(`@${e.host}`);
@@ -1351,6 +1446,17 @@ async function renderAudit(): Promise<void> {
     })
     .join("");
 }
+
+auditFiltersEl.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".audit-chip") as HTMLButtonElement | null;
+  if (!btn) return;
+  const id = (btn.dataset.filter || "all") as AuditFilter;
+  if (!AUDIT_CHIP_DEFS.some((c) => c.id === id)) return;
+  // Toggle: clicking the active filter snaps back to "all" so the
+  // chip behaves like a single-select with an obvious reset path.
+  auditFilter = auditFilter === id && id !== "all" ? "all" : id;
+  void renderAudit();
+});
 
 auditClearBtn.addEventListener("click", async () => {
   if (!confirm("Clear the privacy audit log? This only wipes the log — your clips and settings stay untouched.")) return;
