@@ -214,6 +214,38 @@ export function rawTextForClip(c: SendableClip): string | undefined {
   return body;
 }
 
+/**
+ * "Copy URL only" — for any clip with an http(s) source URL, return
+ * just the URL with no body. Useful for sharing the page the snippet
+ * came from (not the snippet itself) — common workflow: capture a
+ * paragraph from an article, then later want to send just the link
+ * so the recipient can read the full piece.
+ *
+ * Different from "Copy as Markdown link" (which produces
+ * `[title](url)` and is best for notes apps) — this is the bare URL
+ * for paste into a chat / search box / address bar.
+ *
+ * For link clips, the body IS the URL, so we return `c.content`.
+ * For text/image clips with a source URL, we return `source.url`.
+ * Returns undefined when there's no http(s) URL to share — keeping
+ * the row off the menu so the user doesn't see a dead action.
+ */
+export function urlOnlyForClip(c: SendableClip): string | undefined {
+  // Link clips carry the URL in content — same shape as urlForOpenSource
+  // (which uses source.url) but for link clips the BODY is the URL.
+  if (c.kind === "link") {
+    const raw = (c.content || "").trim();
+    if (!raw) return undefined;
+    if (!/^https?:\/\//i.test(raw)) return undefined;
+    return raw;
+  }
+  // For text/image clips we copy the source URL when available.
+  const u = (c.source?.url || "").trim();
+  if (!u) return undefined;
+  if (!/^https?:\/\//i.test(u)) return undefined;
+  return u;
+}
+
 export function jsonEnvelopeForClip(c: ClipForJson): string | undefined {
   // Envelope requires a payload — if the clip has nothing to put inside
   // (empty content AND no source AND not an image with data URL), skip.
@@ -297,6 +329,7 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const mdLink = markdownLinkForClip(c);
   const fence = fencedCodeForClip(c);
   const rawText = rawTextForClip(c);
+  const urlOnly = urlOnlyForClip(c);
   const json = jsonEnvelopeForClip(c);
   return [
     {
@@ -345,6 +378,14 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: mdLink,
       available: !!mdLink,
+    },
+    {
+      id: "url-only",
+      label: "Copy URL only",
+      hint: "just the page URL",
+      kind: "copy",
+      payload: urlOnly,
+      available: !!urlOnly,
     },
     {
       id: "fenced-code",

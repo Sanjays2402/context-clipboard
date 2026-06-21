@@ -151,7 +151,7 @@ try {
 
   // buildSendActions matrix
   const textActs = mod.buildSendActions(textClip);
-  total++; if (textActs.length === 9) pass++;
+  total++; if (textActs.length === 10) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
@@ -362,6 +362,107 @@ try {
     1);
   check('actions: raw-text comes before json',
     tmplActs.findIndex((a) => a.id === 'json') - tmplActs.findIndex((a) => a.id === 'raw-text'),
+    1);
+
+  // --- url-only ---
+  //
+  // "Copy URL only" — bare URL for sharing the page (not the snippet).
+  // For link clips, the body IS the URL. For text/image clips, use
+  // source.url. Skips clips with no http(s) URL anywhere.
+
+  // Text clip with source URL → returns source.url
+  check('url-only: text clip returns source.url',
+    mod.urlOnlyForClip({
+      id: 'u1', kind: 'text', content: 'snippet body',
+      source: { url: 'https://example.com/article' },
+    }),
+    'https://example.com/article');
+
+  // Image clip with source URL → returns source.url
+  check('url-only: image clip returns source.url',
+    mod.urlOnlyForClip({
+      id: 'u2', kind: 'image', content: 'data:image/png;base64,xxx',
+      source: { url: 'https://cdn.example.com/pic.png' },
+    }),
+    'https://cdn.example.com/pic.png');
+
+  // Link clip → URL is the body, NOT source.url
+  check('url-only: link clip returns content (the URL)',
+    mod.urlOnlyForClip({
+      id: 'u3', kind: 'link', content: 'https://news.ycombinator.com/item?id=1',
+      source: { url: 'https://news.ycombinator.com' },
+    }),
+    'https://news.ycombinator.com/item?id=1');
+
+  // Empty link content → undefined
+  check('url-only: empty link content -> undefined',
+    mod.urlOnlyForClip({
+      id: 'u4', kind: 'link', content: '',
+      source: { url: 'https://example.com' },
+    }),
+    undefined);
+
+  // No source URL at all → undefined (scrubbed clip, note)
+  check('url-only: text clip with no source url -> undefined',
+    mod.urlOnlyForClip({
+      id: 'u5', kind: 'text', content: 'note text', source: {},
+    }),
+    undefined);
+
+  // Non-http(s) source URL → undefined (data:/file:/chrome:)
+  check('url-only: data: URL -> undefined',
+    mod.urlOnlyForClip({
+      id: 'u6', kind: 'text', content: 'x',
+      source: { url: 'data:text/plain,hi' },
+    }),
+    undefined);
+  check('url-only: file: URL -> undefined',
+    mod.urlOnlyForClip({
+      id: 'u7', kind: 'text', content: 'x',
+      source: { url: 'file:///tmp/local.txt' },
+    }),
+    undefined);
+  check('url-only: chrome: URL -> undefined',
+    mod.urlOnlyForClip({
+      id: 'u8', kind: 'text', content: 'x',
+      source: { url: 'chrome://settings' },
+    }),
+    undefined);
+
+  // Link clip with non-http(s) body → undefined
+  check('url-only: link clip with mailto body -> undefined',
+    mod.urlOnlyForClip({
+      id: 'u9', kind: 'link', content: 'mailto:foo@example.com',
+      source: {},
+    }),
+    undefined);
+
+  // Whitespace-only source url → undefined
+  check('url-only: whitespace source url -> undefined',
+    mod.urlOnlyForClip({
+      id: 'u10', kind: 'text', content: 'x',
+      source: { url: '   ' },
+    }),
+    undefined);
+
+  // The action matrix
+  const urlOnlyText = textActs.find((a) => a.id === 'url-only');
+  const urlOnlyImg = imageActs.find((a) => a.id === 'url-only');
+  const urlOnlyEmpty = mod.buildSendActions(emptyClip).find((a) => a.id === 'url-only');
+  checkTruthy('actions: url-only row exists in text clip', urlOnlyText);
+  check('actions: url-only kind is "copy"', urlOnlyText.kind, 'copy');
+  check('actions: url-only available for text-with-url', urlOnlyText.available, true);
+  check('actions: url-only available for image-with-url', urlOnlyImg.available, true);
+  // emptyClip has no source url, so unavailable
+  check('actions: url-only unavailable for empty (no source url)', urlOnlyEmpty.available, false);
+  // Row order: url-only sits between md-link and fenced-code so the
+  // copy-variants stay clustered (md-link / url-only / fenced-code /
+  // raw-text / json).
+  check('actions: url-only follows md-link',
+    textActs.findIndex((a) => a.id === 'url-only') - textActs.findIndex((a) => a.id === 'md-link'),
+    1);
+  check('actions: url-only comes before fenced-code',
+    textActs.findIndex((a) => a.id === 'fenced-code') - textActs.findIndex((a) => a.id === 'url-only'),
     1);
 
   if (pass === total) {
