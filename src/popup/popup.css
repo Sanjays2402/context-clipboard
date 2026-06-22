@@ -734,6 +734,30 @@ mark.match-hl {
   color: var(--accent-strong);
 }
 
+/* Drag-to-reorder visual states. The dragging chip dims + tilts so
+ * it reads as "in motion" — and an insertion hint paints a thin
+ * accent bar on the drop target's relevant edge so the user sees
+ * exactly where the chip will land. */
+.saved-search-chip.dragging {
+  opacity: 0.4;
+  transform: scale(0.96) rotate(-1.5deg);
+  cursor: grabbing;
+}
+.saved-search-chip.drop-before {
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+.saved-search-chip.drop-after {
+  box-shadow: inset -3px 0 0 0 var(--accent);
+}
+/* Cursor cue: grab on chip body, grabbing while in motion. The
+ * apply button stays a pointer (the apply intent is still primary). */
+.saved-search-chip[draggable="true"] {
+  cursor: grab;
+}
+.saved-search-chip[draggable="true"] .saved-search-apply {
+  cursor: pointer;
+}
+
 .saved-search-del {
   appearance: none;
   background: transparent;

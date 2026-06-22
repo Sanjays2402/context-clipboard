@@ -15,6 +15,7 @@ import {
   addSavedSearch,
   removeSavedSearch,
   renameSavedSearch,
+  reorderSavedSearches,
   listSearchHistory,
   pushSearchHistory,
   clearSearchHistory,
@@ -576,9 +577,14 @@ function renderSavedSearches(): void {
       const isRenaming = renamingSavedSearchId === s.id;
       const label = isRenaming
         ? `<input class="saved-search-rename" type="text" value="${escapeHtml(s.name)}" maxlength="40" autocomplete="off" spellcheck="false" data-act="rename-input" />`
-        : `<button class="saved-search-apply" data-act="apply" type="button" title="Apply · double-click to rename">${escapeHtml(s.name)}</button>`;
+        : `<button class="saved-search-apply" data-act="apply" type="button" title="Apply · double-click to rename · drag to reorder">${escapeHtml(s.name)}</button>`;
+      // Draggable only when NOT renaming — otherwise the input would
+      // start a drag the moment the user touches it. The renaming
+      // chip stays fixed; once the user commits/cancels the chip
+      // becomes draggable again on the next render.
+      const dragAttr = isRenaming ? "" : ` draggable="true"`;
       return (
-        `<span class="saved-search-chip ${s.query === current ? "active" : ""}${isRenaming ? " renaming" : ""}" data-id="${escapeHtml(s.id)}" title="${escapeHtml(s.query)}">` +
+        `<span class="saved-search-chip ${s.query === current ? "active" : ""}${isRenaming ? " renaming" : ""}" data-id="${escapeHtml(s.id)}" title="${escapeHtml(s.query)}"${dragAttr}>` +
         label +
         `<button class="saved-search-del" data-act="del" type="button" title="Remove">×</button>` +
         `</span>`
@@ -2799,6 +2805,138 @@ savedSearchesEl.addEventListener(
 );
 
 saveSearchBtn.addEventListener("click", () => void handleSaveSearch());
+
+// Drag-to-reorder saved-search chips ----------------------------------
+//
+// HTML5 drag-and-drop is the cheapest path here — no library, no pointer-
+// event juggling. The chip carries `draggable="true"` (except during
+// rename — see renderSavedSearches), and we track the dragged id +
+// drop-target id at the strip level so handlers don't have to re-bind
+// per chip after every re-render.
+//
+// Semantics:
+//   - dragstart: stash the source chip id + add a `.dragging` class
+//     for the muted-tilt visual; setDragImage to the chip so the
+//     ghost matches what the user grabbed.
+//   - dragover: preventDefault so drop fires, and visually mark the
+//     hovered chip as the drop target with a left/right insertion
+//     hint based on the cursor's x-position relative to the chip's
+//     midpoint.
+//   - drop: compute the new permutation, fire reorderSavedSearches,
+//     re-render. The lib helper is no-op when nothing changed so
+//     micro-jiggles don't write meta.
+//   - dragend: always clear visual state (catches "drag, then drop
+//     outside" path where drop never fires).
+//
+// We deliberately DON'T persist mid-drag — only at drop — so a
+// cancelled drag (Esc, drop on the input, drop outside) leaves the
+// existing order alone.
+let savedSearchDragId: string | null = null;
+
+savedSearchesEl.addEventListener("dragstart", (e) => {
+  const chip = (e.target as HTMLElement).closest(".saved-search-chip") as
+    | HTMLElement
+    | null;
+  if (!chip) return;
+  // Don't start a drag from the X button or the rename input —
+  // those targets have their own intent.
+  const innerAct = (e.target as HTMLElement).dataset.act;
+  if (innerAct === "del" || innerAct === "rename-input") {
+    e.preventDefault();
+    return;
+  }
+  const id = chip.dataset.id || "";
+  if (!id) return;
+  savedSearchDragId = id;
+  chip.classList.add("dragging");
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+    // Required for Firefox — at least one mime type must be set or
+    // the drag never starts. The payload itself is unused; we read
+    // from module state instead.
+    try {
+      e.dataTransfer.setData("text/plain", id);
+    } catch {
+      // Some browsers throw on setData inside dragstart for stupid
+      // reasons; harmless because we don't rely on the payload.
+    }
+  }
+});
+
+savedSearchesEl.addEventListener("dragover", (e) => {
+  if (!savedSearchDragId) return;
+  const chip = (e.target as HTMLElement).closest(".saved-search-chip") as
+    | HTMLElement
+    | null;
+  if (!chip) return;
+  if (chip.dataset.id === savedSearchDragId) return;
+  e.preventDefault();
+  // Mark insertion-edge so the user sees WHERE the chip will land.
+  // Cursor on left half → drop BEFORE this chip; right half → AFTER.
+  const rect = chip.getBoundingClientRect();
+  const before = e.clientX < rect.left + rect.width / 2;
+  // Clear stale hints on other chips so only one shows at a time.
+  savedSearchesEl
+    .querySelectorAll(".saved-search-chip.drop-before, .saved-search-chip.drop-after")
+    .forEach((el) => el.classList.remove("drop-before", "drop-after"));
+  chip.classList.add(before ? "drop-before" : "drop-after");
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+});
+
+savedSearchesEl.addEventListener("dragleave", (e) => {
+  const chip = (e.target as HTMLElement).closest(".saved-search-chip") as
+    | HTMLElement
+    | null;
+  if (!chip) return;
+  // Only clear when leaving the chip itself, not when the cursor
+  // moves over an inner button (relatedTarget still inside).
+  const into = e.relatedTarget as HTMLElement | null;
+  if (into && chip.contains(into)) return;
+  chip.classList.remove("drop-before", "drop-after");
+});
+
+savedSearchesEl.addEventListener("drop", async (e) => {
+  if (!savedSearchDragId) return;
+  const chip = (e.target as HTMLElement).closest(".saved-search-chip") as
+    | HTMLElement
+    | null;
+  e.preventDefault();
+  const srcId = savedSearchDragId;
+  // Always clear visual state, regardless of whether the drop lands.
+  savedSearchesEl
+    .querySelectorAll(".dragging, .drop-before, .drop-after")
+    .forEach((el) => el.classList.remove("dragging", "drop-before", "drop-after"));
+  savedSearchDragId = null;
+  if (!chip) return;
+  const dstId = chip.dataset.id || "";
+  if (!dstId || dstId === srcId) return;
+  const rect = chip.getBoundingClientRect();
+  const before = e.clientX < rect.left + rect.width / 2;
+  // Build the new id order: take current list, drop the src, then
+  // splice it in before/after the dst.
+  const ids = savedSearches.map((s) => s.id);
+  const fromIdx = ids.indexOf(srcId);
+  if (fromIdx < 0) return;
+  ids.splice(fromIdx, 1);
+  let toIdx = ids.indexOf(dstId);
+  if (toIdx < 0) return;
+  if (!before) toIdx++;
+  ids.splice(toIdx, 0, srcId);
+  const next = await reorderSavedSearches(ids);
+  if (!next) return;
+  savedSearches = next;
+  renderSavedSearches();
+});
+
+savedSearchesEl.addEventListener("dragend", () => {
+  // Belt-and-braces cleanup — drop sometimes doesn't fire (cancelled
+  // drag, drop outside the strip). Without this the .dragging
+  // visual would persist on the chip until the next render.
+  savedSearchesEl
+    .querySelectorAll(".dragging, .drop-before, .drop-after")
+    .forEach((el) => el.classList.remove("dragging", "drop-before", "drop-after"));
+  savedSearchDragId = null;
+});
 
 // Search history (recent ghost chips) ----------------------------------
 //

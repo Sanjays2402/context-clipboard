@@ -1087,6 +1087,59 @@ export async function renameSavedSearch(
   return next[idx];
 }
 
+/**
+ * Rewrite the saved-search list order. Used by the popup's drag-to-
+ * reorder affordance so frequently-applied chips can float left.
+ *
+ * `orderedIds` should be a permutation of the existing list's ids:
+ *  - missing ids are appended at the end in their original order
+ *    (so a stale id-list from a debounced drag still produces a
+ *    sane outcome — no entry gets dropped)
+ *  - unknown ids are silently ignored (defensive against a stale
+ *    drag fired after a delete)
+ *  - duplicates within `orderedIds` keep the first occurrence
+ *
+ * Returns the new list on success, `null` when the input is empty
+ * or when there's nothing to reorder. No-op when the resulting order
+ * matches the existing one (no IDB write) so passive drag-end calls
+ * stay cheap.
+ */
+export async function reorderSavedSearches(
+  orderedIds: string[],
+): Promise<SavedSearch[] | null> {
+  const list = await listSavedSearches();
+  if (list.length === 0) return null;
+  // Filter input down to known ids, deduped, preserving the user's
+  // intent order. Anything left over (existed before but absent from
+  // input) keeps its relative tail position.
+  const byId = new Map(list.map((s) => [s.id, s]));
+  const seen = new Set<string>();
+  const head: SavedSearch[] = [];
+  for (const id of orderedIds) {
+    if (!id || seen.has(id)) continue;
+    const hit = byId.get(id);
+    if (!hit) continue;
+    head.push(hit);
+    seen.add(id);
+  }
+  const tail = list.filter((s) => !seen.has(s.id));
+  const next = [...head, ...tail];
+  // No-op when nothing actually changed — keeps a debounced drag from
+  // writing meta on every micro-jiggle.
+  let same = next.length === list.length;
+  if (same) {
+    for (let i = 0; i < next.length; i++) {
+      if (next[i].id !== list[i].id) {
+        same = false;
+        break;
+      }
+    }
+  }
+  if (same) return list;
+  await writeSavedSearches(next);
+  return next;
+}
+
 // Search history ---------------------------------------------------------
 //
 // Recently-typed queries (most recent first). Distinct from saved
