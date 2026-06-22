@@ -539,7 +539,7 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
         <input type="search" placeholder="Search Context Clipboard…" autocomplete="off" />
         <div class="chips" role="tablist"></div>
         <div class="list"></div>
-        <div class="hint">↑↓ navigate · ⏎ paste · ⇧⏎ paste as markdown · 1-4 filter · Esc close</div>
+        <div class="hint">↑↓ navigate · ⏎ paste · ⇧⏎ as markdown · ⌥⏎ URL only · 1-4 filter · Esc close</div>
       </div>
     </div>
   `;
@@ -710,7 +710,63 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
     filter();
   }
 
-  async function pick(c: PaletteClip, asMarkdown = false) {
+  /**
+   * Pick variant — what to do with the chosen clip.
+   *
+   * - `paste`     → default: paste content into the focused
+   *                 editable field (or system clipboard).
+   * - `markdown`  → wrap as Markdown (image alt-text, link MD,
+   *                 fenced code) before pasting. Shift+Enter.
+   * - `url-only`  → copy just the source URL (or content for
+   *                 link clips). No paste — always goes to the
+   *                 system clipboard so the user can drop it
+   *                 into a chat / address bar / search box.
+   *                 Alt+Enter. Mirror of the detail send-to
+   *                 "Copy URL only" row.
+   */
+  type PickMode = "paste" | "markdown" | "url-only";
+
+  /**
+   * Extract the source URL for a clip — link clips carry the URL
+   * in `content`; text/image clips carry it in `source.url`. Only
+   * http(s) URLs are returned (data: / chrome: / file: would
+   * either leak local paths or not be sharable). Returns null
+   * when the clip has no shareable URL, so the caller can toast
+   * an honest error instead of copying garbage.
+   */
+  function urlOnlyFor(c: PaletteClip): string | null {
+    if (c.kind === "link") {
+      const raw = (c.content || "").trim();
+      if (!raw || !/^https?:\/\//i.test(raw)) return null;
+      return raw;
+    }
+    const u = (c.source?.url || "").trim();
+    if (!u || !/^https?:\/\//i.test(u)) return null;
+    return u;
+  }
+
+  async function pick(c: PaletteClip, mode: PickMode = "paste") {
+    // url-only: always system clipboard, never a direct-paste —
+    // the user reached for ⌥⏎ specifically because they want
+    // the URL on their clipboard, not in whatever field happens
+    // to be focused (often the field they were ABOUT to paste
+    // into next).
+    if (mode === "url-only") {
+      const url = urlOnlyFor(c);
+      if (!url) {
+        console.warn("[context-clipboard] palette url-only: no URL on clip", c.id);
+        closePalette();
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch (e) {
+        console.error("[context-clipboard] palette url-only copy failed", e);
+      }
+      closePalette();
+      return;
+    }
+    const asMarkdown = mode === "markdown";
     // Markdown variant: text → wrap in backticks if multiline, link →
     // [preview](url), image → ![title](url). Falls through to a normal
     // paste afterwards using `out` instead of `c.content`.
@@ -771,7 +827,16 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
     } else if (e.key === "Enter") {
       e.preventDefault();
       const c = filtered[active];
-      if (c) pick(c, e.shiftKey);
+      if (!c) return;
+      // Modifier matrix:
+      //   ⏎      → paste (default)
+      //   ⇧⏎     → paste as Markdown
+      //   ⌥⏎     → copy URL only (system clipboard)
+      // Alt wins when both are held — the URL action is the more
+      // explicit intent (the user reached for ⌥ specifically).
+      if (e.altKey) pick(c, "url-only");
+      else if (e.shiftKey) pick(c, "markdown");
+      else pick(c, "paste");
     } else if (e.key === "Escape") {
       closePalette();
     } else if (
@@ -811,7 +876,12 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
     if (!row) return;
     const i = Number(row.dataset.i);
     const c = filtered[i];
-    if (c) pick(c, (e as MouseEvent).shiftKey);
+    if (!c) return;
+    const me = e as MouseEvent;
+    // Match the keyboard matrix: ⌥ → url-only, ⇧ → markdown, plain → paste.
+    if (me.altKey) pick(c, "url-only");
+    else if (me.shiftKey) pick(c, "markdown");
+    else pick(c, "paste");
   });
   scrim.addEventListener("click", (e) => {
     if (e.target === scrim) closePalette();
