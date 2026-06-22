@@ -121,17 +121,30 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Per-site rule: import/export the rule set (JSON snippet, paste into another device) — `d3b2207`
 
 ### New (added this tick — 2026-06-21 18:48 PT refill)
-- [ ] Audit log: filter by clipId so clicking a clip's row in audit pre-filters to its action history
-- [ ] Saved-search chip: drag-to-reorder so frequent ones float left
+- [x] Audit log: filter by clipId so clicking a clip's row in audit pre-filters to its action history — `7af49fe`
+- [x] Saved-search chip: drag-to-reorder so frequent ones float left — `4361a8e`
 - [ ] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only)
 - [ ] Settings: per-kind retention split (text vs image, separate maxUnpinned)
-- [ ] Trash row: "Restore everything from this host" — bulk-restore counterpart to forget-host
+- [x] Trash row: "Restore everything from this host" — bulk-restore counterpart to forget-host — `b5ca001`
 - [ ] Detail-view: per-clip retention overlay (TTL countdown banner when expiresAt is near)
 - [ ] Bulk-bar: "Move to collection…" once collections ship (placeholder until then)
-- [ ] Cmd+K palette: "Open my last saved search" (most-recent-applied)
-- [ ] Site-rule form: paste a sample URL → auto-populate hostPattern field
-- [ ] Audit panel: "Last 7 days" / "Last 30 days" filter alongside the bucket chips
+- [x] Cmd+K palette: "Open my last saved search" (most-recent-applied) — `24676b8`
+- [x] Site-rule form: paste a sample URL → auto-populate hostPattern field — `e0d41dd`
+- [x] Audit panel: "Last 7 days" / "Last 30 days" filter alongside the bucket chips — `7af49fe`
 - [ ] In-page palette: live token-counter when typing a {{template}} clip body
+
+### New (added this tick — 2026-06-21 21:51 PT refill)
+- [ ] Detail-view: per-clip retention overlay (TTL countdown banner when expiresAt is near, soft-red below 1h)
+- [ ] In-page palette: live token-counter when typing a {{template}} clip body (count placeholders, show inline pill)
+- [ ] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only, falls back gracefully on FF)
+- [ ] Settings: per-kind retention split (text vs image — separate `maxUnpinnedText` / `maxUnpinnedImage` so image-heavy users can free space without trashing snippets)
+- [ ] Site-rule form: per-rule "test against active tab" — auto-fill the host + tags from the focused tab's URL
+- [ ] Search: `is:notemplate` operator (inverse of `is:template`) so the user can filter template-free clips
+- [ ] Detail-view: per-clip "Show audit history" jumper — opens settings + scopes audit to this clipId (mirror of alt-click from audit, but starting from the clip)
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — opens a chip-grid of the user's top tags for one-click bulk-tagging
+- [ ] Search-history chip: drag-to-reorder for the Recent strip (same model as saved-searches; promote frequent ones)
+- [ ] Cmd+K palette: "Show last forgotten host" — quick path to bulk-restore-from-host for the most-recent forget-host audit entry
+- [ ] Audit panel: download-as-JSON button (exports just the audit log, not the full bundle, for privacy receipts)
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -214,12 +227,179 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Trash row: "Restore + pin" combo icon button (hides when already pinned) — `f33d812`
 - [x] Search history: hover-pin + right-click to promote a Recent query to saved-search — `3281c91`
 - [x] Site rules: portable JSON Import / Export (merge or replace) — `d3b2207`
+- [x] Audit panel: clip-scope filter (Alt-click a row to scope to that clip) — `7af49fe`
+- [x] Audit panel: time-window dropdown (All / 7d / 30d) — `7af49fe`
+- [x] Saved-search chips: HTML5 drag-to-reorder — `4361a8e`
+- [x] Trash: bulk-restore strip — chips per host with 2+ rows — `b5ca001`
+- [x] Cmd+K palette: "Open my last saved search" (mirrors send-to last-action) — `24676b8`
+- [x] Site-rule form: paste-URL auto-extract host + wildcard suggest — `e0d41dd`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-21 21:51 PT** — 5/5 shipped. Audit panel scope filters:
+  new in-memory `auditClipScope: {clipId, preview} | null` +
+  `auditWindow: "all" | "7d" | "30d"` flank the existing
+  bucket-chip filter so the audit ring narrows along three
+  independent axes (clip → window → bucket). Alt-click on a
+  jumpable audit row pivots to clip-scope mode INSTEAD of
+  jumping (plain click still jumps — modifier opt-in keeps the
+  primary flow reversible), pulls a short preview via
+  previewForClipId (live → trash → fallback "clip <id-prefix>")
+  so the scope pill reads as something the user recognises;
+  clip-scope reset to bucket=all so a scoped clip with only
+  redact actions doesn't strand a TTL-filtered panel empty;
+  new `<select id="audit-window">` in the audit header with
+  All / 7d / 30d, applied BEFORE the clip scope via
+  `Date.now() - AUDIT_WINDOW_MS[window]` cutoff so the chip
+  counts reflect "of these visible rows" rather than the
+  global tally; auto-scope-away when the scoped clip × window
+  combo lands on zero rows so the panel can't strand the user
+  with "nothing here, but stuck in scope"; new
+  `<div id="audit-scope">` strip above the chips renders one
+  pill per active scope (`clip: Hello world…` ×, `when:
+  Last 7 days` ×) each clear-on-click via `data-act`
+  routing; summary line stays informative across all three
+  layers ("4 of 32" when any scope is active vs "32 actions"
+  when global); settings open resets all three filter layers
+  (they're a glance, not a preference — re-opening should
+  land on the global ring); row title updated to "Show this
+  clip · Alt-click to scope · right-click to forget" so the
+  new affordance is discoverable; CSS .audit-scope-pill
+  mirrors the existing .audit-chip vocab (same border-radius,
+  font weight, accent-soft fill) so the two strips read as
+  siblings (7af49fe — both clip-scope AND time-window were
+  bundled into this commit, mapping to two roadmap items).
+  Saved-search drag-to-reorder: HTML5 native DnD, no library;
+  `draggable="true"` on every chip except those in rename
+  mode (the input would hijack the drag, preventDefault on
+  dragstart from data-act="del"/"rename-input"); four
+  strip-level listeners cover the whole lifecycle —
+  dragstart stashes module-scope `savedSearchDragId`, sets
+  text/plain payload (required for Firefox, unused by us),
+  adds .dragging visual (40% opacity + 1.5deg tilt + grabbing
+  cursor); dragover preventDefaults so drop fires, splits
+  hovered chip into halves via cursor x vs midpoint, paints
+  3px inset accent on the relevant edge (.drop-before /
+  .drop-after) so the landing position is obvious before
+  commit, clears stale hints on other chips; drop computes
+  permutation (splice src out, splice back in before/after
+  dst), persists via new `reorderSavedSearches(orderedIds)`
+  in lib/db, re-renders; dragend always wipes visual state
+  to catch drop-outside / cancelled drags. New
+  reorderSavedSearches: filters input to known ids, deduped,
+  preserving intent order; missing ids tail-append in
+  original relative order (defensive against stale debounced
+  drag); unknown ids silently ignored; no-op + no IDB write
+  when resulting order matches existing; returns new list or
+  null on empty store. 29/29 saved-search-reorder sanity
+  covers swap math + tail preservation on missing + unknown
+  pruning + dupe collapse + empty-input no-op + all-unknown
+  no-op + query/createdAt/id preservation across reorder +
+  single-entry edge + 4-entry round-trip (4361a8e). Trash
+  bulk-restore strip: new pure
+  `src/lib/trash-host-rollup.ts` with
+  `groupTrashByHost(trash, minCount=2)` — default minCount=2
+  so single-row hosts don't get redundant chips (per-row
+  Restore already covers those); buckets sort by count desc,
+  newestDeletedAt desc, then alpha so the biggest fresh
+  cluster reads first deterministically; www-strip + lowercase
+  via existing hostFrom semantics so www.github.com +
+  github.com collapse to one bucket. New
+  `restoreAllFromHost(host)` in lib/db mirrors forgetHost's
+  normalisation (lowercase + www-strip + trim) — symmetric
+  pair to the forget-host destructive path; returns
+  {matched, restored} so the caller can distinguish "all
+  came back" from "some flaked"; pinned bit preserved by
+  restoreClip's existing semantics. Popup `renderTrash` paints
+  up to 6 chips above the row list, click flows through a
+  single strip-level handler that peeks the count, confirms
+  above 5 ("Restore N from <host>? All matching trash rows
+  return"), fires the lib helper, repaints trash + live list,
+  toasts honestly ("Restored 1 from x", "Restored 8 of 12
+  from x" for partial). 27/27 trash-host-rollup sanity covers
+  empty/single/pair bucketing + www-strip collapse + count-desc
+  + newest-desc tie-break + alpha tertiary + no-url skip +
+  custom minCount=1/3 + 50-row count math + duplicate-ts
+  count growth + loose-shape tolerance (b5ca001). Cmd+K
+  "Open my last saved search": new `LAST_SAVED_SEARCH_KEY`
+  meta row in lib/db (64-char id cap, trimmed + null-safe);
+  new in-memory mirror `lastSavedSearchId` refreshed at popup
+  boot via `await getLastSavedSearchId()` + on every chip
+  apply path so the palette open doesn't pay an IDB read per
+  render; stamped BEFORE the render in the saved-search click
+  handler (fire-and-forget, never block apply on meta write —
+  mirrors the send-to last-action pattern); cleared
+  synchronously when the underlying chip is deleted (apply-
+  handler checks lastSavedSearchId === id, nulls both
+  in-memory + IDB); palette command label adapts to live
+  state: "Open last saved search · Github issues" with hint
+  "Drop `host:github.com is:pinned` into the search box" when
+  recent, "Open last saved search" greyed-out unavailable
+  when nothing has been applied; run path mirrors the chip
+  click (set searchEl.value, stamp, focus, render). 15/15
+  last-saved-search sanity covers default-empty + round-trip
+  + whitespace trim + 64-char length cap + multi-write
+  last-wins + null/undefined coercion + meta isolation
+  against send-to-last + palette-last-q + typical chip-id
+  (24676b8). Site-rule paste-URL extractor: new pure
+  `src/lib/host-pattern.ts` with `looksLikeUrl(input)`
+  (http/https/protocol-relative // / host-with-path
+  detection, returns false for bare hostnames so they don't
+  trigger the rewrite) + `extractHostPattern(input)` (URL
+  parse first via new URL(), manual strip-protocol-then-
+  authority fallback, www-strip + lowercase + trailing-dot
+  normalisation, defensive against non-host schemes —
+  data: / file: / chrome: / about: / javascript: /
+  view-source: / blob: / moz-extension: bail to empty host
+  so accidental data-URL paste doesn't land "data" as the
+  rule target). Wildcard math: 3+ label hosts get
+  `*.<last two labels>` (docs.github.com → *.github.com);
+  IPs + 2-label apexes + single-label hosts (localhost) skip
+  the wildcard since it'd be useless; PSL hosts (co.uk /
+  com.au) get a known-limited `*.co.uk` — user can override.
+  Popup paste handler on rule-host input preventDefaults
+  URL-shape pastes, replaces value with extracted host,
+  dispatches synthetic input event so downstream listeners
+  see the new value, lands caret at end so a follow-up
+  keystroke appends; bare-host pastes (github.com) skip the
+  rewrite — extractHostPattern detects no URL shape. New
+  `<div id="rule-host-suggest">` strip below the input
+  paints `Try wildcard: *.github.com` chip whenever the
+  extracted host has 3+ labels AND the current input isn't
+  already the wildcard; one click swaps in the pattern, chip
+  self-hides on next render. loadRuleIntoForm triggers
+  renderHostSuggest after loading so mid-edit promotion from
+  exact to wildcard is one click; resetRuleForm clears the
+  suggest chip alongside the inputs so a Cancel+blank doesn't
+  leave a stale hint. CSS .rule-host-suggest-chip uses dashed
+  border + accent hover so the suggestion reads as "advisory"
+  rather than another field. 55/55 host-pattern sanity covers
+  looksLikeUrl shape detection (10 cases) + URL extraction
+  (subdomain math + query/hash + PSL + deep subdomain +
+  uppercase + protocol-relative + no-protocol-with-path +
+  www-strip + port + auth + IPv4 + edge cases + trailing dot
+  + plain-text fallthrough + non-host scheme rejection)
+  (e0d41dd). tsc + chrome/firefox builds green (popup 219.5KB
+  +14.6 vs last tick — audit scope filter UI + drag-to-
+  reorder handlers + trash host strip + last-saved-search
+  palette + host-pattern paste handler + suggest chip,
+  background 45.0KB, content 23.8KB); ALL 31 sanity suites
+  pass — 794 total checks (11 archive + 20 audit-export +
+  30 audit-filter + 26 audit-forget + 21 audit-retention +
+  36 audit-rollup + 30 bulk-preview + 32 context-tags + 11
+  export + 15 find-dupes + 9 highlight + 27 history-export +
+  55 host-pattern + 14 import-dedup + 14 jump + 15
+  last-saved-search + 25 merge-dupes + 11 palette + 23
+  pattern-hits + 15 privacy-audit + 14 recent-pin + 28
+  rule-count + 27 saved-search-rename + 29
+  saved-search-reorder + 18 send-to-reorder + 111 send-to +
+  78 site-rules-io + 13 sort + 27 trash-host-rollup + 9
+  trash-restore-pin); 16 script tests pass too. Pre-existing
+  playwright redact-ui DB-version mismatch unrelated.
 
 - **2026-06-21 18:48 PT** — 5/5 shipped. Saved-search rename inline:
   new `renameSavedSearch(id, name)` in lib/db — trims, rejects
