@@ -148,21 +148,41 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### New (added this tick — 2026-06-22 01:04 PT refill)
 - [x] Bulk-bar: live storage delta — "Free 4.2 MB" when delete is the bulk action (popup-only, uses bytes per selected clip) — `c6cf99f`
-- [ ] Detail-view: per-clip "Show audit history" jumper — clip → audit scoped to this clipId (mirror of alt-click from audit, starting from the clip side)
+- [x] Detail-view: per-clip "Show audit history" jumper — clip → audit scoped to this clipId (mirror of alt-click from audit, starting from the clip side) — `542f879`
 - [ ] In-page palette: live token-counter when typing a {{template}} body — inline pill counts placeholders so the user sees what'll expand
 - [ ] Settings: per-kind retention split — `maxUnpinnedText` + `maxUnpinnedImage` so image-heavy users can free space without trashing snippets
-- [ ] Search-history chip: drag-to-reorder for the Recent strip (same DnD model as saved-searches; promote frequent ones)
+- [x] Search-history chip: drag-to-reorder for the Recent strip (same DnD model as saved-searches; promote frequent ones) — `632f11d`
 - [ ] Bulk-bar: "Tag selected → palette tag picker" — chip-grid of user's top tags for one-click bulk-tagging
 - [ ] Site-rule form: per-rule "test against active tab" — auto-fill host + tags from the focused tab's URL
 - [ ] Detail-view: per-clip "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars (roadmap-already-listed but worth doing)
-- [ ] Cmd+K palette: "Jump to next archived clip" — cycles through is:archived results without leaving daily view
-- [ ] In-page palette: copy-URL-only with Alt+Enter (mirrors detail send-to)
+- [x] Cmd+K palette: "Jump to next archived clip" — cycles through is:archived results without leaving daily view — `100ec2a`
+- [x] In-page palette: copy-URL-only with Alt+Enter (mirrors detail send-to) — `fe5b273`
 - [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin)
 - [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview)
 - [ ] Audit row long-press: drop just this entry from the ring (covered by right-click — left here as touch-screen affordance)
 - [ ] Trash: "Empty just images" / "Empty just text" filter on the trash purge to free quota without losing everything
 - [ ] Detail: "Re-capture from URL" — for link/text clips with an http(s) source, re-fetch the title + nearbyText and refresh the preview
 - [ ] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs)
+- [x] Detail send-to: "Copy as table row" (Markdown table row) for tabular text clips — `a8f7f79`
+
+### New (added this tick — 2026-06-22 05:03 PT refill)
+- [ ] Settings: per-kind retention split — `maxUnpinnedText` + `maxUnpinnedImage` (image-heavy users free space without trashing snippets)
+- [ ] In-page palette: live `{{token}}` counter pill while typing a template body
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — chip-grid of user's top tags for one-click bulk-tagging
+- [ ] Site-rule form: per-rule "test against active tab" — auto-fill host + tags from the focused tab's URL
+- [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin)
+- [ ] Detail: "Re-capture from URL" — for link/text clips with an http(s) source, re-fetch title + nearbyText, refresh preview
+- [ ] Trash: "Empty just images" / "Empty just text" filter on trash purge — free quota without losing everything
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars
+- [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview)
+- [ ] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs)
+- [ ] Bulk-bar: "Move to collection…" once collections ship (placeholder until then)
+- [ ] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only, falls back gracefully on FF)
+- [ ] Quick-capture: paste an arbitrary URL → builds a link clip immediately (mirror of the system-clipboard quick-capture but for URLs typed/pasted in the popup)
+- [ ] Detail: "Open all similar clips" — opens detail-view for the top similar result with prev/next nav inheriting the similar set
+- [ ] Cmd+K palette: "Jump to prev archived clip" — companion to next-archived, cycles in reverse
+- [ ] Audit panel: per-bucket totals on the chip strip — chip labels like "Redact (12)" / "Trash (8)" so the user sees the distribution at a glance
+- [ ] Detail send-to: "Copy as JSON line" — single-line minified JSON envelope for terminal / log piping (vs the multi-line pretty JSON we already have)
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -256,12 +276,143 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Audit panel: Download JSON button — standalone privacy receipt, no clip content — `4bca469`
 - [x] Cmd+K palette: "Show last forgotten host" — one-tap rescue from forget-host audit ring — `9bfabc5`
 - [x] Bulk-bar: live "Free X MB" storage delta — visible-selected sum with off-filter honesty tail — `c6cf99f`
+- [x] Detail-view: "Show audit history" jumper — pivot privacy audit panel to scoped clip-mode from detail header — `542f879`
+- [x] Cmd+K palette: "Jump to next archived clip" — cycle archived clips newest-first without flipping list filter — `100ec2a`
+- [x] Detail send-to: "Copy as table row" — TSV/CSV body to `| col | col |` Markdown row — `a8f7f79`
+- [x] Search-history Recent chips: HTML5 drag-to-reorder — promote frequent queries left — `632f11d`
+- [x] In-page palette: Alt+Enter copies URL only — http(s)-gated, system clipboard, mirrors detail send-to — `fe5b273`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-22 05:03 PT** — 5/5 shipped. Detail "Show audit
+  history" jumper: new icon button on the detail header (between
+  Send-to and Pin) pivots the privacy audit panel into clip-scope
+  mode for the open clip — mirror of alt-click from an audit row
+  but starting from the clip side. Sequence: close any open
+  send-menu, close detail view, openSettings() (which resets
+  auditClipScope to null on every boot), THEN setAuditClipScope
+  (order matters — opening must complete before pre-set scope
+  survives). Zero matches still pivots so the user sees an
+  honest "0 of N · clip: ..." rather than a silent no-op. New
+  pure lib/detail-audit-jump.ts owns the precheck contract so the
+  future Cmd+K + row-menu mirrors answer the same questions
+  identically: precheckAuditJump(detailId, entries) →
+  {canJump, clipId, matchingCount} defensive against null/
+  undefined detailId (canJump=false) + non-array entries
+  (canJump=true with count=0); describeAuditJump → tooltip
+  variant with singular/plural live-count text. refreshDetail
+  HistoryTitle(clipId) runs on every openDetail (cheap, one IDB
+  read of small ring), races safely. New history icon (clock +
+  counter-clockwise arrow) in icons.ts slotted next to send/
+  archive/inbox. 24/24 sanity covers null/undefined/empty/
+  whitespace/number/object detailId guards + detailId trim +
+  non-array entries fallbacks + count math + defensive entry
+  shapes + strict-equality contract + describe variants +
+  realistic 30-entry ring counting to 6/30 (542f879). Cmd+K
+  "Jump to next archived clip": cycles through archived clips
+  newest-first (wraps at end) by OPENING detail-view for each
+  next clip — daily-list filter stays put. New pure lib/next-
+  archived.ts: archivedClipsSorted (filters to archived===true
+  strict boolean — rejects "yes"/1/undefined; sorts lastSeenAt
+  desc with id-desc tie-breaker so bulk-archived cycles
+  deterministically); nextArchivedClipId (no archived → null;
+  no cursor → first; cursor not archived → first; single → that
+  one even when IT is cursor; wraps via (idx+1) % length);
+  describeArchiveCycle → 3 variants (0/negative/NaN/Infinity →
+  no-archived; 1 → singular; N → plural with count). Popup
+  cache archivedCount in render() (cheap, filter over wide
+  slice), palette command in Navigate group with rich keywords;
+  jumpToNextArchived() re-reads listClips at click time (so
+  fresh archives aren't missed); toasts position "Archived clip
+  3 of 12" for multi-archive cycles. 34/34 sanity covers
+  defensive inputs + filter strictness + sort + cycle (empty/
+  single/multi/wrap/no-cursor/live-cursor/unknown-cursor/single-
+  with-cursor) + describe variants + realistic 10-clip ring
+  with 5 archived cycling c0→c2→c4→c6→c8→c0 (100ec2a).
+  Detail send-to "Copy as table row": new pure lib/table-row.ts
+  with looksLikeTableRow (rejects image/empty/whitespace/multi-
+  line/plain-sentence/single-word; accepts tab OR comma); split
+  TableCells (tab-first TSV is cleanest signal; otherwise single
+  /\s*,\s*/ rule handles "a,b,c"/"a, b, c"/messy "a,b, c"
+  identically — the previous two-rule design misrouted mixed
+  inputs); escapeCell (defensive null/undefined → ""; escapes
+  pipe → \|; collapses internal whitespace; trims outer);
+  tableRowForClip → "| cell | cell | cell |" with leading +
+  trailing pipes. Wired between raw-text and json in
+  buildSendActions so copy-variants cluster stays tight; gates
+  on truthy output. 49/49 table-row + 112/112 send-to sanity
+  (one count updated: 10 → 11 actions; raw-text → table-row →
+  json order asserted) (a8f7f79). Search-history Recent chips
+  drag-to-reorder: HTML5 native DnD mirroring saved-searches
+  strip; recent-chip rendered draggable=true; four strip-level
+  handlers cover dragstart (preventDefault on apply/save
+  buttons so inner intent wins; stash searchHistoryDragQuery;
+  Firefox-required text/plain payload), dragover (insertion-
+  edge cursor.x vs midpoint paint .drop-before/.drop-after),
+  drop (build new order from full searchHistory cache rather
+  than visible-filtered slice — dedup-vs-saved-search hidden
+  chips don't get lost; splice src out, splice in before/after
+  dst, persist via reorderSearchHistory; repaint), dragend
+  (belt-and-braces visual cleanup). New lib/db.ts
+  reorderSearchHistory: defensive against drag races (unknown
+  queries pruned, dupes collapsed to first occurrence, missing
+  tail-append in original order); non-string entries skipped;
+  no-op + 0 IDB writes when order unchanged; null only when
+  store empty. pushSearchHistory contract preserved (typed
+  query still bumps to position 0 on commit). CSS .recent-
+  chip.dragging mirrors saved-search-chip with slightly softer
+  tilt (-1deg vs -1.5deg) — Recent strip is lower-priority
+  cousin. 24/24 sanity covers empty-store → null + basic swap +
+  no-op match + partial reorder + unknown pruning + dupe
+  collapse + non-string skip + all-unknown no-op + empty-input
+  no-op + single-entry + case-sensitive (GitHub != github) +
+  trim NOT applied + operator-query round-trip + drag-to-front
+  + drag-to-end + 5-entry full-ring reverse (632f11d). In-page
+  palette Alt+Enter copies URL only: new ⌥⏎ modifier mirrors
+  detail send-to "Copy URL only". Behavior matrix (kbd + mouse
+  identical): ⏎/click → paste; ⇧⏎/shift+click → markdown;
+  ⌥⏎/alt+click → copy URL only (alt wins when both held —
+  more explicit intent). New closure helpers in content.ts:
+  type PickMode = "paste"|"markdown"|"url-only" replaces the
+  prior asMarkdown boolean; urlOnlyFor(c) extracts shareable
+  URL (link clips: content IS url; text/image: source.url),
+  http(s)-gated only (data:/chrome:/file:/about:/javascript:
+  bail to null — no accidental local-path leak); trims; returns
+  null when no shareable URL. pick() url-only path ALWAYS goes
+  to system clipboard, never direct-paste-to-field — user
+  reached for ⌥⏎ for clipboard intent specifically.
+  Hint footer updated. 29/29 sanity covers link clips (http/
+  https/query/fragment/case-insensitive/trim/empty/whitespace/
+  data:/file:/chrome:/about:/javascript:/bare-host) + text
+  clips (http/https source/trim/no-source/empty-source/
+  undefined-url/file:/chrome:) + image clips (source.url
+  extracted not data: content; null when source missing) +
+  defensive null/undefined content + 3 realistic captures
+  (fe5b273). tsc + chrome/firefox builds green (popup 238.7KB
+  +9.7 vs last tick — detail-audit-jump + next-archived + table-
+  row + history-reorder DB helpers + 3 new icons + DnD strip
+  handlers + url-only modifier dispatch; background 45.0KB
+  unchanged; content 24.8KB +1.0 — PickMode enum + urlOnlyFor
+  + modifier dispatch in keydown+click); ALL 39 sanity suites
+  pass — 1051 total checks (11 archive + 33 audit-export-json +
+  20 audit-export + 30 audit-filter + 26 audit-forget + 21
+  audit-retention + 36 audit-rollup + 30 bulk-preview + 39
+  bulk-storage-delta + 32 context-tags + 24 detail-audit-jump +
+  11 export + 15 find-dupes + 9 highlight + 27 history-export +
+  55 host-pattern + 14 import-dedup + 14 jump + 30 last-
+  forgotten-host + 15 last-saved-search + 25 merge-dupes + 34
+  next-archived + 24 no-template + 29 palette-url-only + 11
+  palette + 23 pattern-hits + 15 privacy-audit + 14 recent-pin
+  + 24 reorder-search-history + 28 rule-count + 27 saved-
+  search-rename + 29 saved-search-reorder + 18 send-to-reorder
+  + 112 send-to + 78 site-rules-io + 13 sort + 49 table-row +
+  27 trash-host-rollup + 9 trash-restore-pin + 34 ttl-banner);
+  16 script tests pass too. Pre-existing playwright redact-ui
+  DB-version mismatch unrelated.
 
 - **2026-06-22 01:04 PT** — 5/5 shipped. is:notemplate
   operator: inverse of is:template, lets the user drop {{token}}
