@@ -75,6 +75,7 @@ import {
   stringifyAuditExport,
   auditExportFilename,
 } from "../lib/audit-export-json";
+import { findLastForgottenHost, formatAge } from "../lib/last-forgotten-host";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -267,6 +268,14 @@ let searchHistory: string[] = [];
  * this on remove).
  */
 let lastSavedSearchId: string = "";
+/**
+ * Most-recent forget-host audit entry, refreshed at popup boot and
+ * after any forget-host action. The Cmd+K "Show last forgotten host"
+ * command reads this synchronously so the palette open doesn't pay
+ * a listPrivacyAudit() roundtrip every time. Null when the audit
+ * ring has no forget-host entries yet.
+ */
+let lastForgottenHost: import("../lib/last-forgotten-host").ForgottenHostInfo | null = null;
 /**
  * When non-null, the saved-search chip with this id renders as a
  * text input instead of a button so the user can rename it inline.
@@ -668,6 +677,22 @@ async function refreshSavedSearches(): Promise<void> {
 
 async function refreshSearchHistory(): Promise<void> {
   searchHistory = await listSearchHistory();
+}
+
+/**
+ * Refresh the cached `lastForgottenHost` pointer from the privacy
+ * audit ring. Cheap (single IDB read of the small ring), called from
+ * popup boot + after any forget-host action so the Cmd+K rescue
+ * command always knows the most-recent target.
+ */
+async function refreshLastForgottenHost(): Promise<void> {
+  try {
+    const entries = await listPrivacyAudit();
+    lastForgottenHost = findLastForgottenHost(entries);
+  } catch (e) {
+    console.warn("[context-clipboard] last-forgotten-host refresh failed", e);
+    lastForgottenHost = null;
+  }
 }
 
 /**
@@ -2364,6 +2389,10 @@ async function runForgetHost(): Promise<void> {
       host: raw,
       detail: `${trashed} clip${trashed === 1 ? "" : "s"}${skipped > 0 ? ` · ${skipped} pinned kept` : ""}`,
     });
+    // Refresh the cached "last forgotten host" pointer so the Cmd+K
+    // command surfaces the rescue offer immediately (without waiting
+    // for the next popup boot).
+    void refreshLastForgottenHost();
   }
   const msg =
     skipped > 0
@@ -4144,6 +4173,36 @@ function buildPaletteActions(): PaletteAction[] {
         void setLastSavedSearchId(lastSavedSearch.id);
         searchEl.focus();
         void render();
+      },
+    },
+    {
+      id: "show-last-forgotten-host",
+      label: lastForgottenHost
+        ? `Show last forgotten host · ${lastForgottenHost.host} (${formatAge(lastForgottenHost.at)})`
+        : "Show last forgotten host",
+      hint: lastForgottenHost
+        ? `Open Trash + offer to restore everything from ${lastForgottenHost.host}`
+        : "No forget-host action in the audit ring yet",
+      group: "Privacy",
+      keywords: "rescue restore undo forget host recover bulk",
+      available: !!lastForgottenHost,
+      run: () => {
+        closePalette();
+        if (!lastForgottenHost) return;
+        // Route through openSettings so the trash panel is visible
+        // before we kick off restoreHostFromTrash (which paints the
+        // confirm dialog + repaints both trash + live list).
+        void (async () => {
+          await openSettings();
+          // Defer a tick so settings panel paints first, then the
+          // confirm dialog reads cleanly.
+          setTimeout(() => {
+            // restoreHostFromTrash already handles "no trashed
+            // clips from this host" gracefully (audit row outlives
+            // the 7-day trash retention).
+            void restoreHostFromTrash(lastForgottenHost!.host);
+          }, 50);
+        })();
       },
     },
     {
@@ -6371,6 +6430,10 @@ bulkTag.addEventListener("click", async () => {
   // "Open my last saved search" command can render its name + skip
   // when stale without an IDB read per palette open.
   lastSavedSearchId = await getLastSavedSearchId();
+  // Cache the most-recent forget-host audit entry so the Cmd+K
+  // "Show last forgotten host" rescue command can resolve its
+  // target without a per-open IDB read.
+  await refreshLastForgottenHost();
   await render();
   searchEl.focus();
 })();
