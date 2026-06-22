@@ -387,6 +387,57 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           await applySidePanelMode();
           return sendResponse({ ok: true });
         }
+        if (msg.action === "openSidePanel") {
+          // Open Chrome's side panel for the SENDER tab. Two invariants:
+          //  - Chrome 116+ accepts `chrome.sidePanel.open({tabId})` from
+          //    a runtime message handler as long as the message originates
+          //    from a user gesture (palette click, popup button). We're
+          //    fired from in-page palette → cc-rpc, so we're inside the
+          //    user-gesture window.
+          //  - Firefox has no sidePanel API at all. Bail with an honest
+          //    error so callers can toast / fall back, not throw.
+          // The tabId comes from `sender.tab?.id` — the content script
+          // calling this RPC lives in a tab, so we have a real id 99% of
+          // the time. Defensive against the orphan-tab edge case where
+          // sender.tab is undefined (background-page → background-page
+          // messages don't carry a tab).
+          //
+          // Probe mode: callers pass `{ probe: true }` to feature-detect
+          // without firing the open call (which would steal the user's
+          // gesture). We surface the same ok/error contract so the
+          // detection logic is unchanged; the only difference is we
+          // never call `sidePanelApi.open`.
+          const sidePanelApi = (api as unknown as {
+            sidePanel?: { open?: (o: { tabId?: number; windowId?: number }) => Promise<void> };
+          }).sidePanel;
+          if (!sidePanelApi?.open) {
+            return sendResponse({ ok: false, error: "sidePanel API unavailable" });
+          }
+          const probe = !!(msg.payload as { probe?: boolean } | undefined)?.probe;
+          const tabId = sender.tab?.id;
+          const windowId = sender.tab?.windowId;
+          if (typeof tabId !== "number" && typeof windowId !== "number") {
+            return sendResponse({ ok: false, error: "no tab/window context" });
+          }
+          if (probe) {
+            // API is present + we have a tab anchor — that's enough to
+            // tell the caller the button should reveal. Don't actually
+            // open the panel; that would steal the user's gesture.
+            return sendResponse({ ok: true, probed: true });
+          }
+          try {
+            await sidePanelApi.open(
+              typeof tabId === "number" ? { tabId } : { windowId: windowId! },
+            );
+            return sendResponse({ ok: true });
+          } catch (e) {
+            console.warn("[context-clipboard] sidePanel.open failed", e);
+            return sendResponse({
+              ok: false,
+              error: (e as Error)?.message || "sidePanel.open failed",
+            });
+          }
+        }
         if (msg.action === "findClipByContent") {
           const p = msg.payload as { content?: string } | undefined;
           if (!p?.content) return sendResponse({ ok: false });
@@ -884,6 +935,7 @@ interface RpcMsg {
     | "getFieldSuggestion"
     | "findClipByContent"
     | "applySidePanelMode"
+    | "openSidePanel"
     | "redactClip"
     | "unredactClip"
     | "refetchImage"

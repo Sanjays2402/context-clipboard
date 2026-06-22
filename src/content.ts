@@ -509,6 +509,11 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
     :host { all: initial; }
     .scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 2147483646; display:flex; align-items:flex-start; justify-content:center; padding-top: 12vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     .box { width: 560px; max-width: 92vw; background: #161a22; color:#e6e8ef; border-radius: 12px; box-shadow: 0 18px 60px rgba(0,0,0,0.55); overflow: hidden; border: 1px solid #232936; }
+    .header { display:flex; align-items:stretch; }
+    .header input { border-bottom:none; flex:1 1 auto; }
+    .sp-open { flex:0 0 auto; background:transparent; color:#8a93a6; border:none; border-bottom:1px solid #232936; padding:0 14px; cursor:pointer; font: 11px/1 -apple-system, BlinkMacSystemFont, sans-serif; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; display:inline-flex; align-items:center; gap:5px; transition: color 0.15s, background 0.15s; }
+    .sp-open:hover { color:#e6e8ef; background:rgba(120, 200, 255, 0.08); }
+    .sp-open svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
     input { width:100%; background:#0f1115; color:#e6e8ef; border:none; border-bottom:1px solid #232936; padding:14px 16px; font-size:15px; outline:none; box-sizing: border-box; }
     .chips { display:flex; gap:6px; padding: 8px 12px; background:#10141c; border-bottom:1px solid #232936; }
     .chip { background:transparent; border:1px solid #2a3140; color:#8a93a6; font: 11px/1 -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 600; padding: 4px 10px; border-radius: 999px; cursor: pointer; display:flex; align-items:center; gap:5px; transition: border-color 0.15s, color 0.15s, background 0.15s; text-transform: uppercase; letter-spacing: 0.02em; }
@@ -536,7 +541,16 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
   const html = `
     <div class="scrim">
       <div class="box" role="dialog">
-        <input type="search" placeholder="Search Context Clipboard…" autocomplete="off" />
+        <div class="header">
+          <input type="search" placeholder="Search Context Clipboard…" autocomplete="off" />
+          <button class="sp-open" type="button" title="Open the full Context Clipboard in Chrome's side panel — keeps the list visible while you keep browsing" hidden>
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="2" y="3" width="12" height="10" rx="1.5"/>
+              <line x1="10" y1="3" x2="10" y2="13"/>
+            </svg>
+            <span>Side panel</span>
+          </button>
+        </div>
         <div class="chips" role="tablist"></div>
         <div class="list"></div>
         <div class="hint">↑↓ navigate · ⏎ paste · ⇧⏎ as markdown · ⌥⏎ URL only · 1-4 filter · Esc close</div>
@@ -557,9 +571,66 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
   const chipsEl = sr.querySelector(".chips") as HTMLElement;
   const list = sr.querySelector(".list") as HTMLElement;
   const scrim = sr.querySelector(".scrim") as HTMLElement;
+  const sidePanelBtn = sr.querySelector(".sp-open") as HTMLButtonElement | null;
   let active = 0;
   let kindFilter: "all" | "text" | "image" | "link" = "all";
   let filtered = clips.slice();
+
+  // Reveal the "Side panel" affordance only on browsers that actually
+  // have the sidePanel API. We can't introspect the API directly from a
+  // content script (privileged) — we issue a feature-detect RPC at
+  // open time. The button starts hidden so Firefox / older Chrome
+  // never see a dead control; it reveals on a successful round-trip.
+  //
+  // The probe asks the background for a feature-detect-only response
+  // (no actual open call — that would steal the user's gesture).
+  // Background returns `{ ok: true, probed: true }` when the sidePanel
+  // API is present AND we have a tab anchor. Anything else (no resp,
+  // "sidePanel API unavailable", chrome.runtime.lastError) keeps the
+  // button hidden — correct fallback on Firefox / old Chrome.
+  if (sidePanelBtn) {
+    try {
+      api.runtime.sendMessage(
+        { type: "cc-rpc", action: "openSidePanel", payload: { probe: true } },
+        (resp?: { ok?: boolean; probed?: boolean; error?: string }) => {
+          // Ignore chrome.runtime.lastError — if the handler isn't
+          // wired we just leave the button hidden, which is correct
+          // for any browser without the sidePanel API.
+          void api.runtime.lastError;
+          if (resp?.ok && resp.probed) {
+            sidePanelBtn.hidden = false;
+          }
+        },
+      );
+    } catch {
+      // runtime gone — keep hidden
+    }
+
+    sidePanelBtn.addEventListener("click", () => {
+      // User gesture is alive on click — call the same RPC without
+      // the probe flag so the background actually opens the panel.
+      // Close the palette afterwards so the side panel takes over
+      // visual focus.
+      try {
+        api.runtime.sendMessage(
+          { type: "cc-rpc", action: "openSidePanel" },
+          (resp?: { ok?: boolean; error?: string }) => {
+            void api.runtime.lastError;
+            if (!resp?.ok) {
+              console.warn(
+                "[context-clipboard] palette: sidePanel.open failed",
+                resp?.error,
+              );
+              return;
+            }
+            closePalette();
+          },
+        );
+      } catch (e) {
+        console.error("[context-clipboard] palette: sidePanel RPC threw", e);
+      }
+    });
+  }
 
   // True when the user clicked into an editable field via the
   // right-click menu — only text/link clips can be pasted directly,
