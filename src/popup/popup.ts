@@ -70,6 +70,11 @@ import { groupAuditByDay } from "../lib/audit-rollup";
 import { groupTrashByHost } from "../lib/trash-host-rollup";
 import { extractHostPattern, looksLikeUrl } from "../lib/host-pattern";
 import { computeTtlBanner } from "../lib/ttl-banner";
+import {
+  buildAuditExport,
+  stringifyAuditExport,
+  auditExportFilename,
+} from "../lib/audit-export-json";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -182,6 +187,7 @@ const auditFiltersEl = $("audit-filters");
 const auditScopeEl = $("audit-scope");
 const auditWindowEl = $<HTMLSelectElement>("audit-window");
 const auditClearBtn = $<HTMLButtonElement>("audit-clear");
+const auditDownloadBtn = $<HTMLButtonElement>("audit-download");
 const auditRetentionEl = $<HTMLSelectElement>("audit-retention");
 const auditFootCap = $("audit-foot-cap");
 const forgetHostInput = $<HTMLInputElement>("forget-host-input");
@@ -2000,6 +2006,43 @@ auditClearBtn.addEventListener("click", async () => {
   await clearPrivacyAudit();
   await renderAudit();
   toast("Audit log cleared");
+});
+
+// Download just the audit ring as JSON — privacy receipt with NO
+// clip content. Different from the full export bundle (which carries
+// clips + settings + audit alongside). Useful for personal record
+// keeping or for answering "what did this extension do with my
+// data" without leaking the underlying snippets.
+auditDownloadBtn.addEventListener("click", async () => {
+  try {
+    const [entries, settings] = await Promise.all([
+      listPrivacyAudit(),
+      getSettings(),
+    ]);
+    if (entries.length === 0) {
+      toast("Audit log is empty — nothing to download", "error");
+      return;
+    }
+    const env = buildAuditExport(entries, {
+      retention: settings.privacyAuditRetention,
+    });
+    const text = stringifyAuditExport(env);
+    const blob = new Blob([text], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = auditExportFilename();
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(
+      entries.length === 1
+        ? "Downloaded 1 audit entry"
+        : `Downloaded ${entries.length} audit entries`,
+    );
+  } catch (e) {
+    console.error("[context-clipboard] audit download failed", e);
+    toast("Audit download failed — see console", "error");
+  }
 });
 
 /**
