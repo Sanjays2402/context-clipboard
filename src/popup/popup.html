@@ -211,6 +211,11 @@
           <div class="trash-header">
             <span class="trash-title">Privacy audit</span>
             <span class="trash-summary" id="audit-summary">no actions yet</span>
+            <select id="audit-window" class="audit-retention" title="Limit to recent activity">
+              <option value="all" selected>All time</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+            </select>
             <select id="audit-retention" class="audit-retention" title="How many recent privacy actions to keep">
               <option value="10">10</option>
               <option value="30" selected>30</option>
@@ -219,10 +224,11 @@
             </select>
             <button id="audit-clear" class="small" title="Clear the audit log">Clear</button>
           </div>
+          <div class="audit-scope" id="audit-scope" hidden></div>
           <div class="audit-filters" id="audit-filters" hidden></div>
           <div class="audit-list" id="audit-list"></div>
           <div class="trash-foot" id="audit-foot">
-            Last <span id="audit-foot-cap">30</span> privacy actions on this device. Local-only — never leaves IDB. Useful for spot-checking what's been redacted, scrubbed, archived, or forgotten.
+            Last <span id="audit-foot-cap">30</span> privacy actions on this device. Local-only — never leaves IDB. Alt-click a row to scope the panel to that clip.
           </div>
         </div>
         <div class="trash-section" id="trash-section">

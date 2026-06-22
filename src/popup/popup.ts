@@ -166,6 +166,8 @@ const trashPurge24h = $<HTMLButtonElement>("trash-purge-24h");
 const auditSummary = $("audit-summary");
 const auditList = $("audit-list");
 const auditFiltersEl = $("audit-filters");
+const auditScopeEl = $("audit-scope");
+const auditWindowEl = $<HTMLSelectElement>("audit-window");
 const auditClearBtn = $<HTMLButtonElement>("audit-clear");
 const auditRetentionEl = $<HTMLSelectElement>("audit-retention");
 const auditFootCap = $("audit-foot-cap");
@@ -1266,6 +1268,13 @@ async function openSettings() {
     : 30;
   auditRetentionEl.value = String(retention);
   auditFootCap.textContent = String(retention);
+  // Reset transient audit filters on every panel open. They're a
+  // glance, not a preference — re-opening should land you on the
+  // global ring, not on whatever you last scoped to.
+  auditClipScope = null;
+  auditWindow = "all";
+  auditWindowEl.value = "all";
+  auditFilter = "all";
   sBlock.value = (s.blockList || []).join("\n");
   sAllow.value = (s.allowList || []).join("\n");
   sTheme.value = s.theme;
@@ -1474,6 +1483,41 @@ let auditFilter: AuditFilter = "all";
  */
 const auditDayCollapsed = new Map<string, boolean>();
 
+/**
+ * Clip-scope filter for the audit panel. When set, the audit list
+ * only shows entries whose `clipId` matches. Pre-applied BEFORE the
+ * bucket chips so the chip counts reflect "of this clip's actions"
+ * rather than the global total — which is what the user wants when
+ * they're spelunking one clip's history.
+ *
+ * Activated by Alt+clicking a jumpable audit row (or via the row's
+ * right-click → "Filter audit to this clip" entry). A clear-scope
+ * pill appears above the chip strip while active; clicking it
+ * resets to the global view.
+ *
+ * Like the bucket filter + day-collapse: in-memory only, resets on
+ * popup close. The audit panel is a glance, not a preference.
+ */
+let auditClipScope: { clipId: string; preview: string } | null = null;
+
+/**
+ * Time-window filter for the audit panel. Default "all" shows the
+ * entire ring buffer (capped at the retention setting). "7d" / "30d"
+ * pre-filter by entry `at` BEFORE the bucket chips so the chip
+ * counts reflect the window the user picked.
+ *
+ * Same lifecycle as `auditClipScope` + `auditFilter`: module state,
+ * resets on popup close. The audit panel is a glance, not a
+ * preference.
+ */
+type AuditWindow = "all" | "7d" | "30d";
+let auditWindow: AuditWindow = "all";
+
+const AUDIT_WINDOW_MS: Record<Exclude<AuditWindow, "all">, number> = {
+  "7d": 7 * 86_400_000,
+  "30d": 30 * 86_400_000,
+};
+
 function auditKindBucket(k: PrivacyAuditEntry["kind"]): Exclude<AuditFilter, "all"> {
   switch (k) {
     case "redact":
@@ -1515,12 +1559,66 @@ async function renderAudit(): Promise<void> {
     auditSummary.textContent = "no actions yet";
     auditFiltersEl.hidden = true;
     auditFiltersEl.innerHTML = "";
+    auditScopeEl.hidden = true;
+    auditScopeEl.innerHTML = "";
     auditList.innerHTML = `<div class="audit-empty">When you redact, scrub, forget a host, or archive a clip, the action shows up here.</div>`;
     return;
   }
-  // Bucket counts so chips can show the right N inline — and so we can
-  // hide chips that would match zero rows (no point offering a "TTL"
-  // pill if the user has never set one).
+  // 1) Scope filters apply BEFORE the bucket counts so chips show
+  //    "of these visible rows" rather than the global tally. Order:
+  //    clip-scope → time-window → bucket. Each is a narrowing pass.
+  let windowed = entries;
+  if (auditWindow !== "all") {
+    const cutoff = Date.now() - AUDIT_WINDOW_MS[auditWindow];
+    windowed = windowed.filter((e) => e.at >= cutoff);
+  }
+  // Auto-scope-away if the scoped clip no longer has any matching
+  // entries in the visible window (user might have cleared rows in
+  // a way that left zero matches). Keeps the panel from looking
+  // mysteriously empty.
+  if (auditClipScope) {
+    const scoped = windowed.filter((e) => e.clipId === auditClipScope!.clipId);
+    if (scoped.length === 0) {
+      auditClipScope = null;
+    } else {
+      windowed = scoped;
+    }
+  }
+
+  // 2) Render the scope banner (clip + window) above the chips. The
+  //    banner only appears when at least one scope is active — when
+  //    everything is "all", the panel reads as the global ring.
+  const scopeBits: string[] = [];
+  if (auditClipScope) {
+    scopeBits.push(
+      `<button type="button" class="audit-scope-pill" data-act="clear-clip" title="Show audit rows for every clip">` +
+        `<span class="audit-scope-label">clip:</span>` +
+        `<span class="audit-scope-value" title="${escapeHtml(auditClipScope.preview)}">${escapeHtml(auditClipScope.preview.slice(0, 32))}</span>` +
+        `<span class="audit-scope-x" aria-hidden="true">×</span>` +
+        `</button>`,
+    );
+  }
+  if (auditWindow !== "all") {
+    const windowLabel = auditWindow === "7d" ? "Last 7 days" : "Last 30 days";
+    scopeBits.push(
+      `<button type="button" class="audit-scope-pill" data-act="clear-window" title="Show every audit row">` +
+        `<span class="audit-scope-label">when:</span>` +
+        `<span class="audit-scope-value">${escapeHtml(windowLabel)}</span>` +
+        `<span class="audit-scope-x" aria-hidden="true">×</span>` +
+        `</button>`,
+    );
+  }
+  if (scopeBits.length === 0) {
+    auditScopeEl.hidden = true;
+    auditScopeEl.innerHTML = "";
+  } else {
+    auditScopeEl.hidden = false;
+    auditScopeEl.innerHTML = scopeBits.join("");
+  }
+
+  // 3) Bucket counts so chips can show the right N inline — and so we can
+  //    hide chips that would match zero rows (no point offering a "TTL"
+  //    pill if the user has never set one).
   const counts: Record<Exclude<AuditFilter, "all">, number> = {
     redact: 0,
     scrub: 0,
@@ -1528,7 +1626,7 @@ async function renderAudit(): Promise<void> {
     host: 0,
     ttl: 0,
   };
-  for (const e of entries) counts[auditKindBucket(e.kind)]++;
+  for (const e of windowed) counts[auditKindBucket(e.kind)]++;
   // If the currently-active filter has zero rows (because the user
   // cleared the only matching entry, or the ring rotated past it),
   // snap back to `all` so the panel never looks empty for no reason.
@@ -1540,7 +1638,7 @@ async function renderAudit(): Promise<void> {
   auditFiltersEl.hidden = false;
   auditFiltersEl.innerHTML = visibleChips
     .map((c) => {
-      const n = c.id === "all" ? entries.length : counts[c.id as Exclude<AuditFilter, "all">];
+      const n = c.id === "all" ? windowed.length : counts[c.id as Exclude<AuditFilter, "all">];
       const active = c.id === auditFilter ? " active" : "";
       return (
         `<button type="button" class="audit-chip${active}" data-filter="${escapeHtml(c.id)}" title="${escapeHtml(c.label)} (${n})">` +
@@ -1551,12 +1649,16 @@ async function renderAudit(): Promise<void> {
 
   const filtered =
     auditFilter === "all"
-      ? entries
-      : entries.filter((e) => auditKindBucket(e.kind) === auditFilter);
+      ? windowed
+      : windowed.filter((e) => auditKindBucket(e.kind) === auditFilter);
+  // Summary stays informative across all three filter layers — show
+  // "filtered / global" when ANY scope is active so the user knows the
+  // ring isn't shrinking, just narrowed.
+  const totalForSummary = entries.length;
   auditSummary.textContent =
-    auditFilter === "all"
-      ? `${entries.length} action${entries.length === 1 ? "" : "s"}`
-      : `${filtered.length} of ${entries.length}`;
+    auditFilter === "all" && auditWindow === "all" && !auditClipScope
+      ? `${totalForSummary} action${totalForSummary === 1 ? "" : "s"}`
+      : `${filtered.length} of ${totalForSummary}`;
   if (filtered.length === 0) {
     // "Last N" reads from the live foot-cap span so it tracks the
     // user's retention pick. Falls back to the entries length when
@@ -1596,7 +1698,7 @@ function renderAuditGroupsHtml(entries: PrivacyAuditEntry[]): string {
               const jumpable = !!e.clipId;
               const tag = jumpable ? "button" : "div";
               const extra = jumpable
-                ? ` type="button" data-act="jump" data-clip-id="${escapeHtml(e.clipId)}" title="Show this clip · right-click to forget"`
+                ? ` type="button" data-act="jump" data-clip-id="${escapeHtml(e.clipId)}" title="Show this clip · Alt-click to scope · right-click to forget"`
                 : ` title="Right-click to forget this entry"`;
               return (
                 `<${tag} class="audit-row audit-${e.kind}${jumpable ? " jumpable" : ""}" data-entry-id="${escapeHtml(e.id)}"${extra}>` +
@@ -1674,6 +1776,15 @@ auditList.addEventListener("click", async (e) => {
   if (!btn) return;
   const clipId = btn.dataset.clipId || "";
   if (!clipId) return;
+  // Alt-click pivots to clip-scope mode INSTEAD of jumping. Lets the
+  // user spelunk one clip's history without leaving the audit panel.
+  // Plain click still jumps (the dominant flow); the modifier opt-in
+  // keeps a single click reversible.
+  if (e.altKey) {
+    e.preventDefault();
+    await setAuditClipScope(clipId);
+    return;
+  }
   const live = await getClip(clipId);
   if (live) {
     closeSettings();
@@ -1709,6 +1820,63 @@ auditList.addEventListener("click", async (e) => {
     return;
   }
   toast("Clip is gone — only the audit row remains", "error");
+});
+
+/**
+ * Resolve a short preview for a clipId so the scope-pill reads as
+ * something the user recognises ("Hello world…" rather than a
+ * random id). Looks in live first, falls back to trash, then to the
+ * clipId itself (better than an empty pill — at least it's stable).
+ */
+async function previewForClipId(clipId: string): Promise<string> {
+  const live = await getClip(clipId);
+  if (live) return (live.preview || live.content || clipId).slice(0, 60);
+  const trash = await listTrash();
+  const t = trash.find((x) => x.id === clipId);
+  if (t) return (t.preview || t.content || clipId).slice(0, 60);
+  return `clip ${clipId.slice(0, 8)}`;
+}
+
+/**
+ * Pivot the audit panel into clip-scope mode. Resets the bucket
+ * filter to "all" so the user sees everything the scoped clip has
+ * collected before re-narrowing (otherwise scoping to a clip with
+ * no TTL actions while the bucket sits on "ttl" would land them on
+ * an empty panel).
+ */
+async function setAuditClipScope(clipId: string): Promise<void> {
+  if (!clipId) return;
+  const preview = await previewForClipId(clipId);
+  auditClipScope = { clipId, preview };
+  auditFilter = "all";
+  await renderAudit();
+  // Scroll the audit panel into view so the new scope is obvious
+  // even if the user alt-clicked from far down the list.
+  const el = document.getElementById("audit-section");
+  el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/**
+ * Scope-pill clicks: each pill is a clear-this-scope affordance.
+ * `data-act` says which scope to wipe; the renderer rebuilds.
+ */
+auditScopeEl.addEventListener("click", async (e) => {
+  const pill = (e.target as HTMLElement).closest(".audit-scope-pill") as
+    | HTMLButtonElement
+    | null;
+  if (!pill) return;
+  const act = pill.dataset.act || "";
+  if (act === "clear-clip") auditClipScope = null;
+  else if (act === "clear-window") auditWindow = "all";
+  await renderAudit();
+});
+
+auditWindowEl.addEventListener("change", () => {
+  const v = auditWindowEl.value;
+  if (v === "all" || v === "7d" || v === "30d") {
+    auditWindow = v;
+    void renderAudit();
+  }
 });
 
 /**
