@@ -167,22 +167,42 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### New (added this tick — 2026-06-22 05:03 PT refill)
 - [ ] Settings: per-kind retention split — `maxUnpinnedText` + `maxUnpinnedImage` (image-heavy users free space without trashing snippets)
-- [ ] In-page palette: live `{{token}}` counter pill while typing a template body
+- [x] In-page palette: live `{{token}}` counter pill while typing a template body — `2fc067b` (in note composer, not palette)
 - [ ] Bulk-bar: "Tag selected → palette tag picker" — chip-grid of user's top tags for one-click bulk-tagging
 - [ ] Site-rule form: per-rule "test against active tab" — auto-fill host + tags from the focused tab's URL
 - [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin)
 - [ ] Detail: "Re-capture from URL" — for link/text clips with an http(s) source, re-fetch title + nearbyText, refresh preview
-- [ ] Trash: "Empty just images" / "Empty just text" filter on trash purge — free quota without losing everything
+- [x] Trash: "Empty just images" / "Empty just text" filter on trash purge — free quota without losing everything — `36e519f`
 - [ ] Detail-view: per-clip "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars
 - [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview)
-- [ ] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs)
+- [x] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs) — `4491d2c`
 - [ ] Bulk-bar: "Move to collection…" once collections ship (placeholder until then)
 - [ ] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only, falls back gracefully on FF)
-- [ ] Quick-capture: paste an arbitrary URL → builds a link clip immediately (mirror of the system-clipboard quick-capture but for URLs typed/pasted in the popup)
-- [ ] Detail: "Open all similar clips" — opens detail-view for the top similar result with prev/next nav inheriting the similar set
-- [ ] Cmd+K palette: "Jump to prev archived clip" — companion to next-archived, cycles in reverse
-- [ ] Audit panel: per-bucket totals on the chip strip — chip labels like "Redact (12)" / "Trash (8)" so the user sees the distribution at a glance
-- [ ] Detail send-to: "Copy as JSON line" — single-line minified JSON envelope for terminal / log piping (vs the multi-line pretty JSON we already have)
+- [x] Quick-capture: paste an arbitrary URL → builds a link clip immediately (mirror of the system-clipboard quick-capture but for URLs typed/pasted in the popup) — `3e32c02`
+- [x] Detail: "Open all similar clips" — opens detail-view for the top similar result with prev/next nav inheriting the similar set — `eda786d`
+- [x] Cmd+K palette: "Jump to prev archived clip" — companion to next-archived, cycles in reverse — `ae8279b`
+- [x] Audit panel: per-bucket totals on the chip strip — chip labels like "Redact (12)" / "Trash (8)" so the user sees the distribution at a glance — `a612de8`
+- [x] Detail send-to: "Copy as JSON line" — single-line minified JSON envelope for terminal / log piping (vs the multi-line pretty JSON we already have) — `3cd162b`
+
+### New (added this tick — 2026-06-22 12:15 PT refill)
+- [ ] Settings: per-kind retention split — `maxUnpinnedText` + `maxUnpinnedImage` (image-heavy users free space without trashing snippets) — recurring
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars — recurring
+- [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview) — recurring
+- [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin) — recurring
+- [ ] Bulk-bar: "Move to collection…" once collections ship (placeholder until then) — recurring
+- [ ] Detail: "Re-capture from URL" — for link/text clips with an http(s) source, re-fetch title + nearbyText, refresh preview — recurring
+- [ ] Site-rule form: per-rule "test against active tab" — auto-fill host + tags from the focused tab's URL — recurring
+- [ ] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only, falls back gracefully on FF) — recurring
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — chip-grid of user's top tags for one-click bulk-tagging — recurring
+- [ ] Audit log: "Mark as resolved" pill — let the user dismiss noise (e.g. test redacts) so the ring stays signal-only
+- [ ] Detail send-to: "Copy as cURL" — for link clips with http(s) URL, emit a one-line `curl <url>` (defaulting GET; respect query string)
+- [ ] Search: `is:link` operator (we have kind:link but not the parity with is:pinned/is:redacted/is:template/is:archived family)
+- [ ] In-page palette: pinned-bias slider in settings (default 1.5×; user can tune the boost)
+- [ ] Trash row: "Restore + tag with restore-batch:YYYY-MM-DD" so post-restore review is filterable
+- [ ] Settings: enable/disable each Cmd+K command via checkboxes (declutter the palette for users who don't use a feature)
+- [ ] Site rules: "Suggest from top hosts" — popup proposes rules for hosts with 10+ captures but no rule yet
+- [ ] Detail send-to: "Open similar clips in new tabs" — bulk open all kind=link similar matches at once
+- [ ] Cmd+K palette: "Pin every clip from active tab's host" — one-shot triage
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -281,12 +301,100 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Detail send-to: "Copy as table row" — TSV/CSV body to `| col | col |` Markdown row — `a8f7f79`
 - [x] Search-history Recent chips: HTML5 drag-to-reorder — promote frequent queries left — `632f11d`
 - [x] In-page palette: Alt+Enter copies URL only — http(s)-gated, system clipboard, mirrors detail send-to — `fe5b273`
+- [x] Cmd+K palette: "Jump to prev archived clip" — companion to next-archived, cycles in reverse with wrap on idx 0 — `ae8279b`
+- [x] Detail send-to: "Copy as JSON line" — single-line minified envelope for jq/jsonl/chat pastes — `3cd162b`
+- [x] Audit chip strip: parenthesized counts ("Redact (12)") + distribution tooltip ("38% of visible ring") — `a612de8`
+- [x] Note composer: live {{token}} counter pill — "3 tokens · 5 placeholders" + tooltip listing token names — `2fc067b`
+- [x] Trash: per-kind purge — "Empty images (3 · 10.5 MB)" / "Empty text (12 · 4 KB)" with confirm — `36e519f`
+- [x] Detail: "Open all (N)" similar-clips traversal — prev/next cycles snapshot stack with "Similar N/M" pill — `eda786d`
+- [x] Quick-capture URL composer — type/paste a URL, validates http(s) live, ingests as kind=link clip via new addLink RPC — `3e32c02`
+- [x] Site-rule row hover preview — top 3 recent matched clips with click-to-detail + "Last 3 of 12" title — `4491d2c`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-22 12:15 PT** — 5/5 shipped + 3 recovered. Last
+  tick crashed mid-batch leaving 3 unpushed commits (audit chip
+  labels, JSON line, prev archived) plus an in-progress
+  template-token-count feature with uncommitted popup wiring.
+  Recovered + completed all 4 first, then added 4 more for a
+  proper 5-feature batch. (1) Note composer live {{token}}
+  counter pill: new pure lib/template-token-count.ts with
+  countTemplateTokens(body) -> {placeholders, unique, names},
+  formatTokenPillLabel returning "1 token: date" / "1 token × 3"
+  (single var reused) / "3 tokens" / "3 tokens · 5 placeholders"
+  (multi-unique with reuse), formatTokenPillTooltip ("3 unique
+  tokens (date, host, url) — will expand on copy"). Grammar
+  mirrors src/lib/templates.ts exactly: empty {{}}, {{1bad}},
+  {{#x}}, unclosed all rejected. Pill row hidden via [hidden]
+  for plain notes; refreshTemplateTokenPill runs on every
+  textarea `input` event (one listener covers typing/paste/cut/
+  undo/redo/drag-drop/IME). 55/55 sanity (2fc067b). (2) Trash
+  per-kind purge: 2 new buttons in trash header ("Empty images
+  (12 · 8.4 MB)" / "Empty text") hidden when zero of that kind.
+  New pure lib/trash-purge-kind.ts: summarizeTrashByKind ->
+  {text, image, link, all} each with {count, bytes}, defensive
+  per-entry coercion (missing kind -> text, NaN/Infinity/negative
+  bytes -> 0). planTrashPurge -> {ids, count, bytes, kind} with
+  malformed-id skip. formatPurgeConfirm + formatPurgeButtonLabel
+  with singular/plural per kind. New db.purgeTrashByIds(ids)
+  single-tx batch delete with existence check. 44/44 sanity
+  (36e519f). (3) Detail "Open all (N)" similar-clips traversal:
+  new pure lib/similar-nav.ts with SimilarNav state shape and
+  6 functions (build, step with WRAP, formatPos, formatTraverse
+  button, isIn, sync). Hidden when <2 matches. Stack captured
+  AS SNAPSHOT at click time (no re-lookup on step) so user
+  commits to the rendered set. WRAP semantics for prev/next so
+  cycle never "ends". Position pill reads "Similar 2/5" with
+  hover-title explaining mode. Exit via Back/Esc/closeDetail
+  unconditionally drops nav (session-local by design); navigating
+  to a clip NOT in stack via openDetail drops via sync returning
+  null; clicking a Similar row inside stack RESYNCS index.
+  stepDetail routes through stepSimilarNav when in mode. 52/52
+  sanity (eda786d). (4) Quick-capture URL composer: new link
+  icon button in header toolbar opens modal mirroring note-
+  composer pattern. Pre-fills from clipboard IF current content
+  parses as URL (silent on permission deny). Live validation on
+  every keystroke: green "host.com/path" / red "Not a valid
+  http(s) URL". Enter saves; Esc cancels. New pure lib/url-
+  quick-capture.ts: parseQuickCaptureUrl(raw) -> {url, host,
+  preview, title} | null with scheme whitelist (only http(s);
+  rejects javascript/data/file/chrome/about/blob/ftp/ws/custom),
+  schemeless coercion (github.com/foo -> https://github.com/foo;
+  scheme detector rejects "example.com:" by anchoring on no-dot-
+  before-colon so host:port doesn't misroute), localhost branch,
+  title derivation (last path segment, %20 decoded, hyphen->
+  space, fallback to host), 80-char cap. buildQuickCaptureTags
+  -> ["quick-capture", host] with www-strip + lowercase + trim.
+  New background addLink RPC routes through ingest with
+  kind="link", content=url, defense-in-depth http(s) re-check.
+  67/67 sanity (3e32c02). (5) Site-rule row hover preview:
+  new pure lib/rule-preview.ts with previewClipsForRules(rules,
+  clips, {limit, hostFrom, matchesHostPattern}) computing top-N
+  recent matched clips per rule (first-match-wins matching
+  mirrors usagesForRules). Defensive limit (NaN/Infinity/zero/
+  negative -> default 3, fractional floors). Per-rule sort
+  lastSeenAt desc + cap. Preview 80-char truncation + whitespace
+  collapse + "Image" fallback. formatPreviewCardTitle 4-shape
+  (null/1-captured/All-N/Last-N-of-M). formatPreviewRowTooltip
+  full-preview-200-cap + timeAgo. Popup renderSiteRules paints
+  .rule-preview-card sibling div per row; pure CSS reveal via
+  .site-rule-row.has-preview:hover (+ :focus-within for keyboard).
+  Click routes to closeSettings() + openDetail(clipId). 44/44
+  sanity (4491d2c). tsc clean + chrome/firefox builds green
+  (popup 261.8KB +23.0 vs last tick — 5 new modules + composer +
+  hover-card render path + similar-nav stack + linkComposer
+  state machine; background 46.1KB +1.1 — addLink RPC handler;
+  content unchanged at 24.8KB). All 47 sanity suites pass —
+  1314 total checks (added: 55 template-token-count + 44 trash-
+  purge-kind + 52 similar-nav + 67 url-quick-capture + 44 rule-
+  preview = 262 new). Recovered features (ae8279b prev-archived,
+  3cd162b json-line, a612de8 audit-chip-labels) were already
+  committed last tick but never pushed; this tick's gate + push
+  ships all 8 together.
 
 - **2026-06-22 05:03 PT** — 5/5 shipped. Detail "Show audit
   history" jumper: new icon button on the detail header (between
