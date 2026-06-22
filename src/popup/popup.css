@@ -696,6 +696,37 @@ mark.match-hl {
   color: var(--danger);
 }
 
+/* Inline rename input — replaces the .saved-search-apply button while
+   the chip is in rename mode. We mirror the button's typography so the
+   chip height doesn't jump when the swap happens; the chip glows with
+   the accent colour as a "you're editing me" cue. */
+.saved-search-chip.renaming {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+.saved-search-rename {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 4px 6px 4px 11px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: -0.01em;
+  width: 110px;
+  min-width: 60px;
+  outline: none;
+  caret-color: var(--accent);
+}
+
+.saved-search-rename:focus {
+  background: var(--bg);
+  border-radius: 6px;
+}
+
 #save-search-btn {
   color: var(--accent);
 }

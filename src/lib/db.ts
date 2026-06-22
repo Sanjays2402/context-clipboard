@@ -1052,6 +1052,41 @@ export async function removeSavedSearch(id: string): Promise<boolean> {
   return true;
 }
 
+/**
+ * Rename a saved-search row in place. Returns the updated entry on
+ * success, or `null` for: missing id, blank name, or a name collision
+ * with a DIFFERENT entry (so the chip strip stays uniquely-named).
+ *
+ * Renaming to the same name (case-preserving edit on the same row) is
+ * always allowed — that's the typical "fix a typo" path.
+ *
+ * Used by the popup's inline-rename affordance (double-click chip label
+ * → contenteditable input). Kept on the same lib/db surface as
+ * `addSavedSearch` / `removeSavedSearch` so the popup never has to
+ * reach into the meta store directly.
+ */
+export async function renameSavedSearch(
+  id: string,
+  name: string,
+): Promise<SavedSearch | null> {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const list = await listSavedSearches();
+  const idx = list.findIndex((s) => s.id === id);
+  if (idx < 0) return null;
+  const lower = trimmed.toLowerCase();
+  // Reject if a DIFFERENT entry already uses this name (case-insensitive).
+  // Allow if the same entry is just adjusting casing/whitespace.
+  const collision = list.findIndex(
+    (s, i) => i !== idx && s.name.toLowerCase() === lower,
+  );
+  if (collision >= 0) return null;
+  const next = [...list];
+  next[idx] = { ...list[idx], name: trimmed };
+  await writeSavedSearches(next);
+  return next[idx];
+}
+
 // Search history ---------------------------------------------------------
 //
 // Recently-typed queries (most recent first). Distinct from saved

@@ -14,6 +14,7 @@ import {
   listSavedSearches,
   addSavedSearch,
   removeSavedSearch,
+  renameSavedSearch,
   listSearchHistory,
   pushSearchHistory,
   clearSearchHistory,
@@ -219,6 +220,13 @@ let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
 let savedSearches: SavedSearch[] = [];
 let searchHistory: string[] = [];
+/**
+ * When non-null, the saved-search chip with this id renders as a
+ * text input instead of a button so the user can rename it inline.
+ * Cleared on commit / cancel / blur. Lives only in module state — no
+ * IDB, no Settings — because rename mode is purely a UI dance.
+ */
+let renamingSavedSearchId: string | null = null;
 // When non-null, addSiteRuleFromForm() updates the rule with this id
 // instead of creating a fresh one. Set by clicking a rule row in the
 // settings panel; cleared by save, cancel, or any explicit form reset.
@@ -528,6 +536,12 @@ function toggleSearchOp(op: string) {
  * clicked; the right-side × button removes it (no confirm — saved searches
  * are cheap, recreating one is one prompt away).
  *
+ * Double-click on the label flips it into an inline rename input: an
+ * `<input type="text">` swaps in with the current name selected, Enter
+ * commits via `renameSavedSearch`, Escape / blur cancels. Avoids the
+ * `prompt()` modal — keeps the user in the popup, no focus loss, no
+ * extension API to dismiss.
+ *
  * The strip stays hidden when there are zero saved searches so we don't
  * eat vertical space for an empty row.
  */
@@ -540,14 +554,42 @@ function renderSavedSearches(): void {
   const current = searchEl.value.trim();
   savedSearchesEl.hidden = false;
   savedSearchesEl.innerHTML = savedSearches
-    .map(
-      (s) =>
-        `<span class="saved-search-chip ${s.query === current ? "active" : ""}" data-id="${escapeHtml(s.id)}" title="${escapeHtml(s.query)}">` +
-        `<button class="saved-search-apply" data-act="apply" type="button">${escapeHtml(s.name)}</button>` +
+    .map((s) => {
+      const isRenaming = renamingSavedSearchId === s.id;
+      const label = isRenaming
+        ? `<input class="saved-search-rename" type="text" value="${escapeHtml(s.name)}" maxlength="40" autocomplete="off" spellcheck="false" data-act="rename-input" />`
+        : `<button class="saved-search-apply" data-act="apply" type="button" title="Apply · double-click to rename">${escapeHtml(s.name)}</button>`;
+      return (
+        `<span class="saved-search-chip ${s.query === current ? "active" : ""}${isRenaming ? " renaming" : ""}" data-id="${escapeHtml(s.id)}" title="${escapeHtml(s.query)}">` +
+        label +
         `<button class="saved-search-del" data-act="del" type="button" title="Remove">×</button>` +
-        `</span>`,
-    )
+        `</span>`
+      );
+    })
     .join("");
+  if (renamingSavedSearchId) {
+    // Focus + select the rename input so the user can type immediately.
+    const input = savedSearchesEl.querySelector<HTMLInputElement>(
+      `.saved-search-chip[data-id="${cssEscape(renamingSavedSearchId)}"] .saved-search-rename`,
+    );
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+}
+
+/**
+ * CSS.escape() polyfill for older WebViews — saved-search ids look like
+ * `ss_<ts>_<nonce>` (alphanum + underscore), so a minimal escape that
+ * just handles the safe character set is enough here. Falls back to the
+ * platform implementation when present.
+ */
+function cssEscape(s: string): string {
+  if (typeof (globalThis as { CSS?: { escape?: (v: string) => string } }).CSS?.escape === "function") {
+    return (globalThis as unknown as { CSS: { escape: (v: string) => string } }).CSS.escape(s);
+  }
+  return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
 }
 
 /**
@@ -2216,7 +2258,12 @@ quickChipsEl.addEventListener("click", (e) => {
 
 // Saved searches --------------------------------------------------------
 savedSearchesEl.addEventListener("click", async (e) => {
-  const chip = (e.target as HTMLElement).closest(
+  const target = e.target as HTMLElement;
+  // While editing, clicks on the rename input itself should NOT cause
+  // chip apply (the input + chip share the same parent). Let the input
+  // handle focus naturally.
+  if (target.dataset.act === "rename-input") return;
+  const chip = target.closest(
     ".saved-search-chip",
   ) as HTMLElement | null;
   if (!chip) return;
@@ -2224,21 +2271,104 @@ savedSearchesEl.addEventListener("click", async (e) => {
   if (!id) return;
   const entry = savedSearches.find((s) => s.id === id);
   if (!entry) return;
-  const target = e.target as HTMLElement;
   if (target.dataset.act === "del") {
     e.stopPropagation();
+    // Cancel rename mode if the user deletes the chip they were renaming.
+    if (renamingSavedSearchId === id) renamingSavedSearchId = null;
     await removeSavedSearch(id);
     await refreshSavedSearches();
     toast(`Removed "${entry.name}"`);
     await render();
     return;
   }
-  // Apply: drop into search box, focus so the user can refine, render.
+  // Apply (click on label): drop into search box, focus, render.
+  // If we're CURRENTLY editing this chip, ignore the click — the label
+  // is an input box, not a button.
+  if (renamingSavedSearchId === id) return;
   searchEl.value = entry.query;
   activeIndex = 0;
   searchEl.focus();
   await render();
 });
+
+// Double-click on a saved-search chip label → enter inline rename mode.
+// `dblclick` is the cleanest signal because single click is already
+// committed to "apply this search"; the user wouldn't expect typing.
+savedSearchesEl.addEventListener("dblclick", (e) => {
+  const target = e.target as HTMLElement;
+  if (target.dataset.act !== "apply") return;
+  const chip = target.closest(".saved-search-chip") as HTMLElement | null;
+  const id = chip?.dataset.id || null;
+  if (!id) return;
+  if (renamingSavedSearchId === id) return;
+  renamingSavedSearchId = id;
+  renderSavedSearches();
+});
+
+/**
+ * Commit an inline rename. Empty / unchanged / name-collision attempts
+ * all bail without writing. Always clears rename mode so the chip
+ * snaps back to a button (we re-render either way).
+ */
+async function commitSavedSearchRename(input: HTMLInputElement): Promise<void> {
+  const chip = input.closest(".saved-search-chip") as HTMLElement | null;
+  const id = chip?.dataset.id || "";
+  renamingSavedSearchId = null;
+  if (!id) {
+    renderSavedSearches();
+    return;
+  }
+  const orig = savedSearches.find((s) => s.id === id);
+  const next = (input.value || "").trim();
+  if (!orig || !next || next === orig.name) {
+    renderSavedSearches();
+    return;
+  }
+  const updated = await renameSavedSearch(id, next);
+  if (!updated) {
+    toast("Name taken — pick another", "error");
+    renderSavedSearches();
+    return;
+  }
+  await refreshSavedSearches();
+  toast(`Renamed to "${updated.name}"`);
+  renderSavedSearches();
+}
+
+// Keydown inside the rename input: Enter commits, Esc cancels, Tab
+// commits-and-moves-on. Caught at the strip level so we don't have to
+// re-bind per chip.
+savedSearchesEl.addEventListener("keydown", (e) => {
+  const target = e.target as HTMLElement;
+  if (target.dataset.act !== "rename-input") return;
+  const input = target as HTMLInputElement;
+  if (e.key === "Enter") {
+    e.preventDefault();
+    void commitSavedSearchRename(input);
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    renamingSavedSearchId = null;
+    renderSavedSearches();
+  } else if (e.key === "Tab") {
+    e.stopPropagation();
+    void commitSavedSearchRename(input);
+  }
+});
+
+// Blur (focus lost): commit if the user clicked away. Captured at the
+// strip so we catch blur on the inner <input> (focusout bubbles, but
+// using capture phase makes the intent explicit — we never want to
+// double-commit if Enter / Esc / Tab already ran).
+savedSearchesEl.addEventListener(
+  "blur",
+  (e) => {
+    const target = e.target as HTMLElement;
+    if (target.dataset.act !== "rename-input") return;
+    if (renamingSavedSearchId == null) return;
+    void commitSavedSearchRename(target as HTMLInputElement);
+  },
+  true,
+);
 
 saveSearchBtn.addEventListener("click", () => void handleSaveSearch());
 
