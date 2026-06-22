@@ -1626,6 +1626,44 @@ export async function setSendToLast(id: string): Promise<void> {
   });
 }
 
+// Last-applied saved-search id ----------------------------------------
+//
+// A muscle-memory crutch for the palette: "Open my last saved search"
+// pulls the most-recently-applied chip back into the search box without
+// scrolling the chip strip. Useful when the user has 15+ chips and the
+// most-recent one is buried.
+//
+// Stored as the chip's stable id (ss_<ts>_<nonce>); empty string when
+// nothing has been applied yet. Cleared if the underlying saved search
+// is deleted (popup-side: removeSavedSearch path should null this if
+// it matches — but the palette command also tolerates a stale id by
+// checking against the live list before applying).
+
+const LAST_SAVED_SEARCH_KEY = "last_saved_search";
+const SAVED_SEARCH_ID_MAX = 64;
+
+export async function getLastSavedSearchId(): Promise<string> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(LAST_SAVED_SEARCH_KEY);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: string } | undefined;
+      resolve(typeof row?.value === "string" ? row.value.slice(0, SAVED_SEARCH_ID_MAX) : "");
+    };
+    req.onerror = () => resolve("");
+  });
+}
+
+export async function setLastSavedSearchId(id: string): Promise<void> {
+  const next = (id || "").trim().slice(0, SAVED_SEARCH_ID_MAX);
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: LAST_SAVED_SEARCH_KEY, value: next });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
 // Privacy audit log ----------------------------------------------------
 //
 // Ring buffer of the user's last N privacy-impacting actions: per-clip

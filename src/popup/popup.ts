@@ -37,6 +37,8 @@ import {
   usagesForRules,
   getSendToLast,
   setSendToLast,
+  getLastSavedSearchId,
+  setLastSavedSearchId,
   type TrashedClip,
   type DuplicateGroup,
   type PrivacyAuditEntry,
@@ -242,6 +244,15 @@ let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
 let savedSearches: SavedSearch[] = [];
 let searchHistory: string[] = [];
+/**
+ * Stable id of the most-recently-applied saved search, mirrored from
+ * the meta store on popup boot + every apply path. Used by the Cmd+K
+ * "Open my last saved search" command without an IDB read per palette
+ * open. Empty string when nothing has been applied yet (or when the
+ * referenced chip has since been deleted — the apply-handler clears
+ * this on remove).
+ */
+let lastSavedSearchId: string = "";
 /**
  * When non-null, the saved-search chip with this id renders as a
  * text input instead of a button so the user can rename it inline.
@@ -2798,6 +2809,12 @@ savedSearchesEl.addEventListener("click", async (e) => {
     // Cancel rename mode if the user deletes the chip they were renaming.
     if (renamingSavedSearchId === id) renamingSavedSearchId = null;
     await removeSavedSearch(id);
+    // Clear the last-applied id if it pointed at the just-deleted
+    // chip so "Open my last saved search" doesn't surface a ghost.
+    if (lastSavedSearchId === id) {
+      lastSavedSearchId = "";
+      await setLastSavedSearchId("");
+    }
     await refreshSavedSearches();
     toast(`Removed "${entry.name}"`);
     await render();
@@ -2809,6 +2826,13 @@ savedSearchesEl.addEventListener("click", async (e) => {
   if (renamingSavedSearchId === id) return;
   searchEl.value = entry.query;
   activeIndex = 0;
+  // Stamp BEFORE the render so a misbehaving render path can't
+  // strand the muscle-memory bit (mirrors the send-to last-action
+  // pattern). Fire-and-forget — never block the apply on a meta
+  // write. The in-memory mirror updates synchronously so the next
+  // palette open sees the new value without an IDB read.
+  lastSavedSearchId = id;
+  void setLastSavedSearchId(id);
   searchEl.focus();
   await render();
 });
@@ -3873,6 +3897,15 @@ function buildPaletteActions(): PaletteAction[] {
     !!activeTag ||
     currentKind !== "all";
   const visible = currentClips.length;
+  // Resolve the last-applied saved search (if any + still alive) so
+  // the palette command can show its name AND skip rendering when
+  // the id is stale or the chip strip is empty. The check is
+  // synchronous against the cached `savedSearches` list — no IDB
+  // hit on every palette open. `lastSavedSearchId` is refreshed at
+  // popup boot + on each apply.
+  const lastSavedSearch = lastSavedSearchId
+    ? savedSearches.find((s) => s.id === lastSavedSearchId)
+    : undefined;
   const actions: PaletteAction[] = [
     // Navigation / focus ---------------------------------------------
     {
@@ -3905,6 +3938,31 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         void openSettings();
+      },
+    },
+    {
+      id: "open-last-saved-search",
+      label: lastSavedSearch
+        ? `Open last saved search · ${lastSavedSearch.name}`
+        : "Open last saved search",
+      hint: lastSavedSearch
+        ? `Drop "${lastSavedSearch.query}" into the search box`
+        : "No saved search has been applied yet",
+      group: "Filter",
+      keywords: "recall recent chip muscle bookmark last applied",
+      available: !!lastSavedSearch,
+      run: () => {
+        closePalette();
+        if (!lastSavedSearch) return;
+        searchEl.value = lastSavedSearch.query;
+        activeIndex = 0;
+        // The chip click handler already stamps lastSavedSearchId on
+        // every apply — mirror that here so the recency bit stays
+        // truthful regardless of entry path.
+        lastSavedSearchId = lastSavedSearch.id;
+        void setLastSavedSearchId(lastSavedSearch.id);
+        searchEl.focus();
+        void render();
       },
     },
     {
@@ -6062,6 +6120,10 @@ bulkTag.addEventListener("click", async () => {
   sortModeEl.title = `Sort: ${sortLabel(listSort)}`;
   await refreshSavedSearches();
   await refreshSearchHistory();
+  // Mirror the last-applied saved search id from meta so the Cmd+K
+  // "Open my last saved search" command can render its name + skip
+  // when stale without an IDB read per palette open.
+  lastSavedSearchId = await getLastSavedSearchId();
   await render();
   searchEl.focus();
 })();
