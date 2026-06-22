@@ -515,6 +515,44 @@ export async function forgetHost(host: string): Promise<{
   return { matched, trashed, pinnedSkipped };
 }
 
+/**
+ * Bulk-restore every trashed clip whose `source.url` host matches
+ * `host`. Sibling to `forgetHost` (which sends a host's LIVE clips
+ * to the trash); this is the symmetric counterpart that pulls them
+ * back. Useful when the user forget-host'd a domain by accident or
+ * changed their mind during the 7-day retention window.
+ *
+ * Host matching mirrors forgetHost's normalisation — `www.` stripped,
+ * lowercased — so `restoreAllFromHost("github.com")` catches rows
+ * that were stored with `www.github.com`.
+ *
+ * Returns counts so callers can surface a single useful toast:
+ *   - matched: how many trash rows had this host
+ *   - restored: how many actually made it back to the live store
+ *
+ * Pinned bit on the trashed row is preserved by `restoreClip`, so a
+ * forget-host'd pinned clip (which forgetHost skipped, so they'd
+ * never be in trash anyway) is naturally a non-issue. Empty/
+ * unparseable hosts never match.
+ */
+export async function restoreAllFromHost(host: string): Promise<{
+  matched: number;
+  restored: number;
+}> {
+  const target = host.toLowerCase().replace(/^www\./, "").trim();
+  if (!target) return { matched: 0, restored: 0 };
+  const all = await listTrash();
+  let matched = 0;
+  let restored = 0;
+  for (const t of all) {
+    if (hostFrom(t.source.url) !== target) continue;
+    matched++;
+    const ok = await restoreClip(t.id);
+    if (ok) restored++;
+  }
+  return { matched, restored };
+}
+
 export async function clearAll(): Promise<void> {
   const store = await clipsTx("readwrite");
   return new Promise((resolve, reject) => {

@@ -11,6 +11,7 @@ import {
   restoreClip,
   emptyTrash,
   trashCount,
+  restoreAllFromHost,
   listSavedSearches,
   addSavedSearch,
   removeSavedSearch,
@@ -64,6 +65,7 @@ import { contextTagsForTab } from "../lib/context-tags";
 import { buildSendActions, reorderSendActionsByLast, type SendAction } from "../lib/send-to";
 import { buildBulkPreviewMessage } from "../lib/bulk-preview";
 import { groupAuditByDay } from "../lib/audit-rollup";
+import { groupTrashByHost } from "../lib/trash-host-rollup";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -162,6 +164,7 @@ const expBefore = $<HTMLInputElement>("exp-before");
 const exportFilterHint = $("export-filter-hint");
 const trashSummary = $("trash-summary");
 const trashList = $("trash-list");
+const trashHostStrip = $("trash-host-strip");
 const trashEmpty = $<HTMLButtonElement>("trash-empty");
 const trashPurge24h = $<HTMLButtonElement>("trash-purge-24h");
 const auditSummary = $("audit-summary");
@@ -2006,12 +2009,97 @@ async function renderTrash(): Promise<void> {
   trashPurge24h.disabled = oldEnough === 0;
   trashPurge24h.textContent =
     oldEnough > 0 ? `Purge >24h (${oldEnough})` : "Purge >24h";
+  // Host rollup strip — chips for any host with 2+ trash rows give a
+  // single-click "Restore N from host" reversal of an accidental
+  // forget-host. Singles already have a Restore button per row.
+  const buckets = groupTrashByHost(items);
+  if (buckets.length === 0) {
+    trashHostStrip.hidden = true;
+    trashHostStrip.innerHTML = "";
+  } else {
+    trashHostStrip.hidden = false;
+    trashHostStrip.innerHTML =
+      `<span class="trash-host-label">Bulk-restore:</span>` +
+      buckets
+        .slice(0, 6)
+        .map(
+          (b) =>
+            `<button type="button" class="trash-host-pill" data-host="${escapeHtml(b.host)}" title="Restore every trashed clip from ${escapeHtml(b.host)}">` +
+              `<span class="trash-host-name">${escapeHtml(b.host)}</span>` +
+              `<em class="trash-host-count">${b.count}</em>` +
+              `</button>`,
+        )
+        .join("");
+  }
   if (items.length === 0) {
     trashList.innerHTML = "";
     return;
   }
   trashList.innerHTML = items.slice(0, 50).map(trashRow).join("");
 }
+
+/**
+ * Bulk-restore every trashed clip whose source.url host matches the
+ * chip-clicked host. Confirms above 5 because anything bigger is
+ * usually a forget-host reversal — surfacing the count is the safer
+ * default. Below that, the restoration is cheap and the user picked
+ * the host explicitly so we skip the confirm.
+ *
+ * Re-renders trash + the live list afterwards so the row count moves
+ * in both panels without a manual refresh.
+ */
+async function restoreHostFromTrash(host: string): Promise<void> {
+  if (!host) return;
+  const target = host.toLowerCase().replace(/^www\./, "").trim();
+  if (!target) return;
+  // Peek at the count so we can confirm honestly (the lib helper
+  // also counts internally, but the user wants the number BEFORE
+  // they commit).
+  const items = await listTrash();
+  const matches = items.filter((t) => {
+    const h = (t.source?.url || "").toLowerCase();
+    if (!h) return false;
+    return hostFrom(t.source.url) === target;
+  });
+  if (matches.length === 0) {
+    toast("No trashed clips from this host", "error");
+    return;
+  }
+  if (matches.length > 5) {
+    const ok = confirm(
+      `Restore ${matches.length} clip${matches.length === 1 ? "" : "s"} from ${target}?\n\nAll matching trash rows return to the live list.`,
+    );
+    if (!ok) return;
+  }
+  const { restored, matched } = await restoreAllFromHost(target);
+  if (restored === 0) {
+    toast(`Couldn't restore from ${target}`, "error");
+    return;
+  }
+  // Honest partial-success messaging when restore fails for some
+  // rows (very rare — the IDB ops are idempotent — but possible).
+  if (restored < matched) {
+    toast(`Restored ${restored} of ${matched} from ${target}`);
+  } else {
+    toast(
+      restored === 1
+        ? `Restored 1 from ${target}`
+        : `Restored ${restored} from ${target}`,
+    );
+  }
+  await renderTrash();
+  await render();
+}
+
+trashHostStrip.addEventListener("click", async (e) => {
+  const pill = (e.target as HTMLElement).closest(".trash-host-pill") as
+    | HTMLButtonElement
+    | null;
+  if (!pill) return;
+  const host = pill.dataset.host || "";
+  if (!host) return;
+  await restoreHostFromTrash(host);
+});
 
 trashList.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;
