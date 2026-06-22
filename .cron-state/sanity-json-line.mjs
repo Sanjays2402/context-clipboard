@@ -169,10 +169,11 @@ try {
 
   // --- 12. send-to: action row presence ---------------------------------
   const acts = mod.buildSendActions(textClip);
-  // table-row + json + json-line = 12 total (was 11 before this tick).
+  // table-row + json + json-line + curl = 13 total (was 12 before
+  // the curl row landed; curl sits between url-only and fenced-code).
   total++;
-  if (acts.length === 12) pass++;
-  else console.error("FAIL acts.length got", acts.length, "want 12");
+  if (acts.length === 13) pass++;
+  else console.error("FAIL acts.length got", acts.length, "want 13");
 
   const jsonLineRow = acts.find((a) => a.id === "json-line");
   checkTruthy("actions: json-line row exists", jsonLineRow);

@@ -15,6 +15,7 @@ import type { ClipItem } from "./types";
 import { detectCodeLang } from "./util";
 import { tableRowForClip } from "./table-row";
 import { jsonLineEnvelopeForClip } from "./json-line";
+import { curlCommandForClip } from "./curl-command";
 
 export interface SendableClip {
   id: string;
@@ -335,6 +336,7 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const tableRow = tableRowForClip(c);
   const json = jsonEnvelopeForClip(c);
   const jsonLine = jsonLineEnvelopeForClip(c);
+  const curl = curlCommandForClip(c);
   return [
     {
       id: "open-source",
@@ -390,6 +392,21 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: urlOnly,
       available: !!urlOnly,
+    },
+    {
+      // Build a single-line `curl '...'` for the clip's http(s) URL.
+      // URL single-quoted via shellSingleQuote so query strings,
+      // fragments, and `$`/backtick chars survive paste into a POSIX
+      // shell. Defaults to a bare GET — no -L, no -O, no extra flags —
+      // so it's safe to pipe to head/jq without surprising side effects.
+      // Hidden when the clip has no shareable http(s) URL (data: /
+      // file: / chrome: / about: / scrubbed clips).
+      id: "curl",
+      label: "Copy as cURL",
+      hint: "curl 'https://...'",
+      kind: "copy",
+      payload: curl,
+      available: !!curl,
     },
     {
       id: "fenced-code",

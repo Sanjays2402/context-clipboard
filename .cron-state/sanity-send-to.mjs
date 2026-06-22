@@ -151,10 +151,10 @@ try {
 
   // buildSendActions matrix
   const textActs = mod.buildSendActions(textClip);
-  // json-line was added after json → 12 total. Each row is
-  // gated by its own availability check so adding new rows here
-  // only matters for the total-count assertion.
-  total++; if (textActs.length === 12) pass++;
+  // json-line was added after json → curl added after url-only → 13 total.
+  // Each row is gated by its own availability check so adding new rows
+  // here only matters for the total-count assertion.
+  total++; if (textActs.length === 13) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
@@ -461,15 +461,48 @@ try {
   check('actions: url-only available for image-with-url', urlOnlyImg.available, true);
   // emptyClip has no source url, so unavailable
   check('actions: url-only unavailable for empty (no source url)', urlOnlyEmpty.available, false);
-  // Row order: url-only sits between md-link and fenced-code so the
-  // copy-variants stay clustered (md-link / url-only / fenced-code /
-  // raw-text / json).
+  // Row order: url-only sits between md-link and the new curl row so
+  // the URL cluster (md-link → url-only → curl) stays adjacent, then
+  // copy-format cluster (fenced-code / raw-text / table-row / json /
+  // json-line) follows.
   check('actions: url-only follows md-link',
     textActs.findIndex((a) => a.id === 'url-only') - textActs.findIndex((a) => a.id === 'md-link'),
     1);
-  check('actions: url-only comes before fenced-code',
-    textActs.findIndex((a) => a.id === 'fenced-code') - textActs.findIndex((a) => a.id === 'url-only'),
+  check('actions: curl follows url-only',
+    textActs.findIndex((a) => a.id === 'curl') - textActs.findIndex((a) => a.id === 'url-only'),
     1);
+  check('actions: fenced-code follows curl',
+    textActs.findIndex((a) => a.id === 'fenced-code') - textActs.findIndex((a) => a.id === 'curl'),
+    1);
+
+  // --- curl row ----------------------------------------------------------
+  const curlText = textActs.find((a) => a.id === 'curl');
+  const curlImg = imageActs.find((a) => a.id === 'curl');
+  const curlLink = linkActs.find((a) => a.id === 'curl');
+  const curlScrub = scrubbedActs.find((a) => a.id === 'curl');
+  const curlNote = noteActs.find((a) => a.id === 'curl');
+  const curlEmpty = mod.buildSendActions(emptyClip).find((a) => a.id === 'curl');
+  checkTruthy('actions: curl row exists in text clip', curlText);
+  check('actions: curl kind is "copy"', curlText.kind, 'copy');
+  check('actions: curl available for text-with-url', curlText.available, true);
+  // Image clips with a source URL still get a curl command (you can
+  // curl the original image URL — fetches the bytes, useful for save
+  // / inspection workflows).
+  check('actions: curl available for image-with-url', curlImg.available, true);
+  // Link clip uses content (which IS the URL).
+  check('actions: curl available for link clip', curlLink.available, true);
+  // Scrubbed clip has no URL at all → hidden.
+  check('actions: curl unavailable for scrubbed', curlScrub.available, false);
+  // Note clip has no URL.
+  check('actions: curl unavailable for note (no url)', curlNote.available, false);
+  // Empty clip with no source.
+  check('actions: curl unavailable for empty (no source url)', curlEmpty.available, false);
+  // Payload shape: starts with `curl ` and contains the URL single-quoted.
+  checkContains('actions: curl payload starts with "curl "', curlText.payload, 'curl ');
+  checkContains('actions: curl payload single-quotes the url',
+    curlText.payload, "'https://github.com/foo/bar'");
+  check('actions: curl payload is single-line',
+    /\r|\n/.test(curlText.payload), false);
 
   if (pass === total) {
     console.log(`PASS — ${pass}/${total} send-to sanity checks`);
