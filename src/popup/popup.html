@@ -290,7 +290,8 @@
               <span id="rule-form-title" class="site-rule-form-title">Add a rule</span>
               <button id="rule-cancel" class="rule-cancel" type="button" hidden>Cancel edit</button>
             </div>
-            <input id="rule-host" type="text" placeholder="host or *.example.com" autocomplete="off" spellcheck="false" />
+            <input id="rule-host" type="text" placeholder="host or *.example.com — paste a URL to auto-fill" autocomplete="off" spellcheck="false" />
+            <div id="rule-host-suggest" class="rule-host-suggest" hidden></div>
             <input id="rule-tags" type="text" placeholder="tags (comma-sep)" autocomplete="off" spellcheck="false" />
             <textarea id="rule-patterns" rows="2" placeholder="custom redaction regex (one per line, optional)&#10;e.g. ACC-\d{6,}" autocomplete="off" spellcheck="false"></textarea>
             <details class="rule-test" id="rule-test">

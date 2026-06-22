@@ -68,6 +68,7 @@ import { buildSendActions, reorderSendActionsByLast, type SendAction } from "../
 import { buildBulkPreviewMessage } from "../lib/bulk-preview";
 import { groupAuditByDay } from "../lib/audit-rollup";
 import { groupTrashByHost } from "../lib/trash-host-rollup";
+import { extractHostPattern, looksLikeUrl } from "../lib/host-pattern";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -191,6 +192,7 @@ const rulesIoCopy = $<HTMLButtonElement>("rules-io-copy");
 const rulesIoClose = $<HTMLButtonElement>("rules-io-close");
 const rulesIoStatus = $("rules-io-status");
 const ruleHostInput = $<HTMLInputElement>("rule-host");
+const ruleHostSuggest = $("rule-host-suggest");
 const ruleTagsInput = $<HTMLInputElement>("rule-tags");
 const rulePatternsInput = $<HTMLTextAreaElement>("rule-patterns");
 const rulePinInput = $<HTMLInputElement>("rule-pin");
@@ -2394,6 +2396,10 @@ function loadRuleIntoForm(rule: SiteRule): void {
   ruleHostInput.focus();
   ruleHostInput.select();
   renderRuleTest();
+  // Surface the wildcard suggestion if the loaded rule is on a
+  // multi-label apex (e.g. user added an exact `docs.github.com`
+  // rule but might want `*.github.com` instead).
+  renderHostSuggest();
 }
 
 function resetRuleForm(): void {
@@ -2410,6 +2416,10 @@ function resetRuleForm(): void {
   ruleFormTitle.textContent = "Add a rule";
   ruleAddBtn.closest(".site-rule-form")?.classList.remove("editing");
   renderRuleTest();
+  // Drop any stale wildcard suggestion — the empty input shouldn't
+  // surface a chip.
+  ruleHostSuggest.hidden = true;
+  ruleHostSuggest.innerHTML = "";
 }
 
 async function addSiteRuleFromForm(): Promise<void> {
@@ -2490,6 +2500,85 @@ ruleHostInput.addEventListener("keydown", (e) => {
 ruleCancelBtn.addEventListener("click", async () => {
   resetRuleForm();
   await renderSiteRules();
+});
+
+/**
+ * Render (or hide) the wildcard-suggestion chip below the rule-host
+ * input. We only show it when extractHostPattern produced a wildcard
+ * variant AND the input doesn't already match that wildcard — no
+ * point offering `*.github.com` when the user just typed it.
+ */
+function renderHostSuggest(): void {
+  const result = extractHostPattern(ruleHostInput.value);
+  // Hide when there's nothing useful to suggest, OR when the current
+  // input is already the wildcard (idempotent), OR when the current
+  // input matches the wildcard's apex (user already typed the
+  // narrower form on purpose).
+  if (!result.wildcard) {
+    ruleHostSuggest.hidden = true;
+    ruleHostSuggest.innerHTML = "";
+    return;
+  }
+  const current = ruleHostInput.value.trim().toLowerCase();
+  if (current === result.wildcard) {
+    ruleHostSuggest.hidden = true;
+    ruleHostSuggest.innerHTML = "";
+    return;
+  }
+  ruleHostSuggest.hidden = false;
+  ruleHostSuggest.innerHTML =
+    `<span class="rule-host-suggest-label">Try wildcard:</span>` +
+    `<button type="button" class="rule-host-suggest-chip" data-pattern="${escapeHtml(result.wildcard)}" title="Match every subdomain of ${escapeHtml(result.wildcard.slice(2))}">${escapeHtml(result.wildcard)}</button>`;
+}
+
+/**
+ * Paste handler: when the user pastes anything URL-shaped, replace
+ * the input value with the extracted host before the browser's
+ * default paste lands. Preserves the user's typed value if they pasted
+ * a bare hostname (extractHostPattern's URL detection requires a
+ * protocol or path separator — typing "github" or "example.com"
+ * stays untouched).
+ *
+ * We let the suggestion chip render via the `input` event AFTER the
+ * paste lands so the wildcard hint appears on the next tick.
+ */
+ruleHostInput.addEventListener("paste", (e) => {
+  const data = e.clipboardData?.getData("text") || "";
+  if (!data) return;
+  if (!looksLikeUrl(data)) return;
+  const result = extractHostPattern(data);
+  if (!result.host) return;
+  e.preventDefault();
+  ruleHostInput.value = result.host;
+  // Trigger the input event so the rest of the form (validators,
+  // pattern-test rerender) sees the new value.
+  ruleHostInput.dispatchEvent(new Event("input", { bubbles: true }));
+  renderHostSuggest();
+  // Place the caret at the end so a follow-up keystroke appends
+  // rather than overwriting the start of the host.
+  const end = ruleHostInput.value.length;
+  ruleHostInput.setSelectionRange(end, end);
+});
+
+// Re-render the suggestion chip whenever the input changes (typing,
+// paste replacement, programmatic clear). Cheap — synchronous string
+// math, no IDB. Keeps the chip in sync without per-keystroke debouncing.
+ruleHostInput.addEventListener("input", () => {
+  renderHostSuggest();
+});
+
+ruleHostSuggest.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".rule-host-suggest-chip") as
+    | HTMLButtonElement
+    | null;
+  if (!btn) return;
+  const pattern = btn.dataset.pattern || "";
+  if (!pattern) return;
+  ruleHostInput.value = pattern;
+  ruleHostInput.dispatchEvent(new Event("input", { bubbles: true }));
+  ruleHostInput.focus();
+  // Suggestion chip self-hides because renderHostSuggest detects the
+  // value === wildcard match and bails. No manual hide needed.
 });
 
 /**

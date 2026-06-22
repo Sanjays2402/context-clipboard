@@ -1723,6 +1723,49 @@ button.small:disabled {
   transition: all 0.15s;
 }
 
+/* Wildcard suggestion strip — surfaces *.github.com when the user
+ * pastes a URL like https://docs.github.com/foo. Single chip, accent
+ * hover, sits between the host input and the tags input so the
+ * suggestion is obvious without stealing visual weight from the
+ * fields themselves. */
+.rule-host-suggest {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: -2px;
+  padding: 2px 0;
+  font-size: 10.5px;
+}
+.rule-host-suggest-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  font-size: 9.5px;
+}
+.rule-host-suggest-chip {
+  appearance: none;
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font-mono, monospace);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.rule-host-suggest-chip:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.rule-host-suggest-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .site-rule-form input[type="text"]:focus {
   outline: none;
   border-color: var(--accent);
