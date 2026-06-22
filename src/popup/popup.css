@@ -3522,6 +3522,30 @@ body.blur-on header::after {
   color: var(--accent, #f5b400);
 }
 
+/* "Open all (N)" — start traversal mode through the similar-set
+ * snapshot. Small accent-styled button sits under the similar-list. */
+.similar-traverse {
+  appearance: none;
+  margin-top: 6px;
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--accent, #f5b400);
+  color: var(--accent, #f5b400);
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.similar-traverse:hover,
+.similar-traverse:focus-visible {
+  background: var(--accent, #f5b400);
+  color: var(--bg, #0f1117);
+  outline: none;
+}
+
 /* Compact rows — body class applied by applyCompactRows(). Pure CSS
  * override; nothing in the data layer changes. We trim padding, hide
  * the tag chip row, hide the image-dim badge, single-line everything,

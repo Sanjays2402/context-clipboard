@@ -93,6 +93,15 @@ import {
   formatPurgeConfirm,
   formatPurgeButtonLabel,
 } from "../lib/trash-purge-kind";
+import {
+  buildSimilarNav,
+  stepSimilarNav,
+  formatSimilarPosLabel,
+  formatTraverseButtonLabel,
+  isInSimilarNav,
+  syncSimilarNav,
+  type SimilarNav,
+} from "../lib/similar-nav";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -158,6 +167,7 @@ const detailTtlPin = $<HTMLButtonElement>("detail-ttl-pin");
 const detailTtlClear = $<HTMLButtonElement>("detail-ttl-clear");
 const detailSimilarRow = $("detail-similar-row");
 const detailSimilar = $("detail-similar");
+const detailSimilarTraverse = $<HTMLButtonElement>("detail-similar-traverse");
 const detailCopy = $<HTMLButtonElement>("detail-copy");
 const detailCopyMd = $<HTMLButtonElement>("detail-copy-md");
 
@@ -280,6 +290,11 @@ let activeIndex = 0;
 let detailId: string | null = null;
 let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
+// Similar-traversal nav stack. When non-null, the detail-view's prev/next
+// walk this list instead of `currentClips`. Set by "Open all (N)" from
+// the Similar row; cleared when the user navigates to a clip outside
+// the stack or returns to the list view.
+let similarNav: SimilarNav | null = null;
 let savedSearches: SavedSearch[] = [];
 let searchHistory: string[] = [];
 /**
@@ -1045,6 +1060,14 @@ async function openDetail(id: string) {
   // Always end any prior reveal before swapping clips. Otherwise the timer
   // would clobber the new clip's body when it fires.
   if (detailId && detailId !== id) endRevealOnce();
+  // Similar-nav lifecycle: if we're traversing and the new id is in the
+  // stack, resync the index so the position pill stays correct. If the
+  // new id is NOT in the stack, the user navigated away (clicked a list
+  // row, opened from search, etc.) — drop the nav and return to list-mode.
+  if (similarNav) {
+    const resynced = syncSimilarNav(similarNav, id);
+    similarNav = resynced; // null when id not in stack -> exits mode
+  }
   detailId = c.id;
   if (c.kind === "image") {
     detailBody.innerHTML = `<img src="${c.content}" alt="" />`;
@@ -1196,9 +1219,25 @@ async function renderSimilarClips(pivot: ClipItem): Promise<void> {
         );
       })
       .join("");
+    // Traverse button — surfaces only when there are at least 2 matches.
+    // Stash the ordered id list on the button so the click handler can
+    // build the nav stack without re-running findSimilarClips.
+    const traverseLabel = formatTraverseButtonLabel(matches.length);
+    if (traverseLabel) {
+      detailSimilarTraverse.hidden = false;
+      detailSimilarTraverse.textContent = traverseLabel;
+      detailSimilarTraverse.dataset.ids = matches.map((m) => m.id).join(",");
+      detailSimilarTraverse.dataset.pivotId = pivotId;
+    } else {
+      detailSimilarTraverse.hidden = true;
+      detailSimilarTraverse.textContent = "";
+      delete detailSimilarTraverse.dataset.ids;
+      delete detailSimilarTraverse.dataset.pivotId;
+    }
   } catch (e) {
     console.debug("[context-clipboard] similar-clips render failed", e);
     detailSimilarRow.hidden = true;
+    detailSimilarTraverse.hidden = true;
   }
 }
 
@@ -1293,6 +1332,29 @@ function formatDuration(ms: number): string {
  * pill hides — we don't try to guess what "next" should mean off-list.
  */
 function updateDetailNav(): void {
+  // Similar-traversal mode overrides list-mode nav. Position pill reads
+  // "Similar N / M" and prev/next wrap (no end-of-list disable) since
+  // similar sets are typically small enough that the user wants to
+  // cycle freely. Exit semantics live in openDetail (id-not-in-stack
+  // drops the nav).
+  if (similarNav && similarNav.ids.length > 0 && detailId) {
+    if (isInSimilarNav(similarNav, detailId)) {
+      const label = formatSimilarPosLabel(similarNav);
+      detailNavPos.hidden = false;
+      detailNavPos.textContent = label || "";
+      detailNavPos.title = `Traversing ${similarNav.ids.length} similar clips · prev/next cycles · Esc exits`;
+      // Cycle wraps, so prev/next are always available when the stack
+      // has at least 2 entries. Single-entry stacks are filtered at
+      // buildSimilarNav time (would be silly — there's nothing to step
+      // to) but defensive: a 1-stack disables both.
+      const cycleable = similarNav.ids.length >= 2;
+      detailPrev.disabled = !cycleable;
+      detailNext.disabled = !cycleable;
+      return;
+    }
+    // Detail-id outside the stack: traversal already ended via openDetail
+    // exit handling; fall through to list-mode rendering below.
+  }
   const idx = detailId
     ? currentClips.findIndex((c) => c.id === detailId)
     : -1;
@@ -1300,10 +1362,12 @@ function updateDetailNav(): void {
     detailPrev.disabled = true;
     detailNext.disabled = true;
     detailNavPos.hidden = true;
+    detailNavPos.title = "";
     return;
   }
   detailNavPos.hidden = false;
   detailNavPos.textContent = `${idx + 1} / ${currentClips.length}`;
+  detailNavPos.title = "";
   detailPrev.disabled = idx <= 0;
   detailNext.disabled = idx >= currentClips.length - 1;
 }
@@ -1316,6 +1380,15 @@ function updateDetailNav(): void {
  */
 async function stepDetail(direction: -1 | 1): Promise<void> {
   if (!detailId) return;
+  // Similar-traversal mode: step through the snapshot stack instead of
+  // currentClips. Cycle wraps so the user can keep tapping a single
+  // direction key. Resync happens inside openDetail via syncSimilarNav.
+  if (similarNav && isInSimilarNav(similarNav, detailId)) {
+    const step = stepSimilarNav(similarNav, direction === 1 ? "next" : "prev");
+    if (!step) return;
+    await openDetail(step.id);
+    return;
+  }
   const idx = currentClips.findIndex((c) => c.id === detailId);
   if (idx < 0) return;
   const next = idx + direction;
@@ -1383,6 +1456,10 @@ function closeDetail() {
   if (!detailSendMenu.hidden) closeSendMenu();
   detailEl.hidden = true;
   detailId = null;
+  // Exiting detail-view always drops similar-nav. The user can re-enter
+  // traversal mode from any clip's Similar row; the stack is intentionally
+  // session-local (no point persisting across closes).
+  similarNav = null;
 }
 
 // OCR (runs in popup; CSP allows external script for popup pages) -------
@@ -5705,6 +5782,30 @@ detailBack.addEventListener("click", () => closeDetail());
 
 detailPrev.addEventListener("click", () => void stepDetail(-1));
 detailNext.addEventListener("click", () => void stepDetail(1));
+
+// "Open all (N)" — start traversal mode through the snapshot of similar
+// matches that was rendered into the row. We grab the ordered id list
+// off the button's dataset (set by renderSimilarClips) so this handler
+// doesn't re-run findSimilarClips; the user's snapshot is what they
+// committed to. Opens the first match; subsequent prev/next cycle the
+// stack.
+detailSimilarTraverse.addEventListener("click", async () => {
+  const idsRaw = detailSimilarTraverse.dataset.ids || "";
+  const pivotId = detailSimilarTraverse.dataset.pivotId || "";
+  if (!idsRaw || !pivotId) {
+    toast("No similar clips to traverse");
+    return;
+  }
+  const ids = idsRaw.split(",").filter(Boolean);
+  const nav = buildSimilarNav(ids, pivotId);
+  if (!nav) {
+    toast("No similar clips to traverse");
+    return;
+  }
+  similarNav = nav;
+  await openDetail(nav.ids[0]);
+  toast(`Traversing ${nav.ids.length} similar clip${nav.ids.length === 1 ? "" : "s"}`);
+});
 
 detailDelete.addEventListener("click", async () => {
   if (!detailId) return;
