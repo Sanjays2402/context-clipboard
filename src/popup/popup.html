@@ -254,6 +254,28 @@
           <div class="trash-header">
             <span class="trash-title">Per-site rules</span>
             <span class="trash-summary" id="site-rules-summary">none</span>
+            <button id="rules-export-btn" class="small" type="button" title="Copy all rules as JSON for paste into another device">Export</button>
+            <button id="rules-import-btn" class="small" type="button" title="Paste JSON to import rules from another device">Import</button>
+          </div>
+          <div class="rules-io-panel" id="rules-io-panel" hidden>
+            <div class="rules-io-head">
+              <span id="rules-io-title">Paste rules JSON</span>
+              <button id="rules-io-close" type="button" class="rules-io-close" title="Close">×</button>
+            </div>
+            <textarea id="rules-io-text" rows="6" placeholder='{"version":1,"rules":[...]}' autocomplete="off" spellcheck="false"></textarea>
+            <div class="rules-io-actions">
+              <label class="rules-io-mode">
+                <input type="radio" name="rules-io-mode" value="merge" checked />
+                Merge (incoming overrides same-host)
+              </label>
+              <label class="rules-io-mode">
+                <input type="radio" name="rules-io-mode" value="replace" />
+                Replace (wipe + take incoming)
+              </label>
+              <button id="rules-io-apply" class="small" type="button">Apply</button>
+              <button id="rules-io-copy" class="small" type="button" hidden>Copy to clipboard</button>
+            </div>
+            <div class="rules-io-status" id="rules-io-status"></div>
           </div>
           <div class="site-rules-list" id="site-rules-list"></div>
           <div class="site-rule-form">

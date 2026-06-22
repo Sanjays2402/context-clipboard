@@ -43,6 +43,12 @@ import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } fr
 import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits, redactPii, detectCodeLang } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
 import {
+  stringifyRules,
+  parseRulesJson,
+  mergeRules,
+  type MergeMode,
+} from "../lib/site-rules-io";
+import {
   encryptJson,
   decryptJson,
   isEncryptedEnvelope,
@@ -167,6 +173,15 @@ const forgetHostInput = $<HTMLInputElement>("forget-host-input");
 const forgetHostBtn = $<HTMLButtonElement>("forget-host-btn");
 const siteRulesList = $("site-rules-list");
 const siteRulesSummary = $("site-rules-summary");
+const rulesExportBtn = $<HTMLButtonElement>("rules-export-btn");
+const rulesImportBtn = $<HTMLButtonElement>("rules-import-btn");
+const rulesIoPanel = $("rules-io-panel");
+const rulesIoTitle = $("rules-io-title");
+const rulesIoText = $<HTMLTextAreaElement>("rules-io-text");
+const rulesIoApply = $<HTMLButtonElement>("rules-io-apply");
+const rulesIoCopy = $<HTMLButtonElement>("rules-io-copy");
+const rulesIoClose = $<HTMLButtonElement>("rules-io-close");
+const rulesIoStatus = $("rules-io-status");
 const ruleHostInput = $<HTMLInputElement>("rule-host");
 const ruleTagsInput = $<HTMLInputElement>("rule-tags");
 const rulePatternsInput = $<HTMLTextAreaElement>("rule-patterns");
@@ -2009,7 +2024,7 @@ forgetHostInput.addEventListener("keydown", (e) => {
 interface SiteRuleResponse { ok: boolean; rules?: SiteRule[]; rule?: SiteRule; error?: string }
 
 async function rpcSiteRules<T = SiteRuleResponse>(
-  action: "listSiteRules" | "upsertSiteRule" | "removeSiteRule",
+  action: "listSiteRules" | "upsertSiteRule" | "removeSiteRule" | "replaceSiteRules",
   payload?: unknown,
 ): Promise<T> {
   return new Promise((resolve) => {
@@ -2259,6 +2274,146 @@ function renderRuleTest(): void {
 
 rulePatternsInput.addEventListener("input", () => renderRuleTest());
 ruleTestInput.addEventListener("input", () => renderRuleTest());
+
+// Site-rules import / export ---------------------------------------------
+//
+/**
+ * State for the IO panel — whether we're showing the panel in export
+ * or import mode (the textarea is read-only in export, editable in
+ * import). Lives in module scope so the close/open routes can flip it.
+ */
+let rulesIoMode: "export" | "import" = "import";
+
+/**
+ * Open the IO panel in export mode. Pulls the current rule list,
+ * serialises via `stringifyRules`, drops the JSON into the textarea
+ * (read-only — the user can't edit an export — they Copy or close).
+ * The Copy button writes to clipboard via navigator.clipboard.
+ */
+async function openRulesExport(): Promise<void> {
+  const resp = await rpcSiteRules("listSiteRules");
+  const rules = resp.rules ?? [];
+  if (rules.length === 0) {
+    toast("No rules to export", "error");
+    return;
+  }
+  rulesIoMode = "export";
+  const text = stringifyRules(rules);
+  rulesIoTitle.textContent = `Export · ${rules.length} rule${rules.length === 1 ? "" : "s"}`;
+  rulesIoText.value = text;
+  rulesIoText.readOnly = true;
+  rulesIoApply.hidden = true;
+  rulesIoCopy.hidden = false;
+  rulesIoStatus.textContent = "Copy + paste into the Import box on another device.";
+  rulesIoPanel.hidden = false;
+  // Select the text so Cmd+C grabs it immediately.
+  rulesIoText.focus();
+  rulesIoText.select();
+}
+
+/**
+ * Open the IO panel in import mode — empty editable textarea, Apply
+ * button visible, Copy hidden. The user pastes a bundle, picks a
+ * merge mode, hits Apply.
+ */
+function openRulesImport(): void {
+  rulesIoMode = "import";
+  rulesIoTitle.textContent = "Import rules";
+  rulesIoText.value = "";
+  rulesIoText.readOnly = false;
+  rulesIoApply.hidden = false;
+  rulesIoCopy.hidden = true;
+  rulesIoStatus.textContent = 'Paste a {"version":1,...} bundle and pick a mode.';
+  rulesIoPanel.hidden = false;
+  rulesIoText.focus();
+}
+
+function closeRulesIoPanel(): void {
+  rulesIoPanel.hidden = true;
+  rulesIoText.value = "";
+  rulesIoStatus.textContent = "";
+}
+
+rulesExportBtn.addEventListener("click", () => void openRulesExport());
+rulesImportBtn.addEventListener("click", () => openRulesImport());
+rulesIoClose.addEventListener("click", () => closeRulesIoPanel());
+
+rulesIoCopy.addEventListener("click", async () => {
+  if (rulesIoMode !== "export") return;
+  const text = rulesIoText.value;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("Rules JSON copied to clipboard");
+  } catch (e) {
+    console.warn("[context-clipboard] rules export clipboard write failed", e);
+    // Fallback: select + execCommand so even policy-restricted contexts
+    // get *something* working. Most modern browsers honour the call
+    // when triggered by a user gesture (which this is).
+    rulesIoText.focus();
+    rulesIoText.select();
+    try {
+      document.execCommand("copy");
+      toast("Rules JSON copied to clipboard");
+    } catch {
+      toast("Couldn't copy — select + Cmd/Ctrl+C manually", "error");
+    }
+  }
+});
+
+rulesIoApply.addEventListener("click", async () => {
+  if (rulesIoMode !== "import") return;
+  const text = rulesIoText.value;
+  const parsed = parseRulesJson(text);
+  if (!parsed.ok || !parsed.rules) {
+    rulesIoStatus.textContent = `Couldn't parse: ${parsed.reason}`;
+    toast(`Import failed: ${parsed.reason}`, "error");
+    return;
+  }
+  if (parsed.rules.length === 0) {
+    rulesIoStatus.textContent = "Nothing to import — every row failed validation.";
+    toast("Nothing to import", "error");
+    return;
+  }
+  const modeInput = document.querySelector<HTMLInputElement>(
+    'input[name="rules-io-mode"]:checked',
+  );
+  const mode: MergeMode = modeInput?.value === "replace" ? "replace" : "merge";
+  // Read live rules, merge, ship back through the bulk RPC. We rebuild
+  // the merge result in the popup (pure) so we can show the user an
+  // honest "+3 / 2 updated" count BEFORE the IDB write — easier to
+  // explain than a single bulk-write-and-pray.
+  const liveResp = await rpcSiteRules("listSiteRules");
+  const live = liveResp.rules ?? [];
+  const merged = mergeRules(live, parsed.rules, mode);
+  if (mode === "replace") {
+    // Replace is destructive — confirm with a real count so an
+    // accidental click can't wipe a rule list silently.
+    const lostCount = live.length;
+    const newCount = merged.next.length;
+    const ok = confirm(
+      `Replace ${lostCount} existing rule${lostCount === 1 ? "" : "s"} with ${newCount} from the bundle?\n\nExisting rules will be gone. This cannot be undone.`,
+    );
+    if (!ok) return;
+  }
+  const resp = await rpcSiteRules("replaceSiteRules", { rules: merged.next });
+  if (!resp.ok) {
+    rulesIoStatus.textContent = `Write failed: ${resp.error ?? "unknown"}`;
+    toast(`Import failed: ${resp.error ?? "unknown"}`, "error");
+    return;
+  }
+  // Build a terse summary so the user sees exactly what happened.
+  const bits: string[] = [];
+  if (merged.added) bits.push(`+${merged.added} added`);
+  if (merged.updated) bits.push(`${merged.updated} updated`);
+  if (merged.removed) bits.push(`-${merged.removed} removed`);
+  if (parsed.dropped) bits.push(`${parsed.dropped} dropped (invalid)`);
+  const summary = bits.length ? bits.join(", ") : "no change";
+  rulesIoStatus.textContent = `Imported: ${summary}.`;
+  toast(`Imported: ${summary}`);
+  closeRulesIoPanel();
+  await renderSiteRules();
+});
 
 siteRulesList.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;

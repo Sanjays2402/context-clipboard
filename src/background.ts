@@ -22,6 +22,7 @@ import {
   listSiteRules,
   upsertSiteRule,
   removeSiteRule,
+  replaceSiteRules,
   getPaletteLastQuery,
   setPaletteLastQuery,
 } from "./lib/db";
@@ -572,6 +573,19 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           const ok = await removeSiteRule(p.id);
           return sendResponse({ ok });
         }
+        if (msg.action === "replaceSiteRules") {
+          // Bulk-write the rules array straight to IDB. Used by the
+          // Settings → site-rules Import flow after the popup has
+          // already validated + merged the incoming bundle. Single
+          // write keeps a 30-rule paste from paying 30 IDB roundtrips.
+          const p = msg.payload as { rules?: SiteRule[] } | undefined;
+          if (!Array.isArray(p?.rules)) {
+            return sendResponse({ ok: false, error: "rules array required" });
+          }
+          await replaceSiteRules(p.rules);
+          const rules = await listSiteRules();
+          return sendResponse({ ok: true, rules });
+        }
         if (msg.action === "setPaletteQuery") {
           // Persist the in-page palette's most recent query so the next
           // Cmd+Shift+V chord pre-fills the input. Empty string clears
@@ -830,6 +844,7 @@ interface RpcMsg {
     | "listSiteRules"
     | "upsertSiteRule"
     | "removeSiteRule"
+    | "replaceSiteRules"
     | "setPaletteQuery"
     | "purgeTrashOlderThan";
   payload?: unknown;

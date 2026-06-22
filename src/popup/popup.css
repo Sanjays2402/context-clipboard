@@ -1532,6 +1532,102 @@ button.small:disabled {
   box-shadow: 0 0 0 1px var(--accent-glow);
 }
 
+/* Site-rules IO panel (Export / Import) — slides in below the header
+   when toggled, hides by default. Read-only mode (export) greys the
+   textarea slightly; import mode is editable. Tight stack: title-bar /
+   textarea / radio + action row / status line. */
+.rules-io-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: var(--glass);
+}
+
+.rules-io-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.rules-io-close {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.rules-io-close:hover {
+  color: var(--danger);
+}
+
+#rules-io-text {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 100px;
+  outline: none;
+}
+
+#rules-io-text:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+#rules-io-text[readonly] {
+  color: var(--text-secondary);
+  background: var(--bg);
+}
+
+.rules-io-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+}
+
+.rules-io-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.rules-io-mode input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+.rules-io-status {
+  font-size: 10.5px;
+  color: var(--muted);
+  min-height: 14px;
+}
+
+/* Inline export/import buttons in the rule-section header */
+#rules-export-btn,
+#rules-import-btn {
+  margin-left: 4px;
+}
+
 .site-rule-form input[type="text"] {
   background: var(--bg);
   color: var(--text);

@@ -1211,6 +1211,22 @@ export async function removeSiteRule(id: string): Promise<boolean> {
 }
 
 /**
+ * Bulk-write the entire site-rules list. Used by the import path
+ * (`mergeRules(...)` result → persisted in one shot) so we don't
+ * fire N sequential `upsertSiteRule` calls and pay N IDB roundtrips
+ * for a 30-rule paste.
+ *
+ * The caller is responsible for having already validated + deduped
+ * the list (typically via `mergeRules`); this helper just persists
+ * the array verbatim with one IDB write.
+ */
+export async function replaceSiteRules(rules: SiteRule[]): Promise<void> {
+  // Defensive cap mirrors what the IO layer enforces — even if a
+  // caller hands us a pathological array, we won't blow up IDB.
+  await writeSiteRules(rules.slice(0, 200));
+}
+
+/**
  * Pure pattern test — no IO. Exact match, or `*.example.com` style
  * (one leading wildcard label). Empty / blank hosts never match.
  */
