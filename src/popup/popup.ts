@@ -78,6 +78,7 @@ import {
 import { findLastForgottenHost, formatAge } from "../lib/last-forgotten-host";
 import { buildStorageDeltaLabel } from "../lib/bulk-storage-delta";
 import { precheckAuditJump, describeAuditJump } from "../lib/detail-audit-jump";
+import { nextArchivedClipId, describeArchiveCycle } from "../lib/next-archived";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -280,6 +281,12 @@ let lastSavedSearchId: string = "";
  * ring has no forget-host entries yet.
  */
 let lastForgottenHost: import("../lib/last-forgotten-host").ForgottenHostInfo | null = null;
+
+// Cached archived-clip count for the Cmd+K "Jump to next archived"
+// command label. Refreshed on every render() so the live count is
+// always current without a per-palette-open IDB read. Zero hides
+// the command from the palette via `available: false`.
+let archivedCount = 0;
 /**
  * When non-null, the saved-search chip with this id renders as a
  * text input instead of a button so the user can rename it inline.
@@ -799,6 +806,12 @@ async function render(): Promise<void> {
   // disabled (we own it now) and pass only kind/pinned/tag through, then
   // overlay the parsed operators on top.
   const wide = await listClips({ limit: 5000 });
+  // Refresh the archived-count cache so the Cmd+K "Jump to next
+  // archived" command shows the live tally + hides itself when the
+  // archive is empty. Cheap: filter over the already-loaded `wide`,
+  // no extra IDB read.
+  archivedCount = 0;
+  for (const c of wide) if (c.archived === true) archivedCount++;
   const filtered = applyQuery(wide, parsed, {
     extraPinnedOnly: pinnedOnly,
     extraTag: activeTag,
@@ -4334,6 +4347,23 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Cycle through archived clips one-by-one without switching
+      // the list filter. Useful for auditing cold pins (decide
+      // unarchive / delete) without flipping the daily view into
+      // is:archived mode and having to flip it back. Wraps at end.
+      id: "next-archived",
+      label: describeArchiveCycle(archivedCount).label,
+      hint: describeArchiveCycle(archivedCount).hint,
+      group: "Navigate",
+      keywords:
+        "next archived cycle wrap step jump cold pins audit through inbox review",
+      available: archivedCount > 0,
+      run: () => {
+        closePalette();
+        void jumpToNextArchived();
+      },
+    },
+    {
       id: "retroactive-redact",
       label: "Redact PII in every existing clip",
       hint: "Mask emails / phones / cards / secrets in old captures",
@@ -4768,6 +4798,48 @@ function clearAllFilters(): void {
   });
   activeIndex = 0;
   void render();
+}
+
+/**
+ * Cmd+K "Jump to next archived clip" handler. Cycles through
+ * archived clips newest-first, wrapping at the end. The detail view
+ * is OPENED for the next clip (not the list filter changed), so the
+ * user's daily-list view stays put.
+ *
+ * Pulls the full clip store at click time so the cycle reflects
+ * fresh archives (e.g. the user just archived something while the
+ * palette was open). We could read the cached `archivedCount` and
+ * tee off the existing render-loaded `wide`, but the IDB read is
+ * a single object-store getAll and the loop is microseconds — not
+ * worth the risk of cycling against a stale snapshot.
+ *
+ * No-op + toast when the archive is genuinely empty (the palette
+ * already gates this via `available: false`, but the handler stays
+ * defensive in case a stale shortcut races the cache).
+ */
+async function jumpToNextArchived(): Promise<void> {
+  const all = await listClips({ limit: 5000 });
+  const cursor = detailId;
+  const next = nextArchivedClipId(all, cursor);
+  if (!next) {
+    toast("No archived clips", "error");
+    return;
+  }
+  // Toast the position so the user knows where they are in the cycle
+  // (e.g. "Archived clip 3 of 12") — handy when stepping through a
+  // long archive list. Computed against the same sorted slice the
+  // helper used so the index is consistent.
+  const sorted = all.filter((c) => c.archived === true);
+  sorted.sort(
+    (a, b) =>
+      (b.lastSeenAt || 0) - (a.lastSeenAt || 0) ||
+      (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+  );
+  const idx = sorted.findIndex((c) => c.id === next);
+  if (idx >= 0 && sorted.length > 1) {
+    toast(`Archived clip ${idx + 1} of ${sorted.length}`);
+  }
+  await openDetail(next);
 }
 
 /**
