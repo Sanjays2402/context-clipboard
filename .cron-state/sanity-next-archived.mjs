@@ -30,6 +30,18 @@ function nextArchivedClipId(clips, currentId, axis = "lastSeenAt") {
   return sorted[next].id;
 }
 
+function prevArchivedClipId(clips, currentId, axis = "lastSeenAt") {
+  const sorted = archivedClipsSorted(clips, axis);
+  if (sorted.length === 0) return null;
+  if (typeof currentId !== "string" || !currentId)
+    return sorted[sorted.length - 1].id;
+  const idx = sorted.findIndex((c) => c.id === currentId);
+  if (idx < 0) return sorted[sorted.length - 1].id;
+  if (sorted.length === 1) return sorted[0].id;
+  const prev = (idx - 1 + sorted.length) % sorted.length;
+  return sorted[prev].id;
+}
+
 function describeArchiveCycle(count) {
   if (!Number.isFinite(count) || count <= 0) {
     return {
@@ -46,6 +58,25 @@ function describeArchiveCycle(count) {
   return {
     label: `Jump to next archived clip · ${count} archived`,
     hint: "Open detail-view for the next archived clip (wraps)",
+  };
+}
+
+function describeArchiveCycleReverse(count) {
+  if (!Number.isFinite(count) || count <= 0) {
+    return {
+      label: "Jump to previous archived clip",
+      hint: "No archived clips to cycle through",
+    };
+  }
+  if (count === 1) {
+    return {
+      label: "Jump to previous archived clip · 1 archived",
+      hint: "Only one archived clip — opens it",
+    };
+  }
+  return {
+    label: `Jump to previous archived clip · ${count} archived`,
+    hint: "Open detail-view for the previous archived clip (wraps)",
   };
 }
 
@@ -231,6 +262,102 @@ check("realistic ring: c0 → c2",
 check("realistic ring: c8 → c0 (wrap)",
   nextArchivedClipId(ring, "c8"),
   "c0");
+
+// --- 15. prevArchivedClipId: defensive / empty ---------------------------
+check("prev: empty clips → null",
+  prevArchivedClipId([], null),
+  null);
+check("prev: no archived → null",
+  prevArchivedClipId([{ id: "a", archived: false }], null),
+  null);
+check("prev: null clips → null",
+  prevArchivedClipId(null, null),
+  null);
+
+// --- 16. prevArchivedClipId: no cursor → tail (mirror of next's "first") -
+check("prev: no cursor → last archived (oldest)",
+  prevArchivedClipId(series, null),
+  "old");
+check("prev: empty-string cursor → last archived",
+  prevArchivedClipId(series, ""),
+  "old");
+check("prev: undefined cursor → last archived",
+  prevArchivedClipId(series, undefined),
+  "old");
+
+// --- 17. prevArchivedClipId: cursor not archived → tail ------------------
+check("prev: live cursor → last archived",
+  prevArchivedClipId(allClipsBoth, "live1"),
+  "arc1");
+check("prev: unknown cursor → last archived",
+  prevArchivedClipId(allClipsBoth, "ghost"),
+  "arc1");
+
+// --- 18. prevArchivedClipId: single archived → that one ------------------
+check("prev: single archived, no cursor → that one",
+  prevArchivedClipId(single, null),
+  "only");
+check("prev: single archived, cursor IS that one → still that one",
+  prevArchivedClipId(single, "only"),
+  "only");
+
+// --- 19. prevArchivedClipId: wrap math (reverse) ------------------------
+// Sorted: c, b, a
+check("prev: cursor=c → wrap to a (head wraps to tail)",
+  prevArchivedClipId(cycle, "c"),
+  "a");
+check("prev: cursor=b → c",
+  prevArchivedClipId(cycle, "b"),
+  "c");
+check("prev: cursor=a → b",
+  prevArchivedClipId(cycle, "a"),
+  "b");
+
+// --- 20. Forward + reverse round-trip: cycle invariant -------------------
+// Walking next then prev from any cursor → land back on the cursor
+// (cycle length > 1). Confirms the two directions are inverse.
+for (const start of ["a", "b", "c"]) {
+  const fwd = nextArchivedClipId(cycle, start);
+  const roundTrip = prevArchivedClipId(cycle, fwd);
+  check(`round-trip: next(${start}) → prev → ${start}`,
+    roundTrip,
+    start);
+}
+
+// --- 21. describeArchiveCycleReverse variants ----------------------------
+check("describe-rev: 0 → no archived",
+  describeArchiveCycleReverse(0),
+  { label: "Jump to previous archived clip", hint: "No archived clips to cycle through" });
+check("describe-rev: negative → no archived",
+  describeArchiveCycleReverse(-3),
+  { label: "Jump to previous archived clip", hint: "No archived clips to cycle through" });
+check("describe-rev: NaN → no archived",
+  describeArchiveCycleReverse(NaN),
+  { label: "Jump to previous archived clip", hint: "No archived clips to cycle through" });
+check("describe-rev: Infinity → no archived",
+  describeArchiveCycleReverse(Infinity),
+  { label: "Jump to previous archived clip", hint: "No archived clips to cycle through" });
+check("describe-rev: 1 → singular",
+  describeArchiveCycleReverse(1),
+  { label: "Jump to previous archived clip · 1 archived", hint: "Only one archived clip — opens it" });
+check("describe-rev: 2 → plural",
+  describeArchiveCycleReverse(2),
+  { label: "Jump to previous archived clip · 2 archived", hint: "Open detail-view for the previous archived clip (wraps)" });
+check("describe-rev: 47 → plural with count",
+  describeArchiveCycleReverse(47),
+  { label: "Jump to previous archived clip · 47 archived", hint: "Open detail-view for the previous archived clip (wraps)" });
+
+// --- 22. Realistic ring: prev direction ---------------------------------
+// archived = c0, c2, c4, c6, c8 (lastSeenAt desc: c0 newest)
+check("realistic ring: prev(c0) → c8 (wrap)",
+  prevArchivedClipId(ring, "c0"),
+  "c8");
+check("realistic ring: prev(c4) → c2",
+  prevArchivedClipId(ring, "c4"),
+  "c2");
+check("realistic ring: prev(c8) → c6",
+  prevArchivedClipId(ring, "c8"),
+  "c6");
 
 console.log(`next-archived sanity: ${pass}/${total} pass`);
 if (pass !== total) process.exit(1);

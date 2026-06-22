@@ -79,7 +79,7 @@ import {
 import { findLastForgottenHost, formatAge } from "../lib/last-forgotten-host";
 import { buildStorageDeltaLabel } from "../lib/bulk-storage-delta";
 import { precheckAuditJump, describeAuditJump } from "../lib/detail-audit-jump";
-import { nextArchivedClipId, describeArchiveCycle } from "../lib/next-archived";
+import { nextArchivedClipId, prevArchivedClipId, describeArchiveCycle, describeArchiveCycleReverse } from "../lib/next-archived";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -4476,6 +4476,23 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Reverse companion to next-archived — same cycle, walked
+      // backwards. Useful when the user overshot a cold pin with
+      // ↓ and wants to step back without re-cycling through the
+      // whole ring. Both commands share the same archivedCount cache.
+      id: "prev-archived",
+      label: describeArchiveCycleReverse(archivedCount).label,
+      hint: describeArchiveCycleReverse(archivedCount).hint,
+      group: "Navigate",
+      keywords:
+        "prev previous back archived cycle wrap step jump cold pins audit reverse backward",
+      available: archivedCount > 0,
+      run: () => {
+        closePalette();
+        void jumpToPrevArchived();
+      },
+    },
+    {
       id: "retroactive-redact",
       label: "Redact PII in every existing clip",
       hint: "Mask emails / phones / cards / secrets in old captures",
@@ -4952,6 +4969,40 @@ async function jumpToNextArchived(): Promise<void> {
     toast(`Archived clip ${idx + 1} of ${sorted.length}`);
   }
   await openDetail(next);
+}
+
+/**
+ * Reverse companion to jumpToNextArchived. Walks the archived cycle
+ * backwards from the current detail cursor (or starts at the tail
+ * when no cursor is set) — useful for stepping back after over-
+ * shooting in the forward direction, or for browsing the oldest
+ * archived clips first.
+ *
+ * Same listClips fetch pattern as the forward command so a fresh
+ * archive (e.g. user just archived a clip while the palette was
+ * open) shows up immediately. Toast uses identical "Archived clip
+ * N of M" copy so the two directions feel like the same cycle just
+ * navigated by intent.
+ */
+async function jumpToPrevArchived(): Promise<void> {
+  const all = await listClips({ limit: 5000 });
+  const cursor = detailId;
+  const prev = prevArchivedClipId(all, cursor);
+  if (!prev) {
+    toast("No archived clips", "error");
+    return;
+  }
+  const sorted = all.filter((c) => c.archived === true);
+  sorted.sort(
+    (a, b) =>
+      (b.lastSeenAt || 0) - (a.lastSeenAt || 0) ||
+      (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+  );
+  const idx = sorted.findIndex((c) => c.id === prev);
+  if (idx >= 0 && sorted.length > 1) {
+    toast(`Archived clip ${idx + 1} of ${sorted.length}`);
+  }
+  await openDetail(prev);
 }
 
 /**
