@@ -12,6 +12,7 @@ import {
   emptyTrash,
   trashCount,
   restoreAllFromHost,
+  purgeTrashByIds,
   listSavedSearches,
   addSavedSearch,
   removeSavedSearch,
@@ -86,6 +87,12 @@ import {
   formatTokenPillLabel,
   formatTokenPillTooltip,
 } from "../lib/template-token-count";
+import {
+  summarizeTrashByKind,
+  planTrashPurge,
+  formatPurgeConfirm,
+  formatPurgeButtonLabel,
+} from "../lib/trash-purge-kind";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -193,6 +200,8 @@ const trashList = $("trash-list");
 const trashHostStrip = $("trash-host-strip");
 const trashEmpty = $<HTMLButtonElement>("trash-empty");
 const trashPurge24h = $<HTMLButtonElement>("trash-purge-24h");
+const trashPurgeText = $<HTMLButtonElement>("trash-purge-text");
+const trashPurgeImage = $<HTMLButtonElement>("trash-purge-image");
 const auditSummary = $("audit-summary");
 const auditList = $("audit-list");
 const auditFiltersEl = $("audit-filters");
@@ -2192,6 +2201,26 @@ async function renderTrash(): Promise<void> {
   trashPurge24h.disabled = oldEnough === 0;
   trashPurge24h.textContent =
     oldEnough > 0 ? `Purge >24h (${oldEnough})` : "Purge >24h";
+  // Per-kind purge buttons — hidden when the trash holds zero of that
+  // kind, so the toolbar stays tidy. The label carries the count +
+  // freed-bytes so the user sees the storage win before clicking.
+  const breakdown = summarizeTrashByKind(items);
+  const textLabel = formatPurgeButtonLabel(breakdown, "text");
+  if (textLabel) {
+    trashPurgeText.hidden = false;
+    trashPurgeText.textContent = textLabel;
+  } else {
+    trashPurgeText.hidden = true;
+    trashPurgeText.textContent = "";
+  }
+  const imageLabel = formatPurgeButtonLabel(breakdown, "image");
+  if (imageLabel) {
+    trashPurgeImage.hidden = false;
+    trashPurgeImage.textContent = imageLabel;
+  } else {
+    trashPurgeImage.hidden = true;
+    trashPurgeImage.textContent = "";
+  }
   // Host rollup strip — chips for any host with 2+ trash rows give a
   // single-click "Restore N from host" reversal of an accidental
   // forget-host. Singles already have a Restore button per row.
@@ -2393,6 +2422,34 @@ async function purgeTrashOlderThan24h(): Promise<void> {
 }
 
 trashPurge24h.addEventListener("click", () => void purgeTrashOlderThan24h());
+
+/**
+ * Per-kind trash purge — hard-delete only `text` or only `image`
+ * trash. Mirrors the all-or-nothing Empty path but slices the trash
+ * by kind so the user can free storage from a few huge images without
+ * losing the text safety net (or vice versa). The plan is computed
+ * up-front via the pure trash-purge-kind module, so the confirm
+ * message can name the exact count + freed-bytes before commit.
+ *
+ * Skips the confirm path when the trash holds zero of that kind
+ * (button is hidden in that case, but defense-in-depth in case it
+ * gets clicked via DOM tooling).
+ */
+async function purgeTrashByKind(kind: "text" | "image"): Promise<void> {
+  const items = await listTrash();
+  const plan = planTrashPurge(items, kind);
+  if (plan.count === 0) {
+    toast(`No ${kind} clips in trash`);
+    return;
+  }
+  if (!confirm(formatPurgeConfirm(plan))) return;
+  const purged = await purgeTrashByIds(plan.ids);
+  toast(`Purged ${purged} ${kind} clip${purged === 1 ? "" : "s"}`);
+  await renderTrash();
+}
+
+trashPurgeText.addEventListener("click", () => void purgeTrashByKind("text"));
+trashPurgeImage.addEventListener("click", () => void purgeTrashByKind("image"));
 
 async function runForgetHost(): Promise<void> {
   const raw = forgetHostInput.value.trim().toLowerCase().replace(/^www\./, "");

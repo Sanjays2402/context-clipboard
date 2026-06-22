@@ -258,6 +258,38 @@ export async function trashCount(): Promise<number> {
 }
 
 /**
+ * Hard-delete a specific set of trash entries by id. Skips unknown ids
+ * silently (so a stale UI snapshot doesn't fail the whole batch) and
+ * returns how many actually got deleted.
+ *
+ * Used by the "Empty just text" / "Empty just images" purge actions,
+ * where the popup pre-computes which trashed ids match the chosen
+ * kind and passes the slice down. One IDB transaction for the whole
+ * batch.
+ */
+export async function purgeTrashByIds(ids: readonly string[]): Promise<number> {
+  if (!Array.isArray(ids) || ids.length === 0) return 0;
+  const t = await trashTx("readwrite");
+  let n = 0;
+  for (const id of ids) {
+    if (typeof id !== "string" || id.length === 0) continue;
+    const existed = await new Promise<boolean>((resolve, reject) => {
+      const getReq = t.get(id);
+      getReq.onsuccess = () => resolve(getReq.result != null);
+      getReq.onerror = () => reject(getReq.error);
+    });
+    if (!existed) continue;
+    await new Promise<void>((resolve, reject) => {
+      const req = t.delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+    n++;
+  }
+  return n;
+}
+
+/**
  * Hard-purge trash entries older than `maxAgeMs`. Called opportunistically
  * (e.g. from the background ingest path so it doesn't need its own alarm).
  */
