@@ -3708,6 +3708,28 @@ body.compact-rows #list {
   color: var(--accent);
 }
 
+/* Per-clip "ask before deleting" lock — inline padlock chip in the
+ * preview row + active state on the detail-view toolbar toggle. The
+ * row chip is subtle (no fill, no pill background) because locking is
+ * a confirm-gate, not a visual category — we don't want it competing
+ * with the archived pill or the redacted/template badges for attention.
+ * The detail toggle flips to filled + accent color when active. */
+.locked-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  color: #b59866;
+  opacity: 0.85;
+  vertical-align: -2px;
+}
+.locked-badge svg {
+  width: 12px;
+  height: 12px;
+}
+#detail-lock.active {
+  color: #d4a857;
+}
+
 /* Detail-view "Send to…" dropdown — anchored under the action row
  * on the right edge so it feels attached to the trigger button.
  * Drops shadow + border for hover-affordance; rows are full-width

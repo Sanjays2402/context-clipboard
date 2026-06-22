@@ -31,6 +31,7 @@ import {
   retroactiveAutoRedact,
   findSimilarClips,
   toggleArchive,
+  toggleLock,
   appendPrivacyAuditEntry,
   listPrivacyAudit,
   clearPrivacyAudit,
@@ -112,6 +113,11 @@ import {
   formatPreviewCardTitle,
   formatPreviewRowTooltip,
 } from "../lib/rule-preview";
+import {
+  partitionLocked,
+  formatLockConfirm,
+  formatLockedClipConfirm,
+} from "../lib/clip-lock";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -156,6 +162,7 @@ const detailArchive = $<HTMLButtonElement>("detail-archive");
 const detailSend = $<HTMLButtonElement>("detail-send");
 const detailSendMenu = $("detail-send-menu");
 const detailHistory = $<HTMLButtonElement>("detail-history");
+const detailLock = $<HTMLButtonElement>("detail-lock");
 const detailBody = $("detail-body");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
@@ -433,6 +440,52 @@ async function trashWithUndo(ids: string[], label?: string): Promise<void> {
   await render();
 }
 
+/**
+ * Wrapped delete: gates on the per-clip `locked` bit. When ANY id in
+ * the batch is locked, surfaces a single confirm naming the locked
+ * count (and preview for the one-clip case) so the user can choose
+ * intelligently. Bailing out of the confirm preserves the WHOLE batch
+ * — we don't trash the unlocked clips silently when the user said
+ * "wait" to the locked ones; locking is a "double-check this whole
+ * action" signal, not a per-clip veto.
+ *
+ * All-unlocked batches short-circuit to trashWithUndo with no extra
+ * friction — the common case stays one-click.
+ *
+ * Pulls each clip via getClip so a stale id (already trashed by
+ * another window/tab) is silently skipped — partitionLocked treats
+ * missing clips as unlocked, which means a stale id won't manufacture
+ * a phantom confirm prompt.
+ */
+async function trashWithLockGuard(ids: string[], label?: string): Promise<void> {
+  if (ids.length === 0) return;
+  // Cheap fetch — most batches are <50 ids. We could parallelise with
+  // Promise.all, but the existing trashWithUndo loop is sequential
+  // already, so a sequential pre-check matches the cost profile.
+  const checks: { id: string; locked?: boolean; preview?: string; content?: string }[] = [];
+  for (const id of ids) {
+    const c = await getClip(id);
+    if (!c) continue;
+    checks.push({ id: c.id, locked: c.locked, preview: c.preview, content: c.content });
+  }
+  if (checks.length === 0) return;
+  const partition = partitionLocked(checks);
+  if (partition.locked.length > 0) {
+    // Single-clip path uses the preview-aware confirm so the user
+    // sees WHICH clip they're throwing away.
+    if (checks.length === 1 && partition.locked.length === 1) {
+      const only = checks[0];
+      const previewText = only.preview || only.content || "";
+      if (!confirm(formatLockedClipConfirm(previewText))) return;
+    } else {
+      const msg = formatLockConfirm(partition);
+      // msg should never be null here (locked > 0), but defensive.
+      if (msg && !confirm(msg)) return;
+    }
+  }
+  await trashWithUndo(ids, label);
+}
+
 // Rendering -------------------------------------------------------------
 function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string): string {
   const thumb =
@@ -456,6 +509,13 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
   const archivedBadge = c.archived
     ? `<span class="archived-badge" title="Archived — hidden from default list">archived</span>`
     : "";
+  // Locked clips get a small inline padlock chip so the user can
+  // scan the daily list and see at a glance which entries will
+  // confirm-on-delete. Subtle (not a pill) because lock is a
+  // confirm-gate, not a category.
+  const lockedBadge = c.locked
+    ? `<span class="locked-badge" title="Locked — delete will confirm">${icons.lock()}</span>`
+    : "";
   // Highlight the free-text needle inside the preview slice. For images we
   // never highlight (the "preview" is just a placeholder label like "Image").
   const previewSlice = previewText.slice(0, 140);
@@ -468,7 +528,7 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
       ${selectedIds.size > 0 ? `<div class="select-mark">${selectedIds.has(c.id) ? icons.check() : ""}</div>` : ""}
       ${thumb}
       <div class="body">
-        <div class="preview">${previewHtml}${archivedBadge}</div>
+        <div class="preview">${previewHtml}${archivedBadge}${lockedBadge}</div>
         <div class="meta">
           <span class="src" title="${escapeHtml(c.source.url || "")}">${escapeHtml(src || "—")}</span>
           <span>· ${timeAgo(c.lastSeenAt)}${hits}${expiry}</span>
@@ -1172,6 +1232,7 @@ async function openDetail(id: string) {
   detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
   renderRedactButton(c);
   renderArchiveButton(c);
+  renderLockButton(c);
   // Refresh the "Show audit history" jumper's tooltip with the live
   // match count from the audit ring. Fire-and-forget — the title is
   // a hint, not a gate (the click handler works regardless).
@@ -1461,6 +1522,29 @@ function renderArchiveButton(c: ClipItem) {
     detailArchive.innerHTML = icons.archive();
     detailArchive.title = "Archive — hide from default list, keep in IDB";
     detailArchive.classList.remove("active");
+  }
+}
+
+/**
+ * Paint the per-clip lock toggle. Three states surfaced visually:
+ *   - locked → filled padlock + accent active class so it stands out
+ *     in the detail header (lock is rare, and the user should see at
+ *     a glance which clips carry it).
+ *   - unlocked → outline padlock, neutral icon-btn styling, tooltip
+ *     explains what the toggle does.
+ *
+ * Mirrors renderArchiveButton's contract so the openDetail() caller
+ * can wire all three (redact + archive + lock) the same way.
+ */
+function renderLockButton(c: ClipItem) {
+  if (c.locked) {
+    detailLock.innerHTML = icons.lockFilled();
+    detailLock.title = "Locked — click to unlock (delete confirms while locked)";
+    detailLock.classList.add("active");
+  } else {
+    detailLock.innerHTML = icons.lock();
+    detailLock.title = "Lock — ask before deleting this clip";
+    detailLock.classList.remove("active");
   }
 }
 
@@ -3741,7 +3825,7 @@ listEl.addEventListener("click", async (e) => {
   }
 
   if (act === "del") {
-    await trashWithUndo([id]);
+    await trashWithLockGuard([id]);
     return;
   }
   if (act === "pin") {
@@ -3896,7 +3980,7 @@ async function runRowMenuAction(act: string): Promise<void> {
       return;
     }
     case "trash":
-      await trashWithUndo([id]);
+      await trashWithLockGuard([id]);
       return;
   }
 }
@@ -5949,7 +6033,7 @@ document.addEventListener("keydown", async (e) => {
   } else if ((e.key === "Delete" || e.key === "Backspace") && !inSearch) {
     const c = currentClips[activeIndex];
     if (c) {
-      await trashWithUndo([c.id]);
+      await trashWithLockGuard([c.id]);
     }
   } else if (e.key.toLowerCase() === "p" && !inSearch) {
     const c = currentClips[activeIndex];
@@ -6016,7 +6100,17 @@ detailSimilarTraverse.addEventListener("click", async () => {
 detailDelete.addEventListener("click", async () => {
   if (!detailId) return;
   const idForUndo = detailId;
+  // Lock check happens BEFORE we close the detail panel — if the
+  // user bails, the panel stays open so they can unlock first
+  // without re-navigating. Cheaper than closing-then-reopening.
+  const c = await getClip(idForUndo);
+  if (c?.locked) {
+    const previewText = c.preview || c.content || "";
+    if (!confirm(formatLockedClipConfirm(previewText))) return;
+  }
   closeDetail();
+  // Pre-confirmed via the lock check above, so we can use the bare
+  // trashWithUndo path here — no second prompt for the same intent.
   await trashWithUndo([idForUndo]);
 });
 
@@ -6399,6 +6493,35 @@ async function toggleDetailArchive(): Promise<void> {
 }
 
 detailArchive.addEventListener("click", () => void toggleDetailArchive());
+
+/**
+ * Toggle the "ask before deleting" lock on the open clip. Returns
+ * the new bit so we can paint the toggle + toast a meaningful
+ * confirmation. No audit-log entry on lock/unlock — locking is a
+ * UX concern, not a privacy action; bloating the audit ring with
+ * every lock toggle would dilute the genuine entries.
+ */
+async function toggleDetailLock(): Promise<void> {
+  if (!detailId) return;
+  const id = detailId;
+  const next = await toggleLock(id);
+  if (next == null) {
+    toast("Clip not found", "error");
+    return;
+  }
+  // Repaint just the lock button (cheap) instead of the whole detail
+  // panel — the user's cursor + scroll position stay intact.
+  const c = await getClip(id);
+  if (c) renderLockButton(c);
+  await render();
+  toast(
+    next
+      ? "Locked — delete will confirm"
+      : "Unlocked",
+  );
+}
+
+detailLock.addEventListener("click", () => void toggleDetailLock());
 
 // Send-to sub-menu --------------------------------------------------
 //
@@ -7114,9 +7237,23 @@ bulkClear.addEventListener("click", () => clearSelection());
 bulkDel.addEventListener("click", async () => {
   const ids = [...selectedIds];
   if (ids.length === 0) return;
-  selectedIds.clear();
+  // We defer clearing the selection until after the lock-guard
+  // resolves. If the user bails on the locked-confirm dialog,
+  // their selection survives so they can try again or unlock first.
+  // We can't easily distinguish "confirm bailed" from "ids vanished"
+  // here, but the trashWithLockGuard internals already short-circuit
+  // either path back to the caller without touching the store. So:
+  // re-snapshot after the await and clear only the ids that actually
+  // left the live store — survivors stay selected.
+  await trashWithLockGuard(ids);
+  // Drop any of our originally-selected ids that are no longer in
+  // the live list (= they were trashed). Survivors (= confirm bailed)
+  // stay selected so the user's batch is preserved.
+  const liveIds = new Set(currentClips.map((c) => c.id));
+  for (const id of ids) {
+    if (!liveIds.has(id)) selectedIds.delete(id);
+  }
   updateBulkBar();
-  await trashWithUndo(ids);
 });
 
 bulkPin.addEventListener("click", async () => {

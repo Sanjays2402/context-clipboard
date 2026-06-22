@@ -381,6 +381,27 @@ export async function toggleArchive(id: string): Promise<boolean | null> {
   return !!item.archived;
 }
 
+/**
+ * Flip the "ask before deleting" lock on a clip. Returns the NEW lock
+ * state so the caller can paint the right icon + toast a meaningful
+ * confirmation ("Locked — will confirm on delete" / "Unlocked").
+ *
+ * Returns null when the clip is gone (e.g. user trashed it between
+ * the click and the IDB read). Callers should swallow null silently —
+ * the row will disappear on the next render anyway.
+ *
+ * No `lastSeenAt` bump: locking is a meta property of the clip, not
+ * a usage event. Bumping would shuffle the daily-list order under
+ * the user's cursor, which is jarring.
+ */
+export async function toggleLock(id: string): Promise<boolean | null> {
+  const item = await getClip(id);
+  if (!item) return null;
+  item.locked = !item.locked;
+  await putClip(item);
+  return !!item.locked;
+}
+
 export async function updateTags(id: string, tags: string[]): Promise<void> {
   const item = await getClip(id);
   if (!item) return;

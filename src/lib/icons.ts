@@ -144,6 +144,27 @@ export const icons = {
     svg(
       `<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>`,
     ),
+  // Lock — closed padlock. Used by the per-clip "ask before deleting"
+  // toggle. Stroke variant (outline) so it reads as a state toggle
+  // rather than a hard-coded indicator. When the clip is locked we
+  // emit `lockFilled` so the icon flips to a filled silhouette and
+  // the toggle is unambiguously "active".
+  lock: () =>
+    svg(
+      `<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>`,
+    ),
+  lockFilled: () =>
+    svg(
+      `<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>`,
+      { fill: true },
+    ),
+  // Open padlock — used by the row-action when the user can flip a
+  // locked clip back to unlocked. Visual: shackle swung off to the
+  // side so it reads as "unlocked".
+  lockOpen: () =>
+    svg(
+      `<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1.5"/>`,
+    ),
   imageGeneric: () =>
     svg(
       `<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/>`,

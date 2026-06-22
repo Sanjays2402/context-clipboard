@@ -70,6 +70,30 @@ export interface ClipItem {
    * trashed clip is impossible; it's not in the live store).
    */
   archived?: boolean;
+  /**
+   * "Ask before deleting" lock. Orthogonal to pin: a pinned clip can
+   * still be deleted with a single click (pin survives the auto-prune
+   * cap but doesn't gate the user's own delete intent), while a locked
+   * clip requires an explicit confirm in EVERY delete path — row
+   * delete, keyboard `Delete`, bulk-bar trash, and right-click menu.
+   *
+   * Why distinct from `pinned`?
+   *   - Pin = "keep this in the daily list" (sort affinity + survives
+   *     prune). Some users pin a lot — the side effect of "extra
+   *     confirm" would be noise.
+   *   - Lock = "ask before I throw this away". Reserved for genuinely
+   *     irreplaceable clips: a security token, an exact phrasing
+   *     drafted over multiple revisions, anything where an accidental
+   *     Delete would actually hurt. Should be rare; the confirm is
+   *     non-noisy precisely because the flag isn't blanket-applied.
+   *
+   * Soft-delete to trash still happens after the user confirms —
+   * locked is about INTENT, not retention. The 7-day trash safety net
+   * still applies on top.
+   *
+   * Additive flag — undefined = not locked. No IDB schema bump.
+   */
+  locked?: boolean;
 }
 
 export interface SearchQuery {
