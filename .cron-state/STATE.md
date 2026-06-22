@@ -134,17 +134,35 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] In-page palette: live token-counter when typing a {{template}} clip body
 
 ### New (added this tick — 2026-06-21 21:51 PT refill)
-- [ ] Detail-view: per-clip retention overlay (TTL countdown banner when expiresAt is near, soft-red below 1h)
+- [x] Detail-view: per-clip retention overlay (TTL countdown banner when expiresAt is near, soft-red below 1h) — `9097d19`
 - [ ] In-page palette: live token-counter when typing a {{template}} clip body (count placeholders, show inline pill)
 - [ ] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only, falls back gracefully on FF)
 - [ ] Settings: per-kind retention split (text vs image — separate `maxUnpinnedText` / `maxUnpinnedImage` so image-heavy users can free space without trashing snippets)
 - [ ] Site-rule form: per-rule "test against active tab" — auto-fill the host + tags from the focused tab's URL
-- [ ] Search: `is:notemplate` operator (inverse of `is:template`) so the user can filter template-free clips
+- [x] Search: `is:notemplate` operator (inverse of `is:template`) so the user can filter template-free clips — `795c401`
 - [ ] Detail-view: per-clip "Show audit history" jumper — opens settings + scopes audit to this clipId (mirror of alt-click from audit, but starting from the clip)
 - [ ] Bulk-bar: "Tag selected → palette tag picker" — opens a chip-grid of the user's top tags for one-click bulk-tagging
 - [ ] Search-history chip: drag-to-reorder for the Recent strip (same model as saved-searches; promote frequent ones)
-- [ ] Cmd+K palette: "Show last forgotten host" — quick path to bulk-restore-from-host for the most-recent forget-host audit entry
-- [ ] Audit panel: download-as-JSON button (exports just the audit log, not the full bundle, for privacy receipts)
+- [x] Cmd+K palette: "Show last forgotten host" — quick path to bulk-restore-from-host for the most-recent forget-host audit entry — `9bfabc5`
+- [x] Audit panel: download-as-JSON button (exports just the audit log, not the full bundle, for privacy receipts) — `4bca469`
+
+### New (added this tick — 2026-06-22 01:04 PT refill)
+- [x] Bulk-bar: live storage delta — "Free 4.2 MB" when delete is the bulk action (popup-only, uses bytes per selected clip) — `c6cf99f`
+- [ ] Detail-view: per-clip "Show audit history" jumper — clip → audit scoped to this clipId (mirror of alt-click from audit, starting from the clip side)
+- [ ] In-page palette: live token-counter when typing a {{template}} body — inline pill counts placeholders so the user sees what'll expand
+- [ ] Settings: per-kind retention split — `maxUnpinnedText` + `maxUnpinnedImage` so image-heavy users can free space without trashing snippets
+- [ ] Search-history chip: drag-to-reorder for the Recent strip (same DnD model as saved-searches; promote frequent ones)
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — chip-grid of user's top tags for one-click bulk-tagging
+- [ ] Site-rule form: per-rule "test against active tab" — auto-fill host + tags from the focused tab's URL
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars (roadmap-already-listed but worth doing)
+- [ ] Cmd+K palette: "Jump to next archived clip" — cycles through is:archived results without leaving daily view
+- [ ] In-page palette: copy-URL-only with Alt+Enter (mirrors detail send-to)
+- [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin)
+- [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview)
+- [ ] Audit row long-press: drop just this entry from the ring (covered by right-click — left here as touch-screen affordance)
+- [ ] Trash: "Empty just images" / "Empty just text" filter on the trash purge to free quota without losing everything
+- [ ] Detail: "Re-capture from URL" — for link/text clips with an http(s) source, re-fetch the title + nearbyText and refresh the preview
+- [ ] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs)
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -233,12 +251,124 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Trash: bulk-restore strip — chips per host with 2+ rows — `b5ca001`
 - [x] Cmd+K palette: "Open my last saved search" (mirrors send-to last-action) — `24676b8`
 - [x] Site-rule form: paste-URL auto-extract host + wildcard suggest — `e0d41dd`
+- [x] Search: `is:notemplate` operator (inverse of `is:template`) with palette command — `795c401`
+- [x] Detail-view: TTL countdown banner above body — expired/imminent(<1h)/soon(<24h) tiers with Keep+Clear buttons — `9097d19`
+- [x] Audit panel: Download JSON button — standalone privacy receipt, no clip content — `4bca469`
+- [x] Cmd+K palette: "Show last forgotten host" — one-tap rescue from forget-host audit ring — `9bfabc5`
+- [x] Bulk-bar: live "Free X MB" storage delta — visible-selected sum with off-filter honesty tail — `c6cf99f`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-22 01:04 PT** — 5/5 shipped. is:notemplate
+  operator: inverse of is:template, lets the user drop {{token}}
+  clips from the view. New ParsedQuery.noTemplate bit; parser
+  recognises "is:notemplate" (case-insensitive); applyQuery
+  drops clips where template===true; describeQuery surfaces
+  "not-template". Both flags can coexist by design — pathological
+  is:template AND is:notemplate lands always-empty so the user
+  sees their intent reflected (rather than one operator silently
+  swallowed). Empty-state hint grows the new op; new Cmd+K
+  command "Hide templates (plain clips only)" with rich keyword
+  cluster (plain/non-template/strip/without/tokens/raw) for
+  discovery. 24/24 sanity covers parse + apply + describe +
+  empty-content-template-still-excluded + both-on-empty (795c401).
+  TTL countdown banner: new pure lib/ttl-banner.ts with
+  computeTtlBanner(clip, now) → {tier, label, detail, expiresAt}
+  or null. Four cases: expired (≤0ms, soft-red, "Was due X ago"),
+  imminent (<1h, soft-red, "Expires in Xm at HH:MM"), soon
+  (1h..24h, accent, "Expires in Xh Ym today at HH:MM"), hidden
+  (pinned or no-expiresAt or ≥24h — inline pill is enough).
+  `now`-injectable for deterministic tests. formatShort caps at
+  two units, formatClock uses Intl with HH:MM fallback. New
+  <div id="detail-ttl-banner"> above detail-body with icon +
+  label + detail + Keep + Clear-TTL buttons. Keep routes
+  through togglePin ("Pinned · TTL paused"), Clear routes
+  through setClipExpiry+appendPrivacyAuditEntry so receipt trail
+  stays complete. CSS .tier-expired/imminent use rgba red
+  surfaces, .tier-soon uses --accent-soft. Slide-in animation
+  (translateY -4px→0 over 220ms). 34/34 sanity covers tier
+  math + boundary edges (exactly 1h → soon, exactly 24h → null,
+  at-deadline → expired) + formatShort (every tier + negative)
+  + pinned-wins-when-expired + expiresAt=0 boundary (9097d19).
+  Audit Download JSON: new pure lib/audit-export-json.ts with
+  buildAuditExport(entries, {retention, now}) → standalone
+  envelope (version=1, source="context-clipboard/audit",
+  exportedAt, count, retention?, entries). Defensive per-entry
+  cleanup strips undefined+empty-string optional fields (host,
+  detail) so generated JSON stays tight. stringifyAuditExport
+  2-space pretty; auditExportFilename returns
+  "context-clipboard-audit-YYYY-MM-DD.json" for natural
+  directory sort. New "Download JSON" button between retention
+  select + Clear; click handler reads listPrivacyAudit +
+  getSettings in parallel, bails honestly on empty ring,
+  Blob+anchor download, toast count. Try/catch wraps for IDB
+  failure surface. 33/33 sanity covers envelope shape +
+  retention guard (0/negative/missing absent) + cleanup
+  (undefined+empty-string stripped, populated preserved) +
+  input immutability + filename day-boundary + 100-entry
+  round-trip + order preservation (4bca469). Cmd+K
+  Show-last-forgotten-host: new pure lib/last-forgotten-host.ts
+  with findLastForgottenHost(entries) walking the audit ring
+  newest-first, returning {host, at, entryId, detail} for the
+  first non-empty-host forget-host entry. Defensive against
+  non-array input, missing/whitespace-only host, malformed
+  entries. formatAge helper renders "just now" / "5m ago" /
+  "2h ago" / "3d ago". New module-scope lastForgottenHost
+  cache + refreshLastForgottenHost() at popup boot + after
+  runForgetHost success (so rescue command surfaces immediately,
+  not on next boot). New palette command "Show last forgotten
+  host · github.com (5m ago)" in Privacy group, label adapts
+  to live state. Run routes through openSettings +
+  restoreHostFromTrash (which gracefully handles "audit row
+  outlived 7d trash retention" case with toast). All bulk-
+  restore confirm + audit + repaint reused, no duplication.
+  30/30 sanity covers empty/non-array inputs + no-forget-host
+  null + newest-first + malformed-host skipping (empty +
+  whitespace + missing) + host trim + trusts-input-order
+  contract + mixed-kinds filter + optional detail + formatAge
+  math (every tier + clamped-future + boundaries) + realistic
+  ring (9bfabc5). Bulk-bar storage delta: new pure
+  lib/bulk-storage-delta.ts with sumClipBytes (defensive
+  reducer skipping undefined/null/string/NaN/Infinity/negative/
+  zero) + formatBytes (B/KB/MB/GB tiers matching popup's
+  inline helper) + buildStorageDeltaLabel returning "Free X"
+  or null (no point showing "Free 0 B"). New
+  <span id="bulk-storage-delta"> in the bulk-bar between
+  count + action buttons. updateBulkBar computes
+  currentClips ∩ selectedIds (visible-selected subset) — when
+  selection spans beyond the filter, label grows
+  "Free 4.2 MB · 12 of 47 shown" so the user knows the number
+  isn't the whole story. render() now calls updateBulkBar()
+  unconditionally so the delta stays truthful as filter
+  narrows/widens. CSS .bulk-storage-delta softer than #bulk-count
+  (500 vs 600, 11px, 0.78 opacity, subtle rgba pill). 39/39
+  sanity covers defensive reducer + formatBytes tiers
+  (including negative + non-finite + just-under-boundary at
+  KB/MB) + label composer (null-on-zero, all defensive cases) +
+  realistic ClipItem end-to-end + cross-check against popup
+  formatBytes output (c6cf99f). tsc + chrome/firefox builds
+  green (popup 229.0KB +9.5 vs last tick — is:notemplate
+  parser + 4 new lib modules + popup wiring + TTL-banner DOM +
+  download button + storage-delta span; background 45.0KB
+  unchanged; content 23.8KB unchanged); ALL 35 sanity suites
+  pass — 922 total checks (11 archive + 33 audit-export-json +
+  20 audit-export + 30 audit-filter + 26 audit-forget + 21
+  audit-retention + 36 audit-rollup + 30 bulk-preview + 39
+  bulk-storage-delta + 32 context-tags + 11 export + 15 find-
+  dupes + 9 highlight + 27 history-export + 55 host-pattern +
+  14 import-dedup + 14 jump + 30 last-forgotten-host + 15
+  last-saved-search + 25 merge-dupes + 24 no-template + 11
+  palette + 23 pattern-hits + 15 privacy-audit + 14 recent-
+  pin + 28 rule-count + 27 saved-search-rename + 29 saved-
+  search-reorder + 18 send-to-reorder + 111 send-to + 78
+  site-rules-io + 13 sort + 27 trash-host-rollup + 9 trash-
+  restore-pin + 34 ttl-banner); 16 script tests pass too.
+  Pre-existing playwright redact-ui DB-version mismatch
+  unrelated.
 
 - **2026-06-21 21:51 PT** — 5/5 shipped. Audit panel scope filters:
   new in-memory `auditClipScope: {clipId, preview} | null` +
