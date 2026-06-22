@@ -1227,6 +1227,60 @@ export async function clearSearchHistory(): Promise<void> {
   await writeSearchHistory([]);
 }
 
+/**
+ * Persist a user-chosen order for the Recent search-history chips.
+ *
+ * Mirror of `reorderSavedSearches` but for the auto-tracked history
+ * strip. Useful when the user wants to promote a frequently-used
+ * query left without having to make it a full saved-search (the
+ * lighter-touch alternative to right-click → "save as chip"). The
+ * order persists across popup opens — `pushSearchHistory` continues
+ * to bump matching queries to the front (the recency contract
+ * still applies), but the relative order of OLDER entries is
+ * preserved as the user dragged them.
+ *
+ * Defensive against drag-races: unknown queries (e.g. a chip that
+ * was deleted between dragstart and drop) are silently pruned;
+ * dupes are deduped; missing queries (existed at render but absent
+ * from the dragged order) tail-append in original relative order;
+ * no IDB write when the resulting order matches the existing list.
+ *
+ * Returns the new list on success, null when the input is empty
+ * AND the history is empty (no list to return).
+ */
+export async function reorderSearchHistory(
+  orderedQueries: string[],
+): Promise<string[] | null> {
+  const list = await listSearchHistory();
+  if (list.length === 0) return null;
+  const known = new Set(list);
+  const seen = new Set<string>();
+  const head: string[] = [];
+  for (const raw of orderedQueries) {
+    if (typeof raw !== "string") continue;
+    if (!known.has(raw)) continue; // unknown / stale drag
+    if (seen.has(raw)) continue;
+    head.push(raw);
+    seen.add(raw);
+  }
+  const tail = list.filter((q) => !seen.has(q));
+  const next = [...head, ...tail];
+  // No-op when nothing actually changed — keeps a passive drag-end
+  // (cursor barely moved) from writing meta on every micro-jiggle.
+  let same = next.length === list.length;
+  if (same) {
+    for (let i = 0; i < next.length; i++) {
+      if (next[i] !== list[i]) {
+        same = false;
+        break;
+      }
+    }
+  }
+  if (same) return list;
+  await writeSearchHistory(next);
+  return next;
+}
+
 // Site rules ---------------------------------------------------------------
 
 const SITE_RULES_KEY = "site_rules";

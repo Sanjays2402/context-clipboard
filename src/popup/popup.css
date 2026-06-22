@@ -758,6 +758,29 @@ mark.match-hl {
   cursor: pointer;
 }
 
+/* Recent search-history chips share the same drag affordance —
+ * dim+tilt the dragging chip, paint an inset accent bar on the
+ * drop target's relevant edge. Slightly more subtle (softer
+ * tilt + lower opacity) since the Recent strip is the
+ * lower-priority cousin of the Saved-searches strip above. */
+.recent-chip.dragging {
+  opacity: 0.4;
+  transform: scale(0.95) rotate(-1deg);
+  cursor: grabbing;
+}
+.recent-chip.drop-before {
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+.recent-chip.drop-after {
+  box-shadow: inset -3px 0 0 0 var(--accent);
+}
+.recent-chip[draggable="true"] {
+  cursor: grab;
+}
+.recent-chip[draggable="true"] .recent-apply {
+  cursor: pointer;
+}
+
 .saved-search-del {
   appearance: none;
   background: transparent;

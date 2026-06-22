@@ -20,6 +20,7 @@ import {
   listSearchHistory,
   pushSearchHistory,
   clearSearchHistory,
+  reorderSearchHistory,
   getListSort,
   setListSort,
   mergeDuplicatesByHash,
@@ -737,7 +738,12 @@ function renderSearchHistory(): void {
           // a hover-only pin icon button that promotes the query to a
           // saved search. The pin button stops propagation in its own
           // handler so a click on it never falls through to apply.
-          `<span class="recent-chip" data-q="${escapeHtml(q)}" title="${escapeHtml(q)} · right-click or hover-pin to save">` +
+          // `draggable="true"` enables HTML5 native DnD so the user can
+          // promote a frequent recent-query left (same model as the
+          // saved-searches strip above). data-q stays the stable
+          // identifier — queries are case-sensitive on the persisted
+          // side so two visually-similar entries stay distinct.
+          `<span class="recent-chip" draggable="true" data-q="${escapeHtml(q)}" title="${escapeHtml(q)} · drag to reorder · right-click or hover-pin to save">` +
           `<button class="recent-apply" type="button" data-act="apply" data-q="${escapeHtml(q)}">${escapeHtml(q.length > 28 ? q.slice(0, 28) + "…" : q)}</button>` +
           `<button class="recent-pin" type="button" data-act="save" data-q="${escapeHtml(q)}" title="Save as a chip — promote this query to a saved search">${icons.pin()}</button>` +
           `</span>`,
@@ -3283,6 +3289,112 @@ savedSearchesEl.addEventListener("dragend", () => {
     .querySelectorAll(".dragging, .drop-before, .drop-after")
     .forEach((el) => el.classList.remove("dragging", "drop-before", "drop-after"));
   savedSearchDragId = null;
+});
+
+// Recent search-history chips: HTML5 native DnD mirroring the saved-
+// searches strip above. Lets the user promote a frequently-typed query
+// LEFT without having to make it a full saved-search (the lighter-
+// touch alternative to the hover-pin button). pushSearchHistory still
+// bumps a typed query to position 0 on commit — drag-reorder only
+// affects relative position of OLDER entries.
+let searchHistoryDragQuery: string | null = null;
+
+searchHistoryEl.addEventListener("dragstart", (e) => {
+  const chip = (e.target as HTMLElement).closest(".recent-chip") as
+    | HTMLElement
+    | null;
+  if (!chip) return;
+  // Inner buttons have their own intent (apply / save / clear) — they
+  // should never start a drag. Prevent the drag in that case so a
+  // mis-aim doesn't strand the chip in dragging state.
+  const innerAct = (e.target as HTMLElement).dataset.act;
+  if (innerAct === "apply" || innerAct === "save") {
+    e.preventDefault();
+    return;
+  }
+  const q = chip.dataset.q || "";
+  if (!q) return;
+  searchHistoryDragQuery = q;
+  chip.classList.add("dragging");
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+    // Firefox needs a payload to start the drag; we don't read it.
+    try {
+      e.dataTransfer.setData("text/plain", q);
+    } catch {
+      /* harmless */
+    }
+  }
+});
+
+searchHistoryEl.addEventListener("dragover", (e) => {
+  if (!searchHistoryDragQuery) return;
+  const chip = (e.target as HTMLElement).closest(".recent-chip") as
+    | HTMLElement
+    | null;
+  if (!chip) return;
+  if (chip.dataset.q === searchHistoryDragQuery) return;
+  e.preventDefault();
+  // Mark insertion-edge so the user sees WHERE the chip will land.
+  const rect = chip.getBoundingClientRect();
+  const before = e.clientX < rect.left + rect.width / 2;
+  searchHistoryEl
+    .querySelectorAll(".recent-chip.drop-before, .recent-chip.drop-after")
+    .forEach((el) => el.classList.remove("drop-before", "drop-after"));
+  chip.classList.add(before ? "drop-before" : "drop-after");
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+});
+
+searchHistoryEl.addEventListener("dragleave", (e) => {
+  const chip = (e.target as HTMLElement).closest(".recent-chip") as
+    | HTMLElement
+    | null;
+  if (!chip) return;
+  const into = e.relatedTarget as HTMLElement | null;
+  if (into && chip.contains(into)) return;
+  chip.classList.remove("drop-before", "drop-after");
+});
+
+searchHistoryEl.addEventListener("drop", async (e) => {
+  if (!searchHistoryDragQuery) return;
+  const chip = (e.target as HTMLElement).closest(".recent-chip") as
+    | HTMLElement
+    | null;
+  e.preventDefault();
+  const srcQuery = searchHistoryDragQuery;
+  searchHistoryEl
+    .querySelectorAll(".dragging, .drop-before, .drop-after")
+    .forEach((el) => el.classList.remove("dragging", "drop-before", "drop-after"));
+  searchHistoryDragQuery = null;
+  if (!chip) return;
+  const dstQuery = chip.dataset.q || "";
+  if (!dstQuery || dstQuery === srcQuery) return;
+  const rect = chip.getBoundingClientRect();
+  const before = e.clientX < rect.left + rect.width / 2;
+  // Build new order from the live `searchHistory` cache (full
+  // persisted list, not the filtered visible slice — dragging
+  // shouldn't drop chips that happened to be hidden by dedup vs
+  // saved-searches in this render). Splice src out, splice in
+  // before/after dst, then persist.
+  const order = searchHistory.slice();
+  const fromIdx = order.indexOf(srcQuery);
+  if (fromIdx < 0) return;
+  order.splice(fromIdx, 1);
+  let toIdx = order.indexOf(dstQuery);
+  if (toIdx < 0) return;
+  if (!before) toIdx++;
+  order.splice(toIdx, 0, srcQuery);
+  const next = await reorderSearchHistory(order);
+  if (!next) return;
+  searchHistory = next;
+  renderSearchHistory();
+});
+
+searchHistoryEl.addEventListener("dragend", () => {
+  searchHistoryEl
+    .querySelectorAll(".dragging, .drop-before, .drop-after")
+    .forEach((el) => el.classList.remove("dragging", "drop-before", "drop-after"));
+  searchHistoryDragQuery = null;
 });
 
 // Search history (recent ghost chips) ----------------------------------
