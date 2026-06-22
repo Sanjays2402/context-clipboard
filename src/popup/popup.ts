@@ -30,6 +30,7 @@ import {
   appendPrivacyAuditEntry,
   listPrivacyAudit,
   clearPrivacyAudit,
+  removePrivacyAuditEntry,
   trimPrivacyAuditToCap,
   usagesForRules,
   getSendToLast,
@@ -1573,10 +1574,10 @@ function renderAuditGroupsHtml(entries: PrivacyAuditEntry[]): string {
               const jumpable = !!e.clipId;
               const tag = jumpable ? "button" : "div";
               const extra = jumpable
-                ? ` type="button" data-act="jump" data-clip-id="${escapeHtml(e.clipId)}" title="Show this clip"`
-                : "";
+                ? ` type="button" data-act="jump" data-clip-id="${escapeHtml(e.clipId)}" title="Show this clip · right-click to forget"`
+                : ` title="Right-click to forget this entry"`;
               return (
-                `<${tag} class="audit-row audit-${e.kind}${jumpable ? " jumpable" : ""}"${extra}>` +
+                `<${tag} class="audit-row audit-${e.kind}${jumpable ? " jumpable" : ""}" data-entry-id="${escapeHtml(e.id)}"${extra}>` +
                 `<span class="audit-kind">${escapeHtml(auditKindLabel(e.kind))}</span>` +
                 `<span class="audit-subject" title="${escapeHtml(subject)}">${escapeHtml(subject || "—")}</span>` +
                 `<span class="audit-time" title="${escapeHtml(new Date(e.at).toLocaleString())}">${escapeHtml(timeAgo(e.at))}</span>` +
@@ -1686,6 +1687,51 @@ auditList.addEventListener("click", async (e) => {
     return;
   }
   toast("Clip is gone — only the audit row remains", "error");
+});
+
+/**
+ * Right-click on an audit row → "Forget this action" confirm. Drops
+ * a single entry from the privacy audit ring (via
+ * `removePrivacyAuditEntry`). Re-renders the panel so the row vanishes
+ * without a full refresh.
+ *
+ * Why right-click instead of a hover-X? The audit log is a privacy
+ * receipt — surfacing a destructive affordance on every row would
+ * make accidental clicks easy. Right-click signals "I mean this" and
+ * the confirm dialog gives one more chance to back out.
+ *
+ * Day-header right-clicks fall through to the browser's native menu —
+ * we don't want to intercept those since the header isn't a forgettable
+ * action (it's a fold cue).
+ */
+auditList.addEventListener("contextmenu", async (e) => {
+  const row = (e.target as HTMLElement).closest(".audit-row") as
+    | HTMLElement
+    | null;
+  if (!row) return;
+  const id = row.dataset.entryId || "";
+  if (!id) return;
+  e.preventDefault();
+  e.stopPropagation();
+  // Pull a short subject for the confirm dialog so the user knows
+  // exactly which row they're erasing.
+  const subject =
+    (row.querySelector(".audit-subject") as HTMLElement | null)?.textContent ||
+    "";
+  const kind =
+    (row.querySelector(".audit-kind") as HTMLElement | null)?.textContent ||
+    "action";
+  const label = subject && subject !== "—" ? `${kind.toLowerCase()} · ${subject}` : kind.toLowerCase();
+  if (!confirm(`Forget this audit row?\n\n  ${label}\n\nThe action still happened — this only erases the receipt.`)) {
+    return;
+  }
+  const removed = await removePrivacyAuditEntry(id);
+  if (!removed) {
+    toast("Couldn't forget — entry already gone", "error");
+    return;
+  }
+  toast("Forgot one audit row");
+  await renderAudit();
 });
 
 auditClearBtn.addEventListener("click", async () => {

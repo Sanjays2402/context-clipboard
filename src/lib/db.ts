@@ -1654,6 +1654,32 @@ export async function clearPrivacyAudit(): Promise<void> {
 }
 
 /**
+ * Drop a single audit entry by id. Used by the popup's per-row
+ * "Forget this action" affordance (right-click on an audit row →
+ * confirm → call this). Returns true when an entry was removed,
+ * false when the id wasn't found (no-op).
+ *
+ * Why a single-entry path on top of `clearPrivacyAudit`? The audit
+ * log is a privacy receipt — a user might want to clear ONE row
+ * (e.g. a forget-host action they immediately regret surfacing) without
+ * wiping the whole log. clearPrivacyAudit() is the nuke option;
+ * this is the scalpel.
+ */
+export async function removePrivacyAuditEntry(id: string): Promise<boolean> {
+  if (!id) return false;
+  const list = await listPrivacyAudit();
+  const next = list.filter((e) => e.id !== id);
+  if (next.length === list.length) return false;
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: PRIVACY_AUDIT_KEY, value: next });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+  return true;
+}
+
+/**
  * Trim the audit log to the current settings retention cap. Called
  * by the Settings panel after the user lowers the retention slider
  * so the change is visible immediately — without this, a 100→10
