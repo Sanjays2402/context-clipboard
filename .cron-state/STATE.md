@@ -188,21 +188,43 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Settings: per-kind retention split — `maxUnpinnedText` + `maxUnpinnedImage` (image-heavy users free space without trashing snippets) — recurring
 - [ ] Detail-view: per-clip "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars — recurring
 - [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview) — recurring
-- [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin) — recurring
+- [x] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin) — `fe54bb9`
 - [ ] Bulk-bar: "Move to collection…" once collections ship (placeholder until then) — recurring
 - [ ] Detail: "Re-capture from URL" — for link/text clips with an http(s) source, re-fetch title + nearbyText, refresh preview — recurring
 - [ ] Site-rule form: per-rule "test against active tab" — auto-fill host + tags from the focused tab's URL — recurring
-- [ ] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only, falls back gracefully on FF) — recurring
+- [x] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only, falls back gracefully on FF) — `2d75a6f`
 - [ ] Bulk-bar: "Tag selected → palette tag picker" — chip-grid of user's top tags for one-click bulk-tagging — recurring
 - [ ] Audit log: "Mark as resolved" pill — let the user dismiss noise (e.g. test redacts) so the ring stays signal-only
-- [ ] Detail send-to: "Copy as cURL" — for link clips with http(s) URL, emit a one-line `curl <url>` (defaulting GET; respect query string)
-- [ ] Search: `is:link` operator (we have kind:link but not the parity with is:pinned/is:redacted/is:template/is:archived family)
+- [x] Detail send-to: "Copy as cURL" — for link clips with http(s) URL, emit a one-line `curl <url>` (defaulting GET; respect query string) — `812b47a`
+- [x] Search: `is:link` operator (we have kind:link but not the parity with is:pinned/is:redacted/is:template/is:archived family) — `f27a649`
 - [ ] In-page palette: pinned-bias slider in settings (default 1.5×; user can tune the boost)
 - [ ] Trash row: "Restore + tag with restore-batch:YYYY-MM-DD" so post-restore review is filterable
 - [ ] Settings: enable/disable each Cmd+K command via checkboxes (declutter the palette for users who don't use a feature)
 - [ ] Site rules: "Suggest from top hosts" — popup proposes rules for hosts with 10+ captures but no rule yet
 - [ ] Detail send-to: "Open similar clips in new tabs" — bulk open all kind=link similar matches at once
-- [ ] Cmd+K palette: "Pin every clip from active tab's host" — one-shot triage
+- [x] Cmd+K palette: "Pin every clip from active tab's host" — one-shot triage — `9a13dd4`
+
+### New (added this tick — 2026-06-22 15:22 PT refill)
+- [ ] Audit log: "Mark as resolved" pill — let the user dismiss noise (e.g. test redacts) so the ring stays signal-only — recurring
+- [ ] Settings: per-kind retention split — `maxUnpinnedText` + `maxUnpinnedImage` — recurring
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars — recurring
+- [ ] Note composer: paste an image directly (drop on textarea creates an image clip with the note as preview) — recurring
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — chip-grid of user's top tags for one-click bulk-tagging — recurring
+- [ ] Detail: "Re-capture from URL" — for link/text clips with an http(s) source, re-fetch title + nearbyText, refresh preview — recurring
+- [ ] Site-rule form: per-rule "test against active tab" — auto-fill host + tags from the focused tab's URL — recurring
+- [ ] In-page palette: pinned-bias slider in settings (default 1.5×; user can tune the boost) — recurring
+- [ ] In-page palette: live `{{token}}` counter pill when typing a template body in the palette search input (mirrors note composer)
+- [ ] Bulk-bar: lock/unlock selected — flip the `locked` bit on a batch in one click (companion to per-clip lock that just shipped)
+- [ ] Cmd+K: "Lock all from active host" — companion to pin-from-host for "this site has irreplaceable snippets, mark them all"
+- [ ] Detail send-to: "Open in new background tab" (chrome.tabs.create with active:false) — for triaging many link clips
+- [ ] Quick-capture: paste an image directly (system clipboard image → new image clip) — companion to URL composer
+- [ ] Site rules: "Suggest from top hosts" — popup proposes rules for hosts with 10+ captures but no rule yet
+- [ ] Audit panel: hover-preview the clip on each row (mini-thumb tooltip) — see WHAT the action was about without jumping
+- [ ] Bulk-bar: "Export selected" → JSON with just the visible/selected clips (vs the global export-with-filter)
+- [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier (Tab → Enter sequence)
+- [ ] Detail-view: "Add note" button — append a free-form note that survives copy/re-capture (clip-attached commentary)
+- [ ] Search: `is:locked` operator — surface every clip carrying the new lock bit
+- [ ] Trash row: hover-preview matching clip from the live store if a re-capture exists (so the user knows it's safe to purge)
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -309,12 +331,92 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Detail: "Open all (N)" similar-clips traversal — prev/next cycles snapshot stack with "Similar N/M" pill — `eda786d`
 - [x] Quick-capture URL composer — type/paste a URL, validates http(s) live, ingests as kind=link clip via new addLink RPC — `3e32c02`
 - [x] Site-rule row hover preview — top 3 recent matched clips with click-to-detail + "Last 3 of 12" title — `4491d2c`
+- [x] Search: `is:link` operator — parity twin of `kind:link` with parser bit, applyQuery gate, describeQuery surface, palette command, empty-state hint — `f27a649`
+- [x] Send-to: "Copy as cURL" — single-line `curl '<url>'` for any clip with http(s) URL, POSIX-safe single-quoting via shellSingleQuote — `812b47a`
+- [x] In-page palette: "Open in side panel" Chrome-only affordance — feature-detect probe + cc-rpc openSidePanel handler, hidden on Firefox — `2d75a6f`
+- [x] Per-clip lock: "ask before deleting" confirm gate orthogonal to pin — toggleLock + detail icon button + row badge + intercept in all 5 delete paths — `fe54bb9`
+- [x] Cmd+K palette: "Pin every clip from active tab's host" — one-shot triage with live label ("Pin 4 clips from github.com" / "All 12 already pinned" / greyed) — `9a13dd4`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-22 15:22 PT** — 5/5 shipped. (1) `is:link` operator: parity
+  twin of `kind:link` so users who reach for it out of muscle memory
+  from the other `is:*` operators get the same behaviour. New
+  `linkOnly: boolean` on ParsedQuery, lowercased match in the existing
+  `is:` branch, applyQuery gate after the existing `kind` check.
+  Parser keeps kind/linkOnly distinct so pathological combos
+  (kind:image is:link → empty by AND-semantics, kind:link is:link →
+  idempotent same-set) surface the user's intent honestly. New Cmd+K
+  command "Show links only" in Filter group + empty-state hint
+  updated to mention `is:link`. 29/29 sanity (f27a649). (2) Send-to
+  "Copy as cURL": new pure lib/curl-command.ts with shareableUrl gate
+  (link clips use content, text/image use source.url; http(s) only;
+  data:/file:/chrome:/about:/javascript:/blob: bail), shellSingleQuote
+  wrapper for POSIX safety (close-reopen-escape sequence `'\''` for
+  embedded single quotes — preserves URLs with $, backticks, `&`,
+  parens, fragments byte-for-byte), curlCommandForClip → `curl '...'`
+  one-liner, canCurlClip predicate. New send-to row "Copy as cURL"
+  slotted between url-only and fenced-code so URL cluster
+  (md-link → url-only → curl) stays adjacent. 46/46 curl-command +
+  124/124 send-to sanity (action count 12→13, json-line test count
+  also bumped) (812b47a). (3) In-page palette "Open in side panel":
+  new shadow-DOM `.sp-open` button next to search input, hidden by
+  default. Probe-mode cc-rpc openSidePanel handler in background
+  (returns `{ok:true, probed:true}` when sidePanel API present + tab
+  anchor available, no actual .open call — gesture-preserving).
+  Content script fires probe at palette-open, reveals button on
+  positive round-trip; click fires the real (non-probe) RPC inside
+  the user's gesture window, closes palette on success. Hidden
+  entirely on Firefox (no sidePanel API). 28/28 sanity covers API
+  absent / probe / real / windowId fallback / no-context error /
+  throw passthrough / probe truthy-falsy coercion / tabId=0 edge
+  (2d75a6f). (4) Per-clip lock: new `locked?: boolean` on ClipItem
+  (additive flag, no schema bump), `toggleLock(id)` in lib/db.ts
+  mirrors togglePin/toggleArchive contract, strict ===true gate so
+  truthy non-boolean doesn't accidentally trigger. New pure
+  lib/clip-lock.ts with partitionLocked → {locked, unlocked} arrays
+  preserving order, formatLockConfirm with 4 shapes (only-unlocked
+  → null; 1 locked singular; N locked all; mixed N+M with verb
+  agreement "1 clip IS marked" / "2 clips ARE marked"),
+  formatLockedClipConfirm with 60-char preview slice + ellipsis +
+  whitespace/newline collapse. Detail view: new icon button between
+  History and Pin paints lock/lockFilled + .active class. List row:
+  subtle inline padlock chip in preview row (12px, opacity 0.85, no
+  pill bg — gate, not category). New trashWithLockGuard wraps
+  trashWithUndo for all 5 user-initiated delete paths (row, keyboard
+  Del, right-click, bulk-bar, detail); bail preserves the whole
+  batch including bulk-bar selection (re-snapshot vs liveIds after
+  await). 47/47 sanity covers defensive shapes + grammar + 100-clip
+  stress with alternating bit (fe54bb9). (5) Cmd+K "Pin every clip
+  from active tab's host": new pure lib/host-pin.ts with
+  idsToPinForHost (strict pinned===true skip so user's earlier
+  explicit pins never silently unpin), availableToPin counted twin,
+  matchedClipsForHost (includes pinned for "All N already pinned"
+  hint), formatPinFromHostLabel 4-shape (no-host greyed, no-match
+  greyed, all-pinned greyed, N-pinnable singular/plural available).
+  Module-scope cache `activeTabHost/activeHostMatched/
+  activeHostPinnable` refreshed in render() via refreshActiveHostPin
+  (single tabs.query + count over already-loaded `wide`, no extra
+  IDB read). Palette command in Bulk group via IIFE so label/hint/
+  available trio computed atomically; handler re-reads listClips at
+  click time so freshly-captured clips join the batch, sequential
+  togglePin loop (matches pinAllFiltered), singular/plural toast.
+  48/48 sanity covers matching + www-strip both directions + case-
+  insensitive + pinned-skip semantics + defensive guards + count
+  parity + label matrix + realistic 10-clip ring (9a13dd4). tsc +
+  chrome/firefox builds green (popup 272.8KB +11.0 vs last tick —
+  search.ts linkOnly bit + curl-command module + clip-lock module +
+  host-pin module + detail-lock button + sidepanel content-script
+  wiring + new palette commands; background 47.2KB +1.1 —
+  openSidePanel RPC handler; content 26.9KB +2.1 — sidepanel
+  probe/click + new shadow-DOM header). All 52 sanity suites pass —
+  1512 total checks (added: 29 is-link + 46 curl-command + 28
+  open-sidepanel + 47 clip-lock + 48 host-pin = 198 new). Pushed as
+  5 separate revertible commits.
 
 - **2026-06-22 12:15 PT** — 5/5 shipped + 3 recovered. Last
   tick crashed mid-batch leaving 3 unpushed commits (audit chip
