@@ -37,6 +37,7 @@ import {
   removePrivacyAuditEntry,
   trimPrivacyAuditToCap,
   usagesForRules,
+  matchesHostPattern,
   getSendToLast,
   setSendToLast,
   getLastSavedSearchId,
@@ -106,6 +107,11 @@ import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
 } from "../lib/url-quick-capture";
+import {
+  previewClipsForRules,
+  formatPreviewCardTitle,
+  formatPreviewRowTooltip,
+} from "../lib/rule-preview";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -2664,6 +2670,15 @@ async function renderSiteRules(): Promise<void> {
   // also surface "last X ago" — kept under the same scan for free.
   const clipsForCount = await listClips({ limit: 5000 });
   const usages = usagesForRules(rules, clipsForCount);
+  // Per-rule hover preview: top 3 most-recent matching clips. Same
+  // first-match-wins matching as usagesForRules but a different
+  // payload shape (we keep preview slice + kind for the inline thumb).
+  // Pure module so this is just composition; the IDB pull is shared.
+  const previews = previewClipsForRules(rules, clipsForCount, {
+    limit: 3,
+    hostFrom,
+    matchesHostPattern,
+  });
   siteRulesList.innerHTML = rules
     .map((r) => {
       const u = usages.get(r.id);
@@ -2676,12 +2691,36 @@ async function renderSiteRules(): Promise<void> {
         n > 0
           ? `<span class="rule-usage" title="${n} clip${n === 1 ? "" : "s"} captured under this rule${exact} — click to filter the list" data-act="filter" data-host="${escapeHtml(r.hostPattern)}">${n} clip${n === 1 ? "" : "s"}<span class="rule-usage-ago">${escapeHtml(ago)}</span></span>`
           : `<span class="rule-usage muted" title="No clips have matched this rule yet">unused</span>`;
+      // Hover preview card — appears on row hover when the rule has
+      // at least one match. Click an entry to jump to that clip's
+      // detail-view; the row click handler routes via data-act="preview".
+      const previewRows = previews.get(r.id) || [];
+      const previewTitle = formatPreviewCardTitle(n, previewRows.length);
+      const previewHtml =
+        previewRows.length > 0 && previewTitle
+          ? `<div class="rule-preview-card" aria-hidden="true">` +
+            `<div class="rule-preview-title">${escapeHtml(previewTitle)}</div>` +
+            previewRows
+              .map((p) => {
+                const tooltip = formatPreviewRowTooltip(p.preview, timeAgo(p.lastSeenAt));
+                return (
+                  `<button type="button" class="rule-preview-row${p.pinned ? " pinned" : ""}" data-act="preview" data-clip-id="${escapeHtml(p.clipId)}" title="${escapeHtml(tooltip)}">` +
+                  `<span class="rule-preview-kind">${clipKindIcon(p.kind)}</span>` +
+                  `<span class="rule-preview-text">${escapeHtml(p.preview || "(empty)")}</span>` +
+                  `<span class="rule-preview-ago">${escapeHtml(timeAgo(p.lastSeenAt))}</span>` +
+                  `</button>`
+                );
+              })
+              .join("") +
+            `</div>`
+          : "";
       return (
-        `<div class="site-rule-row${editingRuleId === r.id ? " editing" : ""}" data-id="${escapeHtml(r.id)}" title="Click to edit">
+        `<div class="site-rule-row${editingRuleId === r.id ? " editing" : ""}${previewRows.length > 0 ? " has-preview" : ""}" data-id="${escapeHtml(r.id)}" title="Click to edit">
           <div class="site-rule-host" title="${escapeHtml(r.hostPattern)}">${escapeHtml(r.hostPattern)}</div>
           <div class="site-rule-badges">${ruleBadges(r)}</div>
           ${usageBadge}
           <button class="site-rule-del" data-act="del" title="Remove rule">×</button>
+          ${previewHtml}
         </div>`
       );
     })
@@ -3125,6 +3164,19 @@ siteRulesList.addEventListener("click", async (e) => {
     searchEl.focus();
     activeIndex = 0;
     await render();
+    return;
+  }
+  // Hover-card row click — jump to the clip's detail view. We close
+  // settings first so the detail panel paints over the live list
+  // rather than the settings pane (which is the wrong context).
+  // The closest button check matches the inner SVG/span hits inside
+  // the preview row too.
+  const previewBtn = target.closest('[data-act="preview"]') as HTMLElement | null;
+  if (previewBtn && previewBtn.dataset.clipId) {
+    e.stopPropagation();
+    const clipId = previewBtn.dataset.clipId;
+    closeSettings();
+    await openDetail(clipId);
     return;
   }
   // Row click (anywhere outside the × button or count badge): load this
