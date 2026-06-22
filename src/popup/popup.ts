@@ -77,6 +77,7 @@ import {
 } from "../lib/audit-export-json";
 import { findLastForgottenHost, formatAge } from "../lib/last-forgotten-host";
 import { buildStorageDeltaLabel } from "../lib/bulk-storage-delta";
+import { precheckAuditJump, describeAuditJump } from "../lib/detail-audit-jump";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -119,6 +120,7 @@ const detailScrub = $<HTMLButtonElement>("detail-scrub");
 const detailArchive = $<HTMLButtonElement>("detail-archive");
 const detailSend = $<HTMLButtonElement>("detail-send");
 const detailSendMenu = $("detail-send-menu");
+const detailHistory = $<HTMLButtonElement>("detail-history");
 const detailBody = $("detail-body");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
@@ -1095,6 +1097,10 @@ async function openDetail(id: string) {
   detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
   renderRedactButton(c);
   renderArchiveButton(c);
+  // Refresh the "Show audit history" jumper's tooltip with the live
+  // match count from the audit ring. Fire-and-forget — the title is
+  // a hint, not a gate (the click handler works regardless).
+  void refreshDetailHistoryTitle(c.id);
   updateDetailNav();
   detailEl.hidden = false;
   // Similar clips lookup is async + cheap. We render the row separately
@@ -5925,6 +5931,59 @@ async function openSendMenu(): Promise<void> {
 }
 
 detailSend.addEventListener("click", () => void openSendMenu());
+
+/**
+ * Detail-view "Show audit history" jumper. Mirror of alt-click from
+ * an audit row (which scopes the panel TO that row's clip), but
+ * starting from the detail side — useful when the user has the clip
+ * open and wants to ask "what has happened to this exact snippet?"
+ * without scrolling the global audit ring looking for the matching
+ * clipId.
+ *
+ * Sequence: close any open send-menu (so the new audit scroll lands
+ * cleanly), close the detail view (settings panel slides over it
+ * either way), open settings, set the clip scope, render. The scope
+ * defaults to bucket=all so a clip with only one kind of action
+ * doesn't strand the panel empty.
+ *
+ * If the audit ring has zero rows for this clip the scope still
+ * pivots (so the user sees "0 of N · clip: ..." instead of being
+ * left on the global ring wondering whether the click worked); the
+ * panel's auto-scope-away logic then triggers on the next scope
+ * mutation. Honest empty-state beats silent no-op.
+ */
+async function showAuditForDetailClip(): Promise<void> {
+  if (!detailId) return;
+  const clipId = detailId;
+  if (!detailSendMenu.hidden) closeSendMenu();
+  closeDetail();
+  await openSettings();
+  // openSettings() resets auditClipScope to null on every open — we
+  // must set the scope AFTER that boot completes, not before.
+  await setAuditClipScope(clipId);
+}
+
+detailHistory.addEventListener("click", () => void showAuditForDetailClip());
+
+/**
+ * Refresh the "Show audit history" button's tooltip with the live
+ * audit-row count for the currently open clip. Cheap (one IDB read
+ * of the small ring) so we run it on every detail open. Race-safe:
+ * a stale callback simply writes the same text — the worst case is
+ * a tooltip that says "no actions yet" after a fresh forget-row,
+ * resolved on the next openDetail.
+ */
+async function refreshDetailHistoryTitle(clipId: string): Promise<void> {
+  try {
+    const entries = await listPrivacyAudit();
+    if (detailId !== clipId) return; // user navigated away mid-flight
+    const pre = precheckAuditJump(clipId, entries);
+    const hint = describeAuditJump(pre);
+    detailHistory.title = hint || "Show this clip's audit history";
+  } catch (e) {
+    console.warn("[context-clipboard] detail-history title refresh failed", e);
+  }
+}
 
 detailSendMenu.addEventListener("click", async (e) => {
   const btn = (e.target as HTMLElement).closest(".send-row") as HTMLButtonElement | null;

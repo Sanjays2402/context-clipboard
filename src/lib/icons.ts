@@ -137,6 +137,13 @@ export const icons = {
     svg(
       `<path d="M15 3h6v6"/><path d="m10 14 11-11"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>`,
     ),
+  // History — clock with a counter-clockwise arrow. Used by the
+  // detail-view "Show audit history" jumper that pivots to the
+  // privacy audit panel scoped to this clip's actions.
+  history: () =>
+    svg(
+      `<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>`,
+    ),
   imageGeneric: () =>
     svg(
       `<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/>`,
