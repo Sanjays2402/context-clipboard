@@ -80,6 +80,7 @@ import { findLastForgottenHost, formatAge } from "../lib/last-forgotten-host";
 import { buildStorageDeltaLabel } from "../lib/bulk-storage-delta";
 import { precheckAuditJump, describeAuditJump } from "../lib/detail-audit-jump";
 import { nextArchivedClipId, prevArchivedClipId, describeArchiveCycle, describeArchiveCycleReverse } from "../lib/next-archived";
+import { buildAuditChipBody } from "../lib/audit-chip-labels";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -1773,9 +1774,23 @@ async function renderAudit(): Promise<void> {
     .map((c) => {
       const n = c.id === "all" ? windowed.length : counts[c.id as Exclude<AuditFilter, "all">];
       const active = c.id === auditFilter ? " active" : "";
+      // New chip body via buildAuditChipBody: parens around the
+      // count + percentage-of-visible tooltip so the strip reads as
+      // a real frequency distribution. The "All" chip skips the
+      // percentage (it would always be 100%) and shows raw count
+      // with "actions in this view" copy instead.
+      const { bodyHtml, title } = buildAuditChipBody(
+        {
+          label: c.label,
+          count: n,
+          total: windowed.length,
+          isAll: c.id === "all",
+        },
+        escapeHtml,
+      );
       return (
-        `<button type="button" class="audit-chip${active}" data-filter="${escapeHtml(c.id)}" title="${escapeHtml(c.label)} (${n})">` +
-        `<span>${escapeHtml(c.label)}</span><em>${n}</em></button>`
+        `<button type="button" class="audit-chip${active}" data-filter="${escapeHtml(c.id)}" title="${escapeHtml(title)}">` +
+        `${bodyHtml}</button>`
       );
     })
     .join("");
