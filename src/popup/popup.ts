@@ -102,6 +102,10 @@ import {
   syncSimilarNav,
   type SimilarNav,
 } from "../lib/similar-nav";
+import {
+  parseQuickCaptureUrl,
+  buildQuickCaptureTags,
+} from "../lib/url-quick-capture";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -119,6 +123,7 @@ const pinnedToggle = $<HTMLButtonElement>("pinned-toggle");
 const settingsBtn = $<HTMLButtonElement>("settings-btn");
 const noteBtn = $<HTMLButtonElement>("note-btn");
 const quickCaptureBtn = $<HTMLButtonElement>("quick-capture-btn");
+const linkCaptureBtn = $<HTMLButtonElement>("link-capture-btn");
 const tagChipsEl = $("tag-chips");
 const quickChipsEl = $("quick-chips");
 const savedSearchesEl = $("saved-searches");
@@ -279,6 +284,11 @@ const notePinInput = $<HTMLInputElement>("note-pin");
 const noteSaveBtn = $<HTMLButtonElement>("note-save");
 const noteCancelBtn = $<HTMLButtonElement>("note-cancel");
 const noteTemplatePillRow = $("note-template-pill-row");
+const linkComposer = $("link-composer");
+const linkUrlInput = $<HTMLInputElement>("link-url");
+const linkStatusEl = $("link-status");
+const linkSaveBtn = $<HTMLButtonElement>("link-save");
+const linkCancelBtn = $<HTMLButtonElement>("link-cancel");
 const noteTemplatePill = $("note-template-pill");
 
 // State ----------------------------------------------------------------
@@ -4384,6 +4394,139 @@ async function tagLastQuickCapture(tag: string): Promise<void> {
 }
 
 quickCaptureBtn.addEventListener("click", () => void quickCaptureFromClipboard());
+
+/**
+ * Open the link composer — a small modal for capturing a typed or
+ * pasted URL as a kind=link clip. Pre-fills with whatever the
+ * clipboard currently holds IF that text parses as a URL, so the
+ * typical flow (Copy URL from Slack -> open popup -> click link
+ * button -> Enter) is two clicks + one Enter.
+ *
+ * Pre-fill failures (no permission, garbage clipboard) silently
+ * leave the input empty — the user types/pastes manually.
+ */
+async function openLinkComposer(): Promise<void> {
+  linkUrlInput.value = "";
+  linkStatusEl.textContent = "";
+  linkStatusEl.className = "link-composer-status";
+  linkSaveBtn.disabled = true;
+  linkComposer.hidden = false;
+  // Pre-fill from the clipboard when possible — the most common
+  // workflow is "I just copied a URL from somewhere, now save it".
+  // Failures are silent: user types it themselves.
+  try {
+    const clip = navigator.clipboard as unknown as { readText?: () => Promise<string> };
+    if (clip.readText) {
+      const text = (await clip.readText()).trim();
+      if (text && parseQuickCaptureUrl(text)) {
+        linkUrlInput.value = text;
+        refreshLinkStatus();
+      }
+    }
+  } catch {
+    // Permission denied is the expected case; silent.
+  }
+  // After the panel paints — focus + select-all so the user can
+  // type to replace or Enter to commit the prefilled value.
+  setTimeout(() => {
+    linkUrlInput.focus();
+    linkUrlInput.select();
+  }, 0);
+}
+
+function closeLinkComposer(): void {
+  linkComposer.hidden = true;
+}
+
+/**
+ * Live-validate the URL input on every keystroke. Updates the status
+ * row with a green "host.com/path" preview when valid, red "Not a
+ * valid http(s) URL" when invalid, blank when empty. Save button
+ * toggles disabled in sync so the user can't fire on garbage.
+ */
+function refreshLinkStatus(): void {
+  const raw = linkUrlInput.value;
+  if (!raw.trim()) {
+    linkStatusEl.textContent = "";
+    linkStatusEl.className = "link-composer-status";
+    linkSaveBtn.disabled = true;
+    return;
+  }
+  const parsed = parseQuickCaptureUrl(raw);
+  if (parsed) {
+    linkStatusEl.textContent = parsed.preview;
+    linkStatusEl.className = "link-composer-status ok";
+    linkSaveBtn.disabled = false;
+  } else {
+    linkStatusEl.textContent = "Not a valid http(s) URL";
+    linkStatusEl.className = "link-composer-status err";
+    linkSaveBtn.disabled = true;
+  }
+}
+
+/**
+ * Commit the link composer input as a kind=link clip via the addLink
+ * RPC. Re-validates inside this function so a manual click on the
+ * Save button can't fire stale state. On success: close, toast, render.
+ * On failure: keep open + show the error so the user can retry.
+ */
+async function saveLinkFromComposer(): Promise<void> {
+  const raw = linkUrlInput.value;
+  const parsed = parseQuickCaptureUrl(raw);
+  if (!parsed) {
+    refreshLinkStatus();
+    return;
+  }
+  linkSaveBtn.disabled = true;
+  try {
+    const tags = buildQuickCaptureTags(parsed.host);
+    const resp = await new Promise<{ ok: boolean; id?: string; error?: string }>(
+      (resolve) => {
+        api.runtime.sendMessage(
+          {
+            type: "cc-rpc",
+            action: "addLink",
+            payload: {
+              url: parsed.url,
+              preview: parsed.preview,
+              title: parsed.title,
+              tags,
+            },
+          },
+          (r) => resolve(r),
+        );
+      },
+    );
+    if (!resp?.ok) {
+      linkStatusEl.textContent = `Save failed: ${resp?.error || "unknown"}`;
+      linkStatusEl.className = "link-composer-status err";
+      linkSaveBtn.disabled = false;
+      return;
+    }
+    closeLinkComposer();
+    toast(`Captured: ${parsed.preview.length > 50 ? parsed.preview.slice(0, 47) + "…" : parsed.preview}`);
+    await render();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    linkStatusEl.textContent = `Save failed: ${msg}`;
+    linkStatusEl.className = "link-composer-status err";
+    linkSaveBtn.disabled = false;
+  }
+}
+
+linkCaptureBtn.addEventListener("click", () => void openLinkComposer());
+linkCancelBtn.addEventListener("click", () => closeLinkComposer());
+linkSaveBtn.addEventListener("click", () => void saveLinkFromComposer());
+linkUrlInput.addEventListener("input", refreshLinkStatus);
+linkUrlInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    void saveLinkFromComposer();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closeLinkComposer();
+  }
+});
 
 // Keyboard cheatsheet --------------------------------------------------
 //

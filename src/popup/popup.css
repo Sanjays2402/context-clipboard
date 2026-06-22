@@ -4079,6 +4079,38 @@ button.audit-row.jumpable:focus-visible {
    * a label. */
   user-select: none;
 }
+
+/* Link composer — quick-capture for a URL. Reuses the .note-composer
+ * card shell. The inline input is sized for typical URL lengths, and
+ * the status row paints green when valid, red when invalid. */
+.link-composer-input {
+  margin: 14px 14px 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--mono);
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border-inner);
+  border-radius: 8px;
+  outline: none;
+}
+.link-composer-input:focus {
+  border-color: var(--accent);
+}
+.link-composer-status {
+  padding: 0 14px 8px;
+  font-size: 11px;
+  font-family: var(--mono);
+  letter-spacing: 0.01em;
+  min-height: 16px;
+  color: var(--muted);
+}
+.link-composer-status.ok {
+  color: var(--accent);
+}
+.link-composer-status.err {
+  color: #e87070;
+}
 .note-composer-tag-row {
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-inner);

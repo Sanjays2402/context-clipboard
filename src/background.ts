@@ -508,6 +508,51 @@ api.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
           });
           return sendResponse({ ok: true, id });
         }
+        if (msg.action === "addLink") {
+          // Popup quick-capture: ingest a user-supplied URL as a
+          // kind=link clip. The popup pre-validates via
+          // parseQuickCaptureUrl (http(s) only, no js:/data:/file:);
+          // we re-validate here defense-in-depth because the RPC
+          // contract is a public surface and a future caller might
+          // skip the popup-side guard.
+          const p = msg.payload as {
+            url: string;
+            preview?: string;
+            title?: string;
+            tags?: string[];
+          } | undefined;
+          if (!p?.url) return sendResponse({ ok: false, error: "url required" });
+          // Defense-in-depth: only allow http(s). Mirrors the popup
+          // validator but as a final firewall.
+          if (!/^https?:\/\//i.test(p.url)) {
+            return sendResponse({ ok: false, error: "url must be http(s)" });
+          }
+          const id = await ingest({
+            kind: "link",
+            content: p.url,
+            preview: (p.preview || p.url).slice(0, 200),
+            source: { url: p.url, title: p.title?.slice(0, 200) },
+          });
+          // Apply caller-supplied tags AFTER ingest so dedup + auto-tag
+          // run on the bare ingest first, then user intent layers on.
+          if (id && p.tags?.length) {
+            try {
+              const stored = await getClip(id);
+              if (stored) {
+                const merged = new Set(stored.tags || []);
+                for (const t of p.tags) {
+                  const cleaned = t.trim().toLowerCase();
+                  if (cleaned) merged.add(cleaned);
+                }
+                stored.tags = Array.from(merged);
+                await putClip(stored);
+              }
+            } catch (e) {
+              console.warn("[context-clipboard] addLink tag apply failed", e);
+            }
+          }
+          return sendResponse({ ok: true, id });
+        }
         if (msg.action === "addNote") {
           const p = msg.payload as {
             text: string;
@@ -834,6 +879,7 @@ interface RpcMsg {
     | "setOcrText"
     | "addImageBlob"
     | "addNote"
+    | "addLink"
     | "recordFieldPaste"
     | "getFieldSuggestion"
     | "findClipByContent"

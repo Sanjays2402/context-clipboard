@@ -11,6 +11,7 @@
         <input id="search" type="search" placeholder="Search · text, kind:image, host:github.com, tag:code, g github → jump" autocomplete="off" />
         <button id="save-search-btn" class="icon-btn" title="Save current search" data-icon="bookmark" hidden></button>
         <button id="quick-capture-btn" class="icon-btn" title="Capture from system clipboard" data-icon="clipboard"></button>
+        <button id="link-capture-btn" class="icon-btn" title="Capture a URL as a link clip" data-icon="link"></button>
         <button id="note-btn" class="icon-btn" title="Add note" data-icon="plus"></button>
         <button id="settings-btn" class="icon-btn" title="Settings" data-icon="settings"></button>
       </div>
@@ -414,6 +415,28 @@
           </label>
           <span class="note-composer-hint">Cmd/Ctrl+Enter to save · Esc to cancel</span>
           <button id="note-save" class="small" type="button">Save note</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Link composer — quick-capture for a typed/pasted URL. Mirrors
+         note-composer's modal pattern: backdrop dimming, Enter to save,
+         Esc to cancel, focus survives, validation feedback inline.
+         The URL composer is intentionally minimal: just one input + a
+         tiny status row. No tag input — the host auto-tags via
+         buildQuickCaptureTags so the user can `tag:host` immediately,
+         and richer tagging happens in detail-view after capture. -->
+    <div id="link-composer" class="note-composer" hidden role="dialog" aria-modal="true" aria-labelledby="link-title">
+      <div class="note-composer-card">
+        <div class="note-composer-header">
+          <span id="link-title" class="note-composer-title">Capture a URL</span>
+          <button id="link-cancel" class="icon-btn" title="Cancel (Esc)" data-icon="close"></button>
+        </div>
+        <input id="link-url" class="link-composer-input" type="url" placeholder="https://github.com/… or github.com/… (Enter saves)" autocomplete="off" spellcheck="false" />
+        <div id="link-status" class="link-composer-status" aria-live="polite"></div>
+        <div class="note-composer-foot">
+          <span class="note-composer-hint">Enter to save · Esc to cancel · http(s) only</span>
+          <button id="link-save" class="small" type="button" disabled>Save link</button>
         </div>
       </div>
     </div>
