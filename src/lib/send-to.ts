@@ -13,6 +13,7 @@
 
 import type { ClipItem } from "./types";
 import { detectCodeLang } from "./util";
+import { tableRowForClip } from "./table-row";
 
 export interface SendableClip {
   id: string;
@@ -330,6 +331,7 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const fence = fencedCodeForClip(c);
   const rawText = rawTextForClip(c);
   const urlOnly = urlOnlyForClip(c);
+  const tableRow = tableRowForClip(c);
   const json = jsonEnvelopeForClip(c);
   return [
     {
@@ -402,6 +404,18 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: rawText,
       available: !!rawText,
+    },
+    {
+      // Format a single-line tabular body (TSV / CSV) as a
+      // Markdown table row: `| col1 | col2 | col3 |`. Surfaces
+      // only when looksLikeTableRow detects a delimiter — plain
+      // sentences and multi-line bodies stay out of the menu.
+      id: "table-row",
+      label: "Copy as table row",
+      hint: "| cell | cell | cell |",
+      kind: "copy",
+      payload: tableRow,
+      available: !!tableRow,
     },
     {
       id: "json",

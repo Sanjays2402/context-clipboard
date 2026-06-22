@@ -151,7 +151,10 @@ try {
 
   // buildSendActions matrix
   const textActs = mod.buildSendActions(textClip);
-  total++; if (textActs.length === 10) pass++;
+  // table-row was added after raw-text → 11 total. Each row is
+  // gated by its own availability check so adding new rows here
+  // only matters for the total-count assertion.
+  total++; if (textActs.length === 11) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
@@ -360,8 +363,11 @@ try {
   check('actions: raw-text follows fenced-code',
     tmplActs.findIndex((a) => a.id === 'raw-text') - tmplActs.findIndex((a) => a.id === 'fenced-code'),
     1);
-  check('actions: raw-text comes before json',
-    tmplActs.findIndex((a) => a.id === 'json') - tmplActs.findIndex((a) => a.id === 'raw-text'),
+  check('actions: raw-text comes before table-row',
+    tmplActs.findIndex((a) => a.id === 'table-row') - tmplActs.findIndex((a) => a.id === 'raw-text'),
+    1);
+  check('actions: table-row comes before json',
+    tmplActs.findIndex((a) => a.id === 'json') - tmplActs.findIndex((a) => a.id === 'table-row'),
     1);
 
   // --- url-only ---
