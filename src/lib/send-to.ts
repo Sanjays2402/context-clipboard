@@ -14,6 +14,7 @@
 import type { ClipItem } from "./types";
 import { detectCodeLang } from "./util";
 import { tableRowForClip } from "./table-row";
+import { jsonLineEnvelopeForClip } from "./json-line";
 
 export interface SendableClip {
   id: string;
@@ -333,6 +334,7 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const urlOnly = urlOnlyForClip(c);
   const tableRow = tableRowForClip(c);
   const json = jsonEnvelopeForClip(c);
+  const jsonLine = jsonLineEnvelopeForClip(c);
   return [
     {
       id: "open-source",
@@ -424,6 +426,19 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: json,
       available: !!json,
+    },
+    {
+      // Minified single-line companion to the pretty JSON row above.
+      // Same envelope shape, no whitespace. Right place for terminal
+      // / jsonl / chat-paste workflows where a 30-line pretty block
+      // is the wrong tool. Hidden when there's no payload (mirrors
+      // the pretty variant's gate).
+      id: "json-line",
+      label: "Copy as JSON line",
+      hint: "single-line minified",
+      kind: "copy",
+      payload: jsonLine,
+      available: !!jsonLine,
     },
   ];
 }

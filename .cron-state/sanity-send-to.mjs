@@ -151,10 +151,10 @@ try {
 
   // buildSendActions matrix
   const textActs = mod.buildSendActions(textClip);
-  // table-row was added after raw-text → 11 total. Each row is
+  // json-line was added after json → 12 total. Each row is
   // gated by its own availability check so adding new rows here
   // only matters for the total-count assertion.
-  total++; if (textActs.length === 11) pass++;
+  total++; if (textActs.length === 12) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
