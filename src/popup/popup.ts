@@ -118,6 +118,12 @@ import {
   formatLockConfirm,
   formatLockedClipConfirm,
 } from "../lib/clip-lock";
+import {
+  idsToPinForHost,
+  availableToPin,
+  matchedClipsForHost,
+  formatPinFromHostLabel,
+} from "../lib/host-pin";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -343,6 +349,25 @@ let lastForgottenHost: import("../lib/last-forgotten-host").ForgottenHostInfo | 
 // always current without a per-palette-open IDB read. Zero hides
 // the command from the palette via `available: false`.
 let archivedCount = 0;
+/**
+ * Active-tab host cache for the Cmd+K "Pin every clip from this host"
+ * command. Three layers:
+ *   - `activeTabHost` — the live hostname (www-stripped, lowercased)
+ *     of the popup's owning tab. Empty string when the tab is on
+ *     chrome:// / about: / has no http(s) URL.
+ *   - `activeHostMatched` — total clips in the live store whose
+ *     `source.url` host matches. Drives the "all N already pinned" hint.
+ *   - `activeHostPinnable` — subset of `matched` that aren't already
+ *     pinned. Drives the command's `available` gate + the label count.
+ *
+ * Refreshed on every render() so the palette always sees fresh numbers.
+ * Reading the active tab is cheap (single api.tabs.query) and we lean
+ * on `wide` (already loaded for the list render) for the count, so the
+ * refresh adds no extra IDB round-trip.
+ */
+let activeTabHost = "";
+let activeHostMatched = 0;
+let activeHostPinnable = 0;
 /**
  * When non-null, the saved-search chip with this id renders as a
  * text input instead of a button so the user can rename it inline.
@@ -816,6 +841,99 @@ async function refreshLastForgottenHost(): Promise<void> {
 }
 
 /**
+ * Refresh the active-tab host + matched/pinnable counts that drive
+ * the Cmd+K "Pin every clip from this host" command.
+ *
+ * Two halves:
+ *   1. Tab read via api.tabs.query. We capture the host even when
+ *      the tab is loading or has a non-http(s) URL — those land as
+ *      empty `activeTabHost`, which the label helper turns into a
+ *      greyed-out "Pin every clip from this site / No site context"
+ *      row. Better than the command silently vanishing.
+ *   2. Count rollup over `wide` (passed in by render() to avoid a
+ *      duplicate IDB read). Skipped when host is empty.
+ *
+ * Fire-and-forget from render(). A failed tabs.query leaves the cache
+ * at its last-known good value; the user-visible effect is "the
+ * command still works against whatever was active last time", which
+ * is acceptable (the next render catches up).
+ */
+async function refreshActiveHostPin(wide: ClipItem[]): Promise<void> {
+  let host = "";
+  try {
+    const [tab] = await new Promise<chrome.tabs.Tab[]>((resolve) => {
+      api.tabs.query({ active: true, currentWindow: true }, (tabs) => resolve(tabs || []));
+    });
+    if (tab?.url) {
+      host = hostFrom(tab.url);
+    }
+  } catch (e) {
+    console.warn("[context-clipboard] active-tab host probe failed", e);
+    // Leave the previous cache intact — better than wiping to "" on
+    // a transient permission glitch.
+    return;
+  }
+  activeTabHost = host || "";
+  if (!activeTabHost) {
+    activeHostMatched = 0;
+    activeHostPinnable = 0;
+    return;
+  }
+  activeHostMatched = matchedClipsForHost(activeTabHost, wide);
+  activeHostPinnable = availableToPin(activeTabHost, wide);
+}
+
+/**
+ * Cmd+K palette handler: pin every clip whose source.url host matches
+ * the popup's owning tab. One-shot triage — useful when you've been
+ * researching on a specific site and want all the clips you captured
+ * there sorted to the top of the daily list.
+ *
+ * Non-toggle semantics: we ONLY pin clips that aren't already pinned.
+ * Toggling already-pinned clips back to unpinned would silently undo
+ * the user's earlier explicit pin actions — a clear footgun. Matches
+ * `idsToPinForHost`'s contract.
+ *
+ * Re-reads the full clip set at click time (not the cached `wide` from
+ * the last render) so a clip just captured between render and click
+ * lands in the batch. Cheap: same single IDB read render() does.
+ */
+async function pinAllFromActiveHost(): Promise<void> {
+  if (!activeTabHost) {
+    toast("No site context — open this on a normal http(s) tab", "error");
+    return;
+  }
+  // Re-read live store so a freshly-captured clip doesn't get missed.
+  const all = await listClips({ limit: 5000 });
+  const ids = idsToPinForHost(activeTabHost, all);
+  if (ids.length === 0) {
+    // Could be "no clips from this host" or "all already pinned" — the
+    // palette label already disambiguates, but we toast honestly here
+    // in case the user invoked the command via the keyboard before the
+    // render cache caught up.
+    const matched = matchedClipsForHost(activeTabHost, all);
+    toast(
+      matched === 0
+        ? `No clips from ${activeTabHost}`
+        : `All ${matched} from ${activeTabHost} already pinned`,
+    );
+    return;
+  }
+  // togglePin per id (mirror pinAllFiltered). Sequential because the
+  // IDB puts collide if we race them and pin counts in the dozens for
+  // the realistic case.
+  for (const id of ids) await togglePin(id);
+  toast(
+    ids.length === 1
+      ? `Pinned 1 from ${activeTabHost}`
+      : `Pinned ${ids.length} from ${activeTabHost}`,
+  );
+  // Render refreshes the cache + repaints the list with the new pin
+  // dots.
+  await render();
+}
+
+/**
  * Render the "Recent" ghost-chip strip just under the saved-searches row.
  * We dedupe against saved searches (so a query that's both recent AND
  * saved only shows as the saved chip) and against the current search
@@ -926,6 +1044,14 @@ async function render(): Promise<void> {
   // no extra IDB read.
   archivedCount = 0;
   for (const c of wide) if (c.archived === true) archivedCount++;
+  // Refresh the active-host pin cache so the Cmd+K "Pin every clip
+  // from this host" command knows whether it's available + how many
+  // it'd pin. Tab read is fire-and-forget — first render after open
+  // may show the command with stale host="", but the next render
+  // (filter typed, list scrolled, anything) catches up. We also
+  // refresh the matched + pinnable counts from `wide` so the label
+  // text is always current.
+  void refreshActiveHostPin(wide);
   const filtered = applyQuery(wide, parsed, {
     extraPinnedOnly: pinnedOnly,
     extraTag: activeTag,
@@ -5184,6 +5310,34 @@ function buildPaletteActions(): PaletteAction[] {
         await pinAllFiltered(false);
       },
     },
+    // Pin every clip captured from the popup's owning tab's host —
+    // one-shot triage when the user's been researching a single site.
+    // Non-toggle: already-pinned clips skip the loop so the user's
+    // earlier explicit pins survive untouched. Label adapts to the
+    // live state ("Pin 4 clips from github.com" / "All 12 already
+    // pinned" / "No clips captured yet" / greyed out when there's
+    // no http(s) host context). The IIFE keeps the label/hint/available
+    // trio computed in one place so they can't drift apart.
+    ((): PaletteAction => {
+      const bits = formatPinFromHostLabel({
+        host: activeTabHost,
+        matched: activeHostMatched,
+        pinnable: activeHostPinnable,
+      });
+      return {
+        id: "pin-from-active-host",
+        label: bits.label,
+        hint: bits.hint,
+        group: "Bulk",
+        keywords:
+          "pin host site source triage active tab same site current page batch",
+        available: bits.available,
+        run: async () => {
+          closePalette();
+          await pinAllFromActiveHost();
+        },
+      };
+    })(),
     {
       id: "tag-all-filtered",
       label: `Tag all ${visible} filtered…`,
