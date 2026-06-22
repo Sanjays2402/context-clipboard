@@ -76,6 +76,7 @@ import {
   auditExportFilename,
 } from "../lib/audit-export-json";
 import { findLastForgottenHost, formatAge } from "../lib/last-forgotten-host";
+import { buildStorageDeltaLabel } from "../lib/bulk-storage-delta";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -220,6 +221,7 @@ const ruleTestResult = $("rule-test-result");
 
 const bulkBar = $("bulk-bar");
 const bulkCount = $("bulk-count");
+const bulkStorageDelta = $("bulk-storage-delta");
 const bulkSelectAll = $<HTMLButtonElement>("bulk-select-all");
 const bulkPin = $<HTMLButtonElement>("bulk-pin");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
@@ -834,6 +836,10 @@ async function render(): Promise<void> {
       .join("");
   }
   renderCountBreakdown(parsed);
+  // Storage-delta hint depends on currentClips ∩ selectedIds, so we
+  // refresh the bulk-bar on every render so the number stays truthful
+  // as the filter changes.
+  updateBulkBar();
 }
 
 /**
@@ -6282,6 +6288,8 @@ clearAllBtn.addEventListener("click", () => {
 function updateBulkBar(): void {
   if (selectedIds.size === 0) {
     bulkBar.hidden = true;
+    bulkStorageDelta.hidden = true;
+    bulkStorageDelta.textContent = "";
     return;
   }
   bulkBar.hidden = false;
@@ -6295,6 +6303,27 @@ function updateBulkBar(): void {
     ? "Deselect all visible"
     : `Select all visible (${currentClips.length})`;
   bulkSelectAll.classList.toggle("active", allSelected);
+  // Storage delta — sum bytes for the selected clips we can see in
+  // the current filter window. Selection can outlive the visible
+  // filter (selecting under one filter then changing it doesn't
+  // forget the earlier work), so we honestly distinguish "visible"
+  // vs total. The label only includes what we can count concretely.
+  const visibleSelected = currentClips.filter((c) => selectedIds.has(c.id));
+  const label = buildStorageDeltaLabel(visibleSelected);
+  if (!label) {
+    bulkStorageDelta.hidden = true;
+    bulkStorageDelta.textContent = "";
+  } else {
+    bulkStorageDelta.hidden = false;
+    // When selection spans beyond the current filter, append a
+    // small "of N visible" so the user knows the number isn't the
+    // whole story. Otherwise the bare "Free 4.2 MB" reads tight.
+    const offFilter = selectedIds.size - visibleSelected.length;
+    bulkStorageDelta.textContent =
+      offFilter > 0
+        ? `${label} · ${visibleSelected.length} of ${selectedIds.size} shown`
+        : label;
+  }
 }
 
 function toggleSelected(id: string): void {

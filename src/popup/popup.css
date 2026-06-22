@@ -3118,6 +3118,22 @@ kbd {
   letter-spacing: 0.02em;
 }
 
+/* Storage-delta hint — "Free 4.2 MB" sits next to the count when the
+   selection has measurable bytes. Lighter weight than #bulk-count so
+   it reads as a glanceable cue rather than a primary label; the
+   `· N of M shown` tail only appears when selection extends past the
+   visible filter window. */
+.bulk-storage-delta {
+  font-weight: 500;
+  font-size: 11px;
+  opacity: 0.78;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .bulk-bar button {
   appearance: none;
   background: transparent;
