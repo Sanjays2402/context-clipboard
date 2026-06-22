@@ -31,6 +31,17 @@ export interface ParsedQuery {
   ocrOnly: boolean;
   /** Only template clips ({{tokens}}) when true. */
   templateOnly: boolean;
+  /**
+   * Inverse of `templateOnly`. When true, only clips WITHOUT a
+   * `{{token}}` template body match. Useful for filtering noisy
+   * snippet/template libraries down to plain, ready-to-paste
+   * captures (e.g. "show me everything that's NOT a template").
+   * Mutually-exclusive with `templateOnly` by definition; if both
+   * flags are set the result is always empty (the parser preserves
+   * the user's intent so they see the empty result explicitly
+   * rather than silently dropping one operator).
+   */
+  noTemplate: boolean;
   /** Only clips with an `expiresAt` set when true. */
   expiringOnly: boolean;
   /**
@@ -76,6 +87,7 @@ export function parseQuery(raw: string): ParsedQuery {
     redactedOnly: false,
     ocrOnly: false,
     templateOnly: false,
+    noTemplate: false,
     expiringOnly: false,
     archivedOnly: false,
   };
@@ -107,6 +119,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "redacted") out.redactedOnly = true;
       else if (v === "ocr") out.ocrOnly = true;
       else if (v === "template") out.templateOnly = true;
+      else if (v === "notemplate") out.noTemplate = true;
       else if (v === "expiring") out.expiringOnly = true;
       else if (v === "archived") out.archivedOnly = true;
       else leftover.push(tok);
@@ -150,6 +163,7 @@ export function applyQuery(
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
     if (q.templateOnly && !c.template) return false;
+    if (q.noTemplate && c.template) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
     // Archive bit: by default we DROP archived clips from the list so
     // the user's daily view stays clean. `is:archived` flips that —
@@ -191,6 +205,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.redactedOnly) bits.push("redacted");
   if (q.ocrOnly) bits.push("ocr");
   if (q.templateOnly) bits.push("template");
+  if (q.noTemplate) bits.push("not-template");
   if (q.expiringOnly) bits.push("expiring");
   if (q.archivedOnly) bits.push("archived");
   if (q.before) bits.push("older");
