@@ -646,7 +646,14 @@ function renderSearchHistory(): void {
     visible
       .map(
         (q) =>
-          `<button class="recent-chip" type="button" data-q="${escapeHtml(q)}" title="${escapeHtml(q)}">${escapeHtml(q.length > 28 ? q.slice(0, 28) + "…" : q)}</button>`,
+          // The chip is one composite span: the apply-button label PLUS
+          // a hover-only pin icon button that promotes the query to a
+          // saved search. The pin button stops propagation in its own
+          // handler so a click on it never falls through to apply.
+          `<span class="recent-chip" data-q="${escapeHtml(q)}" title="${escapeHtml(q)} · right-click or hover-pin to save">` +
+          `<button class="recent-apply" type="button" data-act="apply" data-q="${escapeHtml(q)}">${escapeHtml(q.length > 28 ? q.slice(0, 28) + "…" : q)}</button>` +
+          `<button class="recent-pin" type="button" data-act="save" data-q="${escapeHtml(q)}" title="Save as a chip — promote this query to a saved search">${icons.pin()}</button>` +
+          `</span>`,
       )
       .join("") +
     `<button class="recent-clear" type="button" title="Clear recent searches">×</button>`;
@@ -2471,6 +2478,42 @@ savedSearchesEl.addEventListener(
 saveSearchBtn.addEventListener("click", () => void handleSaveSearch());
 
 // Search history (recent ghost chips) ----------------------------------
+//
+/**
+ * Promote a Recent query to a saved-search chip. Shared by the
+ * hover-pin button click and the right-click contextmenu so the two
+ * affordances always behave the same way.
+ */
+async function saveRecentAsSearch(q: string): Promise<void> {
+  const query = (q || "").trim();
+  if (!query) return;
+  const parsed = parseQuery(query);
+  const fallback =
+    parsed.freeText.split(/\s+/)[0] ||
+    parsed.host ||
+    parsed.tags[0] ||
+    parsed.kind ||
+    "Saved search";
+  const name = prompt(
+    `Save "${query.slice(0, 40)}" as a saved-search chip?\n\nGive it a short name:`,
+    fallback.slice(0, 32),
+  );
+  if (name == null) return;
+  const trimmed = name.trim();
+  if (!trimmed) {
+    toast("Name required", "error");
+    return;
+  }
+  const entry = await addSavedSearch(trimmed, query);
+  if (!entry) {
+    toast("Couldn't save", "error");
+    return;
+  }
+  await refreshSavedSearches();
+  toast(`Pinned "${entry.name}" — moved to saved searches`);
+  await render();
+}
+
 searchHistoryEl.addEventListener("click", async (e) => {
   const target = e.target as HTMLElement;
   if (target.classList.contains("recent-clear")) {
@@ -2479,23 +2522,50 @@ searchHistoryEl.addEventListener("click", async (e) => {
     renderSearchHistory();
     return;
   }
-  const chip = target.closest(".recent-chip") as HTMLElement | null;
-  if (!chip) return;
-  const q = chip.dataset.q || "";
+  // Resolve which inner button (apply vs pin) was hit. closest() so the
+  // SVG path inside the pin icon still resolves to its parent button.
+  const btn = target.closest<HTMLElement>("[data-act]");
+  const act = btn?.dataset.act || "";
+  const q = btn?.dataset.q || "";
   if (!q) return;
-  // Cancel any pending debounce so applying a recent chip doesn't queue
-  // a redundant write for the same string the user is now seeing.
+  if (act === "save") {
+    e.stopPropagation();
+    void saveRecentAsSearch(q);
+    return;
+  }
+  if (act !== "apply") return;
+  // Apply path — cancel pending debounce + dump into search box.
   if (historyDebounce != null) {
     clearTimeout(historyDebounce);
     historyDebounce = null;
   }
   searchEl.value = q;
   activeIndex = 0;
-  // Move to front in the history (acts as "I used this again").
   await pushSearchHistory(q);
   await refreshSearchHistory();
   searchEl.focus();
   await render();
+});
+
+/**
+ * Right-click a Recent chip → "Save as search" prompt. Same end state
+ * as clicking the hover-pin button; discovers users who reach for
+ * right-click instead of hovering for an icon.
+ *
+ * Stops the default context menu — the user invoked us, not the
+ * native browser menu (which would offer "Inspect" et al on a chip
+ * the user has no reason to ever inspect).
+ */
+searchHistoryEl.addEventListener("contextmenu", async (e) => {
+  const chip = (e.target as HTMLElement).closest(".recent-chip") as
+    | HTMLElement
+    | null;
+  if (!chip) return;
+  const q = (chip.dataset.q || "").trim();
+  if (!q) return;
+  e.preventDefault();
+  e.stopPropagation();
+  await saveRecentAsSearch(q);
 });
 
 // List events -----------------------------------------------------------
