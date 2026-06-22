@@ -52,6 +52,22 @@ export interface ParsedQuery {
    * view.
    */
   archivedOnly: boolean;
+  /**
+   * Parity twin of `kind:link`. The other `is:` operators
+   * (pinned/redacted/template/expiring/archived) read as
+   * "predicate of the clip"; `kind:` reads as "what is the
+   * clip". For link clips both forms make sense and users
+   * routinely mis-remember which family they belong to — so we
+   * accept `is:link` as a synonym (no `is:text` / `is:image`
+   * mirrors, since both already have their own first-class
+   * filter chips in the popup row and `kind:` is the natural
+   * spelling there). Setting this flag is equivalent to
+   * `kind: "link"` AT APPLY TIME. Parser keeps the two
+   * representations distinct so `kind:image is:link` ends up
+   * impossible (intentional — see applyQuery's intersection
+   * logic).
+   */
+  linkOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -90,6 +106,7 @@ export function parseQuery(raw: string): ParsedQuery {
     noTemplate: false,
     expiringOnly: false,
     archivedOnly: false,
+    linkOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -122,6 +139,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "notemplate") out.noTemplate = true;
       else if (v === "expiring") out.expiringOnly = true;
       else if (v === "archived") out.archivedOnly = true;
+      else if (v === "link") out.linkOnly = true;
       else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
@@ -154,11 +172,19 @@ export function applyQuery(
 ): ClipItem[] {
   const needle = q.freeText.toLowerCase();
   const pinnedOnly = q.pinnedOnly || !!opts.extraPinnedOnly;
+  // `is:link` is a synonym for `kind: "link"`. When the user mixes a
+  // conflicting explicit kind (e.g. `kind:image is:link`), the two
+  // filters AND — a clip needs BOTH to match. Since no clip is both
+  // `image` AND `link`, that combo returns an empty set by design
+  // (matches the same intent contract as `is:template is:notemplate`
+  // and surfaces the user's contradiction explicitly rather than
+  // silently dropping one operator).
   const kind = q.kind ?? (opts.extraKind && opts.extraKind !== "all" ? opts.extraKind : undefined);
   const extraTag = opts.extraTag ? opts.extraTag.trim() : null;
   return clips.filter((c) => {
     if (pinnedOnly && !c.pinned) return false;
     if (kind && c.kind !== kind) return false;
+    if (q.linkOnly && c.kind !== "link") return false;
     if (q.host && hostFrom(c.source.url) !== q.host) return false;
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
@@ -208,6 +234,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.noTemplate) bits.push("not-template");
   if (q.expiringOnly) bits.push("expiring");
   if (q.archivedOnly) bits.push("archived");
+  if (q.linkOnly) bits.push("link");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");
