@@ -1123,6 +1123,37 @@ button.small:disabled {
   color: var(--accent-strong);
 }
 
+/* Restore-and-pin combo button — sits just left of the plain Restore
+   pill. Icon-only (the pin glyph) so the row stays compact. Subtle
+   accent-tinted hover mirrors the Restore button so the two read as
+   a related cluster. */
+.trash-restore-pin {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.trash-restore-pin:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.trash-restore-pin svg {
+  width: 14px;
+  height: 14px;
+}
+
 .trash-foot {
   margin-top: 8px;
   font-size: 10.5px;

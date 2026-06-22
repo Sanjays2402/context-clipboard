@@ -1776,12 +1776,21 @@ function trashRow(t: TrashedClip): string {
   const src = [hostFrom(t.source.url), t.source.title]
     .filter(Boolean)
     .join(" · ");
+  // Pinned-already? Restore-and-pin would be a no-op for those (the
+  // restore path preserves the pinned flag), so we hide the combo and
+  // keep just the plain restore. Saves a wasted click and keeps the
+  // row tidy.
+  const wasPinned = !!t.pinned;
+  const pinBtn = wasPinned
+    ? ""
+    : `<button class="trash-restore-pin" data-act="restore-pin" title="Restore + pin — bring back and mark important">${icons.pin()}</button>`;
   return `
     <div class="trash-row" data-id="${t.id}">
       <div class="trash-body">
         <div class="trash-preview">${escapeHtml(previewText.slice(0, 90))}</div>
         <div class="trash-meta">${escapeHtml(src || "—")} · deleted ${timeAgo(t.deletedAt)} · ${left}d left</div>
       </div>
+      ${pinBtn}
       <button class="trash-restore" data-act="restore" title="Restore">Restore</button>
     </div>
   `;
@@ -1813,11 +1822,54 @@ trashList.addEventListener("click", async (e) => {
   const row = target.closest(".trash-row") as HTMLElement | null;
   if (!row) return;
   const id = row.dataset.id!;
-  if (target.dataset.act === "restore") {
+  const act =
+    // closest() so the click on an inner SVG path still resolves to the
+    // button — restore-pin renders an inline icon, so the click target
+    // is often the <path>, not the <button>.
+    (target.closest<HTMLElement>("[data-act]")?.dataset.act as string) ||
+    target.dataset.act ||
+    "";
+  if (act === "restore") {
     const ok = await restoreClip(id);
     if (ok) toast("Restored");
     await renderTrash();
     await render();
+    return;
+  }
+  if (act === "restore-pin") {
+    // Restore the clip THEN pin it. Two operations, surfaced as one
+    // click — the user wants the clip back AND marked important. We
+    // toast a combined message + undo so a misclick is one Esc away
+    // from being reversed (undo trashes the clip again; the pin bit
+    // was the new state so it would just vanish with it — that's the
+    // correct undo semantics since the user clicked "restore + pin"
+    // as a single intent).
+    const ok = await restoreClip(id);
+    if (!ok) {
+      toast("Couldn't restore", "error");
+      return;
+    }
+    // togglePin on a freshly-restored unpinned clip flips it to pinned.
+    // We don't worry about race conditions here because restoreClip
+    // resolves before togglePin runs.
+    const nowPinned = await togglePin(id);
+    if (!nowPinned) {
+      // togglePin returned false → clip ended up unpinned (or vanished).
+      // Toast the partial state honestly so the user knows.
+      toast("Restored — but couldn't pin", "error");
+    } else {
+      toast("Restored + pinned", "ok", {
+        label: "Undo",
+        fn: async () => {
+          await trashClip(id);
+          await renderTrash();
+          await render();
+        },
+      });
+    }
+    await renderTrash();
+    await render();
+    return;
   }
 });
 
