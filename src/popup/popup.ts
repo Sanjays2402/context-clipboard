@@ -69,6 +69,7 @@ import { buildBulkPreviewMessage } from "../lib/bulk-preview";
 import { groupAuditByDay } from "../lib/audit-rollup";
 import { groupTrashByHost } from "../lib/trash-host-rollup";
 import { extractHostPattern, looksLikeUrl } from "../lib/host-pattern";
+import { computeTtlBanner } from "../lib/ttl-banner";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -126,6 +127,11 @@ const detailTemplateRow = $("detail-template-row");
 const detailTemplateInfo = $("detail-template-info");
 const detailExpiry = $<HTMLSelectElement>("detail-expiry");
 const detailExpiryHint = $("detail-expiry-hint");
+const detailTtlBanner = $("detail-ttl-banner");
+const detailTtlLabel = $("detail-ttl-label");
+const detailTtlDetail = $("detail-ttl-detail");
+const detailTtlPin = $<HTMLButtonElement>("detail-ttl-pin");
+const detailTtlClear = $<HTMLButtonElement>("detail-ttl-clear");
 const detailSimilarRow = $("detail-similar-row");
 const detailSimilar = $("detail-similar");
 const detailCopy = $<HTMLButtonElement>("detail-copy");
@@ -1048,6 +1054,7 @@ async function openDetail(id: string) {
     detailTemplateRow.hidden = true;
   }
   renderExpiryRow(c);
+  renderTtlBanner(c);
   detailPin.innerHTML = c.pinned ? icons.pinFilled() : icons.pin();
   renderRedactButton(c);
   renderArchiveButton(c);
@@ -1114,6 +1121,48 @@ async function renderSimilarClips(pivot: ClipItem): Promise<void> {
     console.debug("[context-clipboard] similar-clips render failed", e);
     detailSimilarRow.hidden = true;
   }
+}
+
+/**
+ * Render (or hide) the prominent TTL countdown banner above the detail
+ * body. Delegates urgency math to `computeTtlBanner` in lib/ttl-banner
+ * so the popup just paints the result. Pinned + no-TTL + far-future
+ * cases hide the banner; expired / imminent (< 1h) / soon (< 24h) tiers
+ * surface it with distinct visual treatments via .tier-* CSS classes.
+ *
+ * Distinct from `renderExpiryRow` (the small footnote next to the
+ * dropdown): the banner is the *attention-grabbing* affordance that
+ * catches the user before something they care about silently
+ * disappears. The hint stays for "what's the current state" reading.
+ */
+function renderTtlBanner(c: ClipItem): void {
+  const state = computeTtlBanner(
+    { pinned: !!c.pinned, expiresAt: c.expiresAt },
+    Date.now(),
+  );
+  if (!state) {
+    detailTtlBanner.hidden = true;
+    detailTtlBanner.classList.remove("tier-expired", "tier-imminent", "tier-soon");
+    return;
+  }
+  detailTtlBanner.hidden = false;
+  // Swap class so CSS can paint expired/imminent/soon distinctly.
+  detailTtlBanner.classList.remove("tier-expired", "tier-imminent", "tier-soon");
+  detailTtlBanner.classList.add(`tier-${state.tier}`);
+  detailTtlLabel.textContent = state.label;
+  if (state.detail) {
+    detailTtlDetail.hidden = false;
+    detailTtlDetail.textContent = state.detail;
+  } else {
+    detailTtlDetail.hidden = true;
+    detailTtlDetail.textContent = "";
+  }
+  // Hover title shows the absolute timestamp so the user can verify
+  // without expanding the dropdown footnote.
+  detailTtlBanner.title = `Expires at ${new Date(state.expiresAt).toLocaleString()}`;
+  // The "Keep" pin button only makes sense when the clip isn't already
+  // pinned (computeTtlBanner returns null when it is, but defensive).
+  detailTtlPin.hidden = !!c.pinned;
 }
 
 /**
@@ -5369,7 +5418,10 @@ detailExpiry.addEventListener("change", async () => {
     );
   });
   const updated = await getClip(id);
-  if (updated) renderExpiryRow(updated);
+  if (updated) {
+    renderExpiryRow(updated);
+    renderTtlBanner(updated);
+  }
   detailExpiry.value = "";
   void appendPrivacyAuditEntry({
     kind: raw ? "set-ttl" : "clear-ttl",
@@ -5378,6 +5430,58 @@ detailExpiry.addEventListener("change", async () => {
     detail: raw ? `in ${formatDuration(Number(raw))}` : undefined,
   });
   toast(raw ? "TTL set" : "TTL cleared");
+  await render();
+});
+
+// TTL banner action buttons — "Keep" pins the clip (pin > TTL, so it
+// stops the countdown without losing the deadline) and "Clear TTL"
+// removes the expiresAt entirely. Both routes mirror the existing
+// audit-log + render plumbing so the banner doesn't bypass any
+// safety/privacy receipts.
+detailTtlPin.addEventListener("click", async () => {
+  if (!detailId) return;
+  const id = detailId;
+  const before = await getClip(id);
+  if (!before) return;
+  if (before.pinned) {
+    // Defensive — the banner only shows for unpinned clips, but a
+    // race could land us here. No-op + refresh.
+    renderTtlBanner(before);
+    return;
+  }
+  await togglePin(id);
+  const after = await getClip(id);
+  if (after) {
+    renderTtlBanner(after);
+    renderExpiryRow(after);
+    detailPin.innerHTML = after.pinned ? icons.pinFilled() : icons.pin();
+  }
+  toast("Pinned · TTL paused");
+  await render();
+});
+
+detailTtlClear.addEventListener("click", async () => {
+  if (!detailId) return;
+  const id = detailId;
+  const before = await getClip(id);
+  if (!before || typeof before.expiresAt !== "number") return;
+  await new Promise<void>((resolve) => {
+    api.runtime.sendMessage(
+      { type: "cc-rpc", action: "setClipExpiry", payload: { id, expiresAt: null } },
+      () => resolve(),
+    );
+  });
+  const after = await getClip(id);
+  if (after) {
+    renderTtlBanner(after);
+    renderExpiryRow(after);
+  }
+  void appendPrivacyAuditEntry({
+    kind: "clear-ttl",
+    clipId: id,
+    host: hostFrom(before.source.url) || undefined,
+  });
+  toast("TTL cleared");
   await render();
 });
 

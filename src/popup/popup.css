@@ -2466,6 +2466,120 @@ kbd {
   font-weight: 600;
 }
 
+/* TTL countdown banner — the prominent attention-grabbing surface
+   above the detail body. Distinct from the .expiry-hint footnote.
+   Tier classes (.tier-expired/.tier-imminent/.tier-soon) repaint
+   the surface so the user grasps urgency at a glance. */
+.detail-ttl-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 14px 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  animation: ttl-banner-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ttl-banner-in {
+  from { transform: translateY(-4px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.detail-ttl-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.detail-ttl-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.detail-ttl-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detail-ttl-label {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.detail-ttl-detail {
+  font-size: 11px;
+  opacity: 0.78;
+  font-weight: 400;
+}
+
+.detail-ttl-pin,
+.detail-ttl-clear {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: inherit;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.16s ease;
+}
+.detail-ttl-pin:hover,
+.detail-ttl-clear:hover {
+  background: var(--bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.detail-ttl-clear:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Imminent — < 1 hour. Soft-red surface so the user pays attention
+   before the clip disappears. */
+.detail-ttl-banner.tier-imminent {
+  background: rgba(255, 107, 120, 0.14);
+  border-color: rgba(255, 107, 120, 0.55);
+  color: var(--text);
+}
+.detail-ttl-banner.tier-imminent .detail-ttl-icon svg {
+  color: var(--danger);
+}
+.detail-ttl-banner.tier-imminent .detail-ttl-label {
+  color: var(--danger);
+}
+
+/* Expired — same surface as imminent but the label leads with
+   "Expired" so the user knows the GC pickup is opportunistic. */
+.detail-ttl-banner.tier-expired {
+  background: rgba(255, 107, 120, 0.18);
+  border-color: rgba(255, 107, 120, 0.7);
+}
+.detail-ttl-banner.tier-expired .detail-ttl-icon svg,
+.detail-ttl-banner.tier-expired .detail-ttl-label {
+  color: var(--danger);
+}
+
+/* Soon — same-day but not urgent. Accent tint, not red. */
+.detail-ttl-banner.tier-soon {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.detail-ttl-banner.tier-soon .detail-ttl-icon svg,
+.detail-ttl-banner.tier-soon .detail-ttl-label {
+  color: var(--accent);
+}
+
 #detail-tags {
   width: 100%;
   background: var(--glass);
