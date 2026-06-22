@@ -4026,6 +4026,35 @@ button.audit-row.jumpable:focus-visible {
 .note-composer-text::placeholder {
   color: var(--muted);
 }
+
+/* Live {{token}} counter pill — appears under the textarea whenever the
+ * body contains at least one valid template placeholder. Hidden via
+ * [hidden] on the row when there are no tokens, so plain notes never
+ * see this UI. Visual weight: dashed accent border, dimmer than the
+ * tag-suggestion strip, no hover (informational only). */
+.note-template-pill-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 0 6px;
+  margin-top: -4px;
+}
+.note-template-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(245, 180, 0, 0.08);
+  border: 1px dashed var(--accent);
+  color: var(--accent);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: help;
+  /* Don't intercept clicks — the textarea sits above; this is purely
+   * a label. */
+  user-select: none;
+}
 .note-composer-tag-row {
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-inner);

@@ -81,6 +81,11 @@ import { buildStorageDeltaLabel } from "../lib/bulk-storage-delta";
 import { precheckAuditJump, describeAuditJump } from "../lib/detail-audit-jump";
 import { nextArchivedClipId, prevArchivedClipId, describeArchiveCycle, describeArchiveCycleReverse } from "../lib/next-archived";
 import { buildAuditChipBody } from "../lib/audit-chip-labels";
+import {
+  countTemplateTokens,
+  formatTokenPillLabel,
+  formatTokenPillTooltip,
+} from "../lib/template-token-count";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -254,6 +259,8 @@ const noteTagSuggestions = $("note-tag-suggestions");
 const notePinInput = $<HTMLInputElement>("note-pin");
 const noteSaveBtn = $<HTMLButtonElement>("note-save");
 const noteCancelBtn = $<HTMLButtonElement>("note-cancel");
+const noteTemplatePillRow = $("note-template-pill-row");
+const noteTemplatePill = $("note-template-pill");
 
 // State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
@@ -3900,6 +3907,7 @@ async function openNoteComposer(): Promise<void> {
   // on every open. First open of the session = default false.
   notePinInput.checked = notePinSticky;
   await renderNoteTagSuggestions();
+  refreshTemplateTokenPill();
   noteComposer.hidden = false;
   // After the panel paints — focus the textarea so typing lands there
   // instead of stealing focus from whatever the user just clicked.
@@ -3908,6 +3916,33 @@ async function openNoteComposer(): Promise<void> {
 
 function closeNoteComposer(): void {
   noteComposer.hidden = true;
+}
+
+/**
+ * Repaint the live {{token}} counter pill under the textarea.
+ * Reads noteText.value, runs countTemplateTokens, hides the row
+ * entirely when there are no tokens (mostly the time — a typical
+ * note is plain text). When tokens exist, the pill shows a concise
+ * label ("1 token: date", "3 tokens", "1 token × 5") and a tooltip
+ * spelling out which tokens will expand.
+ *
+ * Idempotent and cheap — runs on every textarea `input` event plus
+ * once at openNoteComposer time so paste / undo / programmatic
+ * value reset all stay in sync.
+ */
+function refreshTemplateTokenPill(): void {
+  const count = countTemplateTokens(noteText.value);
+  const label = formatTokenPillLabel(count);
+  if (!label) {
+    noteTemplatePillRow.hidden = true;
+    noteTemplatePill.textContent = "";
+    noteTemplatePill.title = "";
+    return;
+  }
+  noteTemplatePillRow.hidden = false;
+  noteTemplatePill.textContent = label;
+  const tip = formatTokenPillTooltip(count) || label;
+  noteTemplatePill.title = tip;
 }
 
 /**
@@ -4082,6 +4117,12 @@ noteText.addEventListener("keydown", (e) => {
     void saveNoteFromComposer();
   }
 });
+// Live token counter — refresh on every body mutation. `input` fires
+// for typing, paste, cut, undo / redo, drag-drop, and IME composition
+// commits, so this single listener covers every path that changes the
+// textarea value. Pure + synchronous so no debounce needed — the
+// regex scan is microseconds on a 5-row textarea.
+noteText.addEventListener("input", refreshTemplateTokenPill);
 noteTagsInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
