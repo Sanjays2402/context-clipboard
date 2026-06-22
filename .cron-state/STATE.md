@@ -88,8 +88,8 @@ Status: ` ` open / `~` in-progress / `x` shipped
 ### New (added this tick — refill, 5+ open items)
 - [x] Send-to: keyboard navigation inside the menu (↑↓ to step, Enter to fire, Tab focuses first row) — `9f74676`
 - [ ] Site-rule row: hover preview of last 3 clips that matched (mini-thumbs)
-- [ ] Search history: "pin a recent query" — promote to saved search in one click
-- [ ] Audit row: long-press / right-click for "Forget this action" (drop just this entry from the ring)
+- [x] Search history: "pin a recent query" — promote to saved search in one click — `3281c91`
+- [x] Audit row: long-press / right-click for "Forget this action" (drop just this entry from the ring) — `0915171`
 - [x] Detail Send-to: "Copy as plain text (strip tokens)" — explicit non-templated copy for template clips — `31bef7a`
 - [x] Site-rule row: show "last matched X ago" alongside the clip count — `081603f`
 - [x] Settings: Privacy audit retention slider (10 / 30 / 60 / 100 entries) — currently hard-coded at 30 — `66aabec`
@@ -116,9 +116,22 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Per-clip lock: a clip can be marked "ask before deleting" (independent of pin)
 - [ ] In-page palette: copy-URL-only with `Alt+Enter` (mirrors detail send-to)
 - [ ] Detail-view: copy-as-table-row for clips where content looks tab/comma-separated
-- [ ] Saved search: rename inline by clicking the chip label (no `prompt()` dance)
-- [ ] Trash row: "Restore + pin" combo button — one click to bring back AND mark important
-- [ ] Per-site rule: import/export the rule set (JSON snippet, paste into another device)
+- [x] Saved search: rename inline by clicking the chip label (no `prompt()` dance) — `5c702c9`
+- [x] Trash row: "Restore + pin" combo button — one click to bring back AND mark important — `f33d812`
+- [x] Per-site rule: import/export the rule set (JSON snippet, paste into another device) — `d3b2207`
+
+### New (added this tick — 2026-06-21 18:48 PT refill)
+- [ ] Audit log: filter by clipId so clicking a clip's row in audit pre-filters to its action history
+- [ ] Saved-search chip: drag-to-reorder so frequent ones float left
+- [ ] In-page palette: "open sidepanel" affordance for tab-switching workflows (Chrome-only)
+- [ ] Settings: per-kind retention split (text vs image, separate maxUnpinned)
+- [ ] Trash row: "Restore everything from this host" — bulk-restore counterpart to forget-host
+- [ ] Detail-view: per-clip retention overlay (TTL countdown banner when expiresAt is near)
+- [ ] Bulk-bar: "Move to collection…" once collections ship (placeholder until then)
+- [ ] Cmd+K palette: "Open my last saved search" (most-recent-applied)
+- [ ] Site-rule form: paste a sample URL → auto-populate hostPattern field
+- [ ] Audit panel: "Last 7 days" / "Last 30 days" filter alongside the bucket chips
+- [ ] In-page palette: live token-counter when typing a {{template}} clip body
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -196,12 +209,109 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Site-rule row: "last matched X ago" tail alongside clip count — `081603f`
 - [x] Note composer: per-session "Pin" checkbox memory — `edeed31`
 - [x] Archive view: distinct empty-state + chip-hide redundancy fix — `b73a934`
+- [x] Saved-search chip: inline rename via double-click (Enter / Esc / Tab / blur) — `5c702c9`
+- [x] Audit row: right-click to forget a single entry (privacy scalpel) — `0915171`
+- [x] Trash row: "Restore + pin" combo icon button (hides when already pinned) — `f33d812`
+- [x] Search history: hover-pin + right-click to promote a Recent query to saved-search — `3281c91`
+- [x] Site rules: portable JSON Import / Export (merge or replace) — `d3b2207`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-21 18:48 PT** — 5/5 shipped. Saved-search rename inline:
+  new `renameSavedSearch(id, name)` in lib/db — trims, rejects
+  blank/missing-id, allows case-only and whitespace-only edits on the
+  same row (typo fix path), rejects case-insensitive collisions with
+  a DIFFERENT entry; preserves id + createdAt + query so the chip
+  strip stays in place. Popup: new module-scope `renamingSavedSearchId`
+  flips the chip's `<button>` label into an `<input type="text">`
+  with current name selected; dblclick on apply-button to enter,
+  Enter/Tab commits, Esc cancels, capture-phase blur commits if focus
+  drifts; single `commitSavedSearchRename` funnel so the four entry
+  paths can't double-toast; CSS `.saved-search-chip.renaming` glows
+  accent; CSS.escape polyfill (alphanum + `_` + `-` mapping) for
+  older WebViews; sanity 27/27 covers happy path + blank/empty
+  rejection + collision math (case-insensitive, post-delete reuse,
+  whitespace trim) + long-name round-trip + order stability across
+  renames (5c702c9). Audit row right-click forget: new
+  `removePrivacyAuditEntry(id)` in lib/db — single IDB write through
+  the same meta-row path as `clearPrivacyAudit`, returns true on
+  remove / false on missing-id, NO cap-snap (length-1 math, not
+  re-trim to retention cap — that's `trimPrivacyAuditToCap`'s job);
+  popup: every audit row carries `data-entry-id` (jumpable buttons
+  AND non-jumpable forget-host divs); new `contextmenu` listener
+  preventDefault on rows, lets native menu through on day-headers
+  and gap; confirm dialog quotes the row's kind+subject so the user
+  knows what they're erasing; tooltips updated to "Show this clip ·
+  right-click to forget" / "Right-click to forget this entry"; sanity
+  26/26 covers empty/missing-id no-op + drop-middle/oldest + double-
+  forget idempotency + forget-host (no clipId) parity + newest-first
+  order preservation across many forgets (0915171). Trash row
+  Restore+pin: icon-only second button sits left of the Restore pill,
+  hidden when `t.pinned === true` (restore preserves pin, so combo
+  would be a no-op for already-pinned clips); click handler uses
+  `target.closest("[data-act]")` so SVG-path clicks inside the icon
+  still resolve to the button branch; happy path runs `restoreClip`
+  → `togglePin`, toasts "Restored + pinned" with an Undo button that
+  re-trashes the clip in one shot (one-intent undo); honest partial-
+  fail messaging ("Restored — but couldn't pin") when togglePin
+  flakes; CSS 26×26 transparent-border button, accent hover; sanity
+  9/9 covers the show-when-unpinned / hide-when-pinned visibility
+  rule across truthy/falsy/undefined/null pinned values (f33d812).
+  Search-history pin: renderSearchHistory emits a composite chip —
+  outer `<span>` wraps an apply button + an opacity-0 / width-0 pin
+  icon button that reveals on `:hover` / `:focus-within` with a CSS
+  fade-in; both inner buttons carry `data-act` so the single
+  dispatcher routes by intent; new `saveRecentAsSearch(q)` helper
+  reused by hover-pin click AND right-click contextmenu so both
+  affordances always behave the same way (parseQuery → first-
+  meaningful-token name suggestion, dedup-by-name through existing
+  `addSavedSearch`, toast); just-saved query auto-migrates from
+  Recent → Saved on next render (renderSearchHistory dedupes against
+  saved queries); sanity 14/14 covers dedup math (current + saved)
+  + case-sensitive matching + blank filter + order preservation +
+  two-button chip shape (3281c91). Site rules import/export: new
+  pure `src/lib/site-rules-io.ts` with `serializeRules` (drops
+  id+createdAt + falsey flags from envelope), `stringifyRules`
+  (2-space pretty-printed JSON), `parseRulesJson` (accepts full
+  envelope OR bare array, defensive per-row validator that drops
+  blank-host / whitespace-host / `**` / trailing-wildcard / bad-
+  regex-pattern / truthy-non-bool flags, returns
+  {ok,rules?,dropped?,reason?}, never throws), `mergeRules` (merge:
+  incoming wins on hostPattern collision, preserves original id +
+  createdAt for stability, appends new at end; replace: wipe + take
+  incoming with fresh ids); all bounded (MAX_RULES=200,
+  MAX_HOST_LEN=200, MAX_PATTERNS_PER_RULE=50) so a malicious paste
+  can't fill IDB; new `replaceSiteRules` bulk-write in lib/db +
+  matching RPC action in background so a 30-rule import is one IDB
+  roundtrip; popup: two header buttons (Export / Import) under the
+  per-site rules title, slide-in IO panel with read-only textarea +
+  Copy in export mode, editable textarea + merge/replace radio +
+  Apply in import mode; Apply shows honest "+3 added, 2 updated, 1
+  dropped" summary; Replace mode confirms before wiping; clipboard
+  write uses `navigator.clipboard.writeText` with
+  `document.execCommand("copy")` fallback for policy-restricted
+  contexts; sanity 78/78 covers serialize shape (no leaks, falsey
+  flags omitted) + parse defensive guards (every reject branch +
+  7-out-of-10 drop math) + merge mode (collision overrides + id
+  preservation + list-order stability + no-collide additive) +
+  replace mode (remove math + empty edge cases) + input
+  immutability + full flag round-trip (d3b2207). tsc + chrome/
+  firefox builds green (popup 204.9KB +16.2 vs last tick — site-
+  rules IO panel + 3 inline rename/contextmenu handlers, background
+  45.0KB +0.5, content 23.8KB); ALL 26 sanity suites pass — 668
+  total checks (11 archive + 20 audit-export + 30 audit-filter + 26
+  audit-forget + 21 audit-retention + 36 audit-rollup + 30 bulk-
+  preview + 32 context-tags + 11 export + 15 find-dupes + 9
+  highlight + 27 history-export + 14 import-dedup + 14 jump + 25
+  merge-dupes + 11 palette + 23 pattern-hits + 15 privacy-audit +
+  14 recent-pin + 28 rule-count + 27 saved-search-rename + 18
+  send-to-reorder + 111 send-to + 78 site-rules-io + 13 sort + 9
+  trash-restore-pin); 16 script tests pass too. Pre-existing
+  playwright redact-ui DB-version mismatch unrelated.
 
 - **2026-06-21 15:48 PT** — 5/5 shipped. Audit day-rollup: new pure
   `src/lib/audit-rollup.ts` with `groupAuditByDay(entries, now?)` +
