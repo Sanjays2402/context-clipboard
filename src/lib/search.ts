@@ -146,6 +146,7 @@ export interface ParsedQuery {
    * (e.g. a test calling applyQuery with stub data and no rules),
    * the gate falls open — the flag becomes a no-op rather than
    * silently empty-ing the result set, which would be misleading.
+   * The popup always passes one when the flag is set.
    *
    * Mutually-orthogonal with `is:locked` and `is:unlocked` — they
    * gate on different things (rule presence vs current clip bit),
@@ -156,6 +157,47 @@ export interface ParsedQuery {
    * hosts").
    */
   hostLockedOnly: boolean;
+  /**
+   * Surface clips whose HOST is governed by a site rule with
+   * `autoPin: true` (under first-match-wins). Companion to
+   * `hostLockedOnly` — same cross-store join shape, different
+   * rule flag. Answers "is this from a site I've configured to
+   * auto-pin every capture?" — useful for verifying a freshly-
+   * added rule, or auditing the rules-vs-state alignment when
+   * paired with `is:pinned` (alignment) / `is:unlocked`-style
+   * negation (drift) — though we don't have a generic negation
+   * operator yet, `is:hostpinned tag:not-pinned` works as a hack.
+   *
+   * Predicate is supplied via `opts.hostPinnedPredicate` at apply
+   * time (same fall-open contract as hostLockedPredicate).
+   */
+  hostPinnedOnly: boolean;
+  /**
+   * Surface clips whose HOST is governed by a site rule with
+   * `autoRedact: true`. Same shape as the other host-rule
+   * operators. Answers "is this from a site where I've set
+   * privacy auto-redact?" — useful for review passes ("am I
+   * actually capturing the right level of redaction on
+   * sensitive sites?") and for the "I added a rule, did it
+   * stick?" verification flow.
+   *
+   * Combined with `is:redacted`: alignment view. Combined with
+   * a hypothetical "not redacted" filter: drift view (rule
+   * says redact, clip wasn't redacted — usually means the rule
+   * was added AFTER the clip landed, since ingest is the only
+   * place autoRedact applies).
+   */
+  hostRedactedOnly: boolean;
+  /**
+   * Surface clips whose HOST is governed by a site rule with
+   * `autoScrubOrigin: true`. Same shape as the other host-rule
+   * operators. Answers "is this from a site where I've set the
+   * origin-scrub rule?" — for the workflow where the user wants
+   * to verify which sites are configured to strip source URL/
+   * title/nearbyText on capture (so the clip content survives
+   * but the page metadata doesn't leak).
+   */
+  hostScrubbedOnly: boolean;
   /**
    * Lower bound on the length of `c.note` (trimmed) when set.
    * Triggered by `is:notelonger:N` — surfaces clips whose note is
@@ -237,6 +279,9 @@ export function parseQuery(raw: string): ParsedQuery {
     notedOnly: false,
     nonotedOnly: false,
     hostLockedOnly: false,
+    hostPinnedOnly: false,
+    hostRedactedOnly: false,
+    hostScrubbedOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -275,6 +320,9 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "noted") out.notedOnly = true;
       else if (v === "nonoted") out.nonotedOnly = true;
       else if (v === "hostlocked") out.hostLockedOnly = true;
+      else if (v === "hostpinned") out.hostPinnedOnly = true;
+      else if (v === "hostredacted") out.hostRedactedOnly = true;
+      else if (v === "hostscrubbed") out.hostScrubbedOnly = true;
       else if (v.startsWith("notelonger:") || v.startsWith("noteshorter:")) {
         // `is:notelonger:N` / `is:noteshorter:N` — parse N as a
         // non-negative integer. Bad numerics (NaN, decimals, sign,
@@ -343,6 +391,27 @@ export function applyQuery(
      * popup always passes one when the flag is set.
      */
     hostLockedPredicate?: (c: ClipItem) => boolean;
+    /**
+     * Predicate returning true when the clip's host is governed
+     * by a site-rule whose first-match-wins outcome carries
+     * `autoPin: true`. Used by `is:hostpinned`. Same fall-open
+     * contract as `hostLockedPredicate` when missing.
+     */
+    hostPinnedPredicate?: (c: ClipItem) => boolean;
+    /**
+     * Predicate returning true when the clip's host is governed
+     * by a site-rule whose first-match-wins outcome carries
+     * `autoRedact: true`. Used by `is:hostredacted`. Same
+     * fall-open contract.
+     */
+    hostRedactedPredicate?: (c: ClipItem) => boolean;
+    /**
+     * Predicate returning true when the clip's host is governed
+     * by a site-rule whose first-match-wins outcome carries
+     * `autoScrubOrigin: true`. Used by `is:hostscrubbed`. Same
+     * fall-open contract.
+     */
+    hostScrubbedPredicate?: (c: ClipItem) => boolean;
   } = {},
 ): ClipItem[] {
   const needle = q.freeText.toLowerCase();
@@ -417,6 +486,22 @@ export function applyQuery(
     if (q.hostLockedOnly && opts.hostLockedPredicate) {
       if (!opts.hostLockedPredicate(c)) return false;
     }
+    // `is:hostpinned` / `is:hostredacted` / `is:hostscrubbed` —
+    // same cross-store join shape as `is:hostlocked`, different
+    // rule flag. Each predicate is supplied by the popup when the
+    // corresponding flag is set; the fall-open behavior (no
+    // predicate → no-op gate) mirrors hostLockedPredicate so test
+    // callers without site-rules access don't accidentally empty
+    // the result set.
+    if (q.hostPinnedOnly && opts.hostPinnedPredicate) {
+      if (!opts.hostPinnedPredicate(c)) return false;
+    }
+    if (q.hostRedactedOnly && opts.hostRedactedPredicate) {
+      if (!opts.hostRedactedPredicate(c)) return false;
+    }
+    if (q.hostScrubbedOnly && opts.hostScrubbedPredicate) {
+      if (!opts.hostScrubbedPredicate(c)) return false;
+    }
     if (q.host && hostFrom(c.source.url) !== q.host) return false;
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
@@ -472,6 +557,9 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.notedOnly) bits.push("noted");
   if (q.nonotedOnly) bits.push("not-noted");
   if (q.hostLockedOnly) bits.push("hostlocked");
+  if (q.hostPinnedOnly) bits.push("hostpinned");
+  if (q.hostRedactedOnly) bits.push("hostredacted");
+  if (q.hostScrubbedOnly) bits.push("hostscrubbed");
   if (q.noteLongerThan != null) bits.push(`note>${q.noteLongerThan}`);
   if (q.noteShorterThan != null) bits.push(`note<${q.noteShorterThan}`);
   if (q.before) bits.push("older");

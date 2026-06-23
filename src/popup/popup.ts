@@ -161,6 +161,11 @@ import {
   autoLockedHostsForClips,
 } from "../lib/host-locked";
 import {
+  buildHostRulePredicate,
+  countHostRuleClips,
+  flaggedHostsForClips,
+} from "../lib/host-rule-flags";
+import {
   idsToNoteForHost,
   matchedClipsForHostNote,
   planHostNote,
@@ -476,6 +481,24 @@ let activeHostLockable = 0;
 let currentSiteRules: SiteRule[] = [];
 let hostLockedPredicate: ((c: ClipItem) => boolean) = () => false;
 let hostLockedCount = 0;
+/**
+ * Predicates + counts for the host-rule operator family (companion
+ * to hostLocked above). Rebuilt on every render via
+ * buildHostRulePredicate so verdict caches are fresh per render —
+ * no stale rule decisions persist across config changes. Each
+ * count drives the Cmd+K command's `available` gate (greys when 0)
+ * and feeds the empty-state hint.
+ *
+ * Same fall-open contract as the locked predicate: when the user
+ * hasn't typed the operator, applyQuery skips the gate so the
+ * predicate cost is paid only when the user is actually asking.
+ */
+let hostPinnedPredicate: ((c: ClipItem) => boolean) = () => false;
+let hostPinnedCount = 0;
+let hostRedactedPredicate: ((c: ClipItem) => boolean) = () => false;
+let hostRedactedCount = 0;
+let hostScrubbedPredicate: ((c: ClipItem) => boolean) = () => false;
+let hostScrubbedCount = 0;
 /**
  * Recently-locked cache for the Cmd+K "Show recently locked clips"
  * command. Updated once per render() from `wide` (the same array the
@@ -1336,6 +1359,15 @@ async function render(): Promise<void> {
   }
   hostLockedPredicate = buildHostLockedPredicate(currentSiteRules);
   hostLockedCount = countHostLockedClips(currentSiteRules, wide);
+  // Host-rule family parity (autoPin / autoRedact / autoScrubOrigin).
+  // Same shape as hostLocked, different rule flag. Predicate +
+  // count refreshed per render so they don't drift across rule edits.
+  hostPinnedPredicate = buildHostRulePredicate(currentSiteRules, "autoPin");
+  hostPinnedCount = countHostRuleClips(currentSiteRules, wide, "autoPin");
+  hostRedactedPredicate = buildHostRulePredicate(currentSiteRules, "autoRedact");
+  hostRedactedCount = countHostRuleClips(currentSiteRules, wide, "autoRedact");
+  hostScrubbedPredicate = buildHostRulePredicate(currentSiteRules, "autoScrubOrigin");
+  hostScrubbedCount = countHostRuleClips(currentSiteRules, wide, "autoScrubOrigin");
   const filtered = applyQuery(wide, parsed, {
     extraPinnedOnly: pinnedOnly,
     extraTag: activeTag,
@@ -1344,6 +1376,13 @@ async function render(): Promise<void> {
     // user hasn't typed the operator (parsed.hostLockedOnly ===
     // false) applyQuery skips it — no extra cost per clip.
     hostLockedPredicate,
+    // Same wiring for the new host-rule family. Each predicate's
+    // closure-scoped cache means even with all four flags enabled
+    // and 5,000 clips, the cost is 5,000 hash lookups not 20,000
+    // regex walks.
+    hostPinnedPredicate,
+    hostRedactedPredicate,
+    hostScrubbedPredicate,
   });
   // Sort happens AFTER the filter so the sort comparator only sees the
   // visible window — much smaller, and stable across renders. The
@@ -1369,7 +1408,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -5843,6 +5882,117 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:hostlocked");
+      },
+    },
+    {
+      // `is:hostpinned` — companion to `is:hostlocked`. Different
+      // lens than `is:pinned`: rule-presence vs current per-clip
+      // bit. Useful for "which sites have I configured for auto-
+      // pin?" review pass, or for verifying a freshly-added autoPin
+      // rule (paired with `is:pinned` for alignment; combining with
+      // a future negation operator would surface "rule says pin
+      // but clip somehow isn't pinned" drift).
+      id: "filter-hostpinned",
+      label:
+        hostPinnedCount > 0
+          ? `Show hostpinned clips (${hostPinnedCount})`
+          : "Show hostpinned clips",
+      hint: (() => {
+        if (hostPinnedCount === 0) {
+          return "is:hostpinned — no host site-rules with autoPin yet";
+        }
+        const hostsList = flaggedHostsForClips(
+          currentSiteRules,
+          currentClips,
+          "autoPin",
+        );
+        const n = hostsList.length;
+        const suffix = n === 1 ? "" : "s";
+        return n > 0
+          ? `is:hostpinned — clips from ${n} autoPin'd host${suffix} (rule-governed)`
+          : "is:hostpinned — clips from autoPin'd hosts (rule-governed)";
+      })(),
+      group: "Filter",
+      keywords:
+        "is:hostpinned host site rule auto-pin autopin sticky configured pinned cross-store join drift alignment",
+      available: hostPinnedCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:hostpinned");
+      },
+    },
+    {
+      // `is:hostredacted` — surfaces clips whose host carries an
+      // autoRedact site rule. Distinct from `is:redacted` (per-clip
+      // bit). Useful for "what sites am I redacting on?" audit + for
+      // surfacing drift if a rule was added AFTER existing clips
+      // landed (those won't carry the redacted bit because ingest
+      // is the only place autoRedact applies — they'll match
+      // `is:hostredacted` but not `is:redacted`, which is the exact
+      // signal you want to find them and retroactively redact).
+      id: "filter-hostredacted",
+      label:
+        hostRedactedCount > 0
+          ? `Show hostredacted clips (${hostRedactedCount})`
+          : "Show hostredacted clips",
+      hint: (() => {
+        if (hostRedactedCount === 0) {
+          return "is:hostredacted — no host site-rules with autoRedact yet";
+        }
+        const hostsList = flaggedHostsForClips(
+          currentSiteRules,
+          currentClips,
+          "autoRedact",
+        );
+        const n = hostsList.length;
+        const suffix = n === 1 ? "" : "s";
+        return n > 0
+          ? `is:hostredacted — clips from ${n} autoRedact'd host${suffix} (rule-governed)`
+          : "is:hostredacted — clips from autoRedact'd hosts (rule-governed)";
+      })(),
+      group: "Filter",
+      keywords:
+        "is:hostredacted host site rule auto-redact privacy pii configured cross-store join drift retroactive",
+      available: hostRedactedCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:hostredacted");
+      },
+    },
+    {
+      // `is:hostscrubbed` — surfaces clips whose host carries an
+      // autoScrubOrigin site rule. The clip's source URL/title/
+      // nearbyText are stripped on ingest, so a clip captured under
+      // this rule will NOT have a source URL — `is:hostscrubbed`
+      // is the cleanest way to find them (they fall out of `host:`
+      // filters because their hostFrom() is empty post-scrub).
+      id: "filter-hostscrubbed",
+      label:
+        hostScrubbedCount > 0
+          ? `Show hostscrubbed clips (${hostScrubbedCount})`
+          : "Show hostscrubbed clips",
+      hint: (() => {
+        if (hostScrubbedCount === 0) {
+          return "is:hostscrubbed — no host site-rules with autoScrubOrigin yet";
+        }
+        const hostsList = flaggedHostsForClips(
+          currentSiteRules,
+          currentClips,
+          "autoScrubOrigin",
+        );
+        const n = hostsList.length;
+        const suffix = n === 1 ? "" : "s";
+        return n > 0
+          ? `is:hostscrubbed — clips from ${n} autoScrub'd host${suffix} (rule-governed)`
+          : "is:hostscrubbed — clips from autoScrub'd hosts (rule-governed)";
+      })(),
+      group: "Filter",
+      keywords:
+        "is:hostscrubbed host site rule auto-scrub origin metadata privacy configured cross-store join drift",
+      available: hostScrubbedCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:hostscrubbed");
       },
     },
     {
