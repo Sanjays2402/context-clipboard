@@ -161,6 +161,11 @@ import {
   RECENTLY_LOCKED_DEFAULT_WINDOW_MS,
 } from "../lib/recently-locked";
 import {
+  recentlyNotedClips,
+  formatRecentlyNotedLabel,
+  RECENTLY_NOTED_DEFAULT_WINDOW_MS,
+} from "../lib/recently-noted";
+import {
   sanitizeClipNote,
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
@@ -444,6 +449,17 @@ let activeHostLockable = 0;
  */
 let recentlyLockedCount = 0;
 let recentlyLockedFreshestAt: number | undefined = undefined;
+/**
+ * Mirror cache for the Cmd+K "Show recently noted" command. Same
+ * 7-day chronology shape as recently-locked above but keyed on
+ * `noteUpdatedAt`. Refreshed once per render() from `wide` — no
+ * extra IDB read on palette open. `recentlyNotedCount` drives
+ * the `available` gate; `recentlyNotedFreshestAt` powers the
+ * "Most recent: X ago" hint. Both reset to 0 / undefined when
+ * no clip has noteUpdatedAt within the 7d window.
+ */
+let recentlyNotedCount = 0;
+let recentlyNotedFreshestAt: number | undefined = undefined;
 /**
  * When non-null, the saved-search chip with this id renders as a
  * text input instead of a button so the user can rename it inline.
@@ -1180,6 +1196,16 @@ async function render(): Promise<void> {
   const recent = recentlyLockedClips(wide);
   recentlyLockedCount = recent.length;
   recentlyLockedFreshestAt = recent[0]?.lockedAt;
+  // Recently-noted chronology — same single-pass model as
+  // recently-locked above, keyed on noteUpdatedAt. Both rollups
+  // run from the same `wide` snapshot so the palette has no
+  // extra IDB cost on open. Stamp lives on every clip with a
+  // post-shipped note; clips noted before the stamp shipped
+  // correctly drop out (matches the lockedAt back-compat
+  // contract for recently-locked).
+  const recentNoted = recentlyNotedClips(wide);
+  recentlyNotedCount = recentNoted.length;
+  recentlyNotedFreshestAt = recentNoted[0]?.noteUpdatedAt;
   const filtered = applyQuery(wide, parsed, {
     extraPinnedOnly: pinnedOnly,
     extraTag: activeTag,
@@ -5650,6 +5676,53 @@ function buildPaletteActions(): PaletteAction[] {
         // — the palette count above tells them how many of those
         // clips were locked in the last 7 days specifically.
         appendSearchOp("is:locked");
+      },
+    },
+    {
+      // Chronology companion to `is:noted` — mirrors recently-locked
+      // for the per-clip note family. The everything-ever view
+      // (`is:noted`) shows every annotated clip ever; this one
+      // scopes to the last 7 days of *annotation decisions* (via
+      // `noteUpdatedAt`, NOT `lastSeenAt` — see lib/recently-noted.ts
+      // for why those diverge). Useful for the weekly "did I write
+      // the right caveats?" review pass. Same search-box-not-parser
+      // trick recently-locked uses: `is:noted` + `after:7d` would
+      // filter by re-copy not annotation-recency, so we drop into
+      // `is:noted` and let the palette count + hint communicate the
+      // tighter chronology window. The user will see slightly more
+      // results in the list than the count suggests because the
+      // search bar can't express "noteUpdatedAt >= now - 7d"
+      // directly — the count is the more precise number. Hint
+      // surfaces "Most recent: X ago" so the user sees the most
+      // recent caveat before opening.
+      id: "show-recently-noted",
+      label: (() => {
+        const lbl = formatRecentlyNotedLabel({
+          count: recentlyNotedCount,
+          freshestNoteUpdatedAt: recentlyNotedFreshestAt,
+          formatAge,
+          windowDays: Math.floor(RECENTLY_NOTED_DEFAULT_WINDOW_MS / 86_400_000),
+        });
+        return lbl.label;
+      })(),
+      hint: (() => {
+        const lbl = formatRecentlyNotedLabel({
+          count: recentlyNotedCount,
+          freshestNoteUpdatedAt: recentlyNotedFreshestAt,
+          formatAge,
+          windowDays: Math.floor(RECENTLY_NOTED_DEFAULT_WINDOW_MS / 86_400_000),
+        });
+        return lbl.hint;
+      })(),
+      group: "Filter",
+      keywords: "recently noted review week chronology fresh note decisions audit annotation caveat commentary memo annotated",
+      available: recentlyNotedCount > 0,
+      run: () => {
+        closePalette();
+        // Drop into the noted filter so the list scopes to noted
+        // clips. The palette count above tells them how many of
+        // those were noted in the last 7 days specifically.
+        appendSearchOp("is:noted");
       },
     },
     {
