@@ -402,6 +402,32 @@ export async function toggleLock(id: string): Promise<boolean | null> {
   return !!item.locked;
 }
 
+/**
+ * Idempotent lock-state setter. Mirrors `toggleLock` but the caller
+ * passes the desired final state rather than blindly flipping the
+ * bit. Critical for bulk operations: if half the selection is locked
+ * and half isn't, a per-id toggle would FLIP everything (locking the
+ * unlocked, unlocking the locked) which is the opposite of "lock the
+ * selection". `setLocked(id, true)` forces the bit on for every id;
+ * `setLocked(id, false)` forces it off. The bulk-bar lock affordance
+ * uses this exclusively.
+ *
+ * Returns the NEW state (`bool` itself when the write happened, or
+ * the existing state when nothing changed because the clip was
+ * already in the requested state). Returns `null` when the clip is
+ * gone. Single-tx — no `lastSeenAt` bump (lock is metadata, not
+ * usage).
+ */
+export async function setLocked(id: string, locked: boolean): Promise<boolean | null> {
+  const item = await getClip(id);
+  if (!item) return null;
+  const want = locked === true;
+  if (!!item.locked === want) return want; // no-op fast path
+  item.locked = want;
+  await putClip(item);
+  return want;
+}
+
 export async function updateTags(id: string, tags: string[]): Promise<void> {
   const item = await getClip(id);
   if (!item) return;

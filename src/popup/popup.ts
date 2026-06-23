@@ -32,6 +32,7 @@ import {
   findSimilarClips,
   toggleArchive,
   toggleLock,
+  setLocked,
   appendPrivacyAuditEntry,
   listPrivacyAudit,
   clearPrivacyAudit,
@@ -118,6 +119,12 @@ import {
   formatLockConfirm,
   formatLockedClipConfirm,
 } from "../lib/clip-lock";
+import {
+  decideBulkLockIntent,
+  countBulkLockWrites,
+  formatBulkLockToast,
+  formatBulkLockButtonTitle,
+} from "../lib/bulk-lock";
 import {
   idsToPinForHost,
   availableToPin,
@@ -277,6 +284,7 @@ const bulkCount = $("bulk-count");
 const bulkStorageDelta = $("bulk-storage-delta");
 const bulkSelectAll = $<HTMLButtonElement>("bulk-select-all");
 const bulkPin = $<HTMLButtonElement>("bulk-pin");
+const bulkLock = $<HTMLButtonElement>("bulk-lock");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
 const bulkClear = $<HTMLButtonElement>("bulk-clear");
@@ -5285,6 +5293,34 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Bulk lock/unlock — proxies the bulk-bar button so the palette
+      // route + click route share the same authoritative logic. The
+      // label adapts to the selection's lock distribution: "Lock 3
+      // selected" / "Unlock 5 selected" / "Toggle lock on selection"
+      // when there's nothing to compute against (no selection).
+      id: "lock-selection",
+      label: (() => {
+        const visibleSelected = currentClips.filter((c) => selectedIds.has(c.id));
+        if (visibleSelected.length === 0) return "Toggle lock on selection";
+        const intent = decideBulkLockIntent(visibleSelected);
+        if (intent === null) return "Toggle lock on selection";
+        const verb = intent === "lock" ? "Lock" : "Unlock";
+        const n = countBulkLockWrites(visibleSelected, intent);
+        if (n === 0) {
+          return `${verb} selection (all already ${intent === "lock" ? "locked" : "unlocked"})`;
+        }
+        return `${verb} ${n} selected`;
+      })(),
+      hint: "Ask-before-deleting confirm gate for the batch",
+      group: "Bulk",
+      keywords: "lock unlock padlock irreplaceable ask delete protect selection batch",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        bulkLock.click();
+      },
+    },
+    {
       id: "tag-selection",
       label: "Tag selection…",
       group: "Bulk",
@@ -7315,6 +7351,32 @@ function updateBulkBar(): void {
   // forget the earlier work), so we honestly distinguish "visible"
   // vs total. The label only includes what we can count concretely.
   const visibleSelected = currentClips.filter((c) => selectedIds.has(c.id));
+  // Lock button title — adapts to the selection's current lock-state
+  // distribution so a hover reveals what the click will do BEFORE
+  // the user commits to it. Counts run over the FULL selection
+  // (visible-or-not) because the lock action targets every selected
+  // id, not just the visible ones — same contract as bulkPin/bulkDel.
+  const selectedClipsForLock = currentClips.filter((c) => selectedIds.has(c.id));
+  // When selection extends beyond the visible filter we can't know
+  // the lock state of the off-screen rows without a re-read; the
+  // title uses what we can see and the click handler does its own
+  // authoritative read at fire time, so the button never lies about
+  // what it will DO (only about the projected count, when ambiguous).
+  const lockIntent = decideBulkLockIntent(selectedClipsForLock);
+  const lockWrites = lockIntent
+    ? countBulkLockWrites(selectedClipsForLock, lockIntent)
+    : 0;
+  bulkLock.title = formatBulkLockButtonTitle({
+    intent: lockIntent,
+    total: selectedClipsForLock.length,
+    writes: lockWrites,
+  });
+  // Flip the icon when intent is unlock (mirror pin/pinFilled
+  // convention — closed padlock = ready to lock, open padlock =
+  // ready to unlock). Pure innerHTML swap; icons render via SVG
+  // string so there's no race with the icon-init pass.
+  bulkLock.innerHTML = lockIntent === "unlock" ? icons.lockOpen() : icons.lock();
+  bulkLock.classList.toggle("active", lockIntent === "unlock");
   const label = buildStorageDeltaLabel(visibleSelected);
   if (!label) {
     bulkStorageDelta.hidden = true;
@@ -7436,6 +7498,44 @@ bulkPin.addEventListener("click", async () => {
     if (allPinned ? c.pinned : !c.pinned) await togglePin(c.id);
   }
   toast(allPinned ? "Unpinned" : "Pinned");
+  await render();
+});
+
+// Bulk lock / unlock — mirror bulkPin's "if-all-then-undo" UX. The
+// authoritative read happens here (not the cached title) so the
+// action stays truthful even when selection extends past the visible
+// filter. Two-phase:
+//   1. Read every selected clip, decide intent + writes.
+//   2. setLocked(id, want) for each entry that needs a flip;
+//      already-in-target-state entries are no-ops (db.setLocked
+//      short-circuits).
+//
+// Intentional: no per-id confirm even for the LOCK direction. Lock
+// is a soft gate ("ask before deleting"), not a destructive action
+// — bulk-applying it is the user's clear intent and there's nothing
+// to undo other than re-running the same action.
+bulkLock.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  // Fresh read — the click can fire long after the last render, and
+  // the user might have toggled locks individually since.
+  const items = await Promise.all(ids.map((id) => getClip(id)));
+  const present = items.filter((c): c is NonNullable<typeof c> => !!c);
+  if (present.length === 0) {
+    toast("Selection vanished", "error");
+    return;
+  }
+  const intent = decideBulkLockIntent(present);
+  if (!intent) return;
+  const want = intent === "lock";
+  const writes = countBulkLockWrites(present, intent);
+  // Sequential — mirrors togglePin / setLocked single-tx contract.
+  // Skipping no-ops keeps the IDB write count honest.
+  for (const c of present) {
+    if (!!c.locked === want) continue;
+    await setLocked(c.id, want);
+  }
+  toast(formatBulkLockToast({ intent, total: present.length, writes }));
   await render();
 });
 
