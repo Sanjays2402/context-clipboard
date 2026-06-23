@@ -155,7 +155,7 @@ try {
   // bg-tab added between incognito and site-search → 14 total.
   // Each row is gated by its own availability check so adding new rows
   // here only matters for the total-count assertion.
-  total++; if (textActs.length === 15) pass++;
+  total++; if (textActs.length === 16) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');

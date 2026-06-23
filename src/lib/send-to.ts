@@ -17,6 +17,7 @@ import { tableRowForClip } from "./table-row";
 import { jsonLineEnvelopeForClip } from "./json-line";
 import { curlCommandForClip } from "./curl-command";
 import { noteAsMarkdownBlockquote } from "./note-markdown";
+import { clipAndNoteAsMarkdown } from "./clip-note-markdown";
 
 export interface SendableClip {
   id: string;
@@ -376,6 +377,13 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // line `> ` prefix; multi-line notes survive intact so paragraph
   // breaks reach the recipient's doc.
   const noteMd = noteAsMarkdownBlockquote(c);
+  // Combined fenced-code + blockquote payload for the new "Copy clip
+  // + note as Markdown" row. Hides when EITHER the body is unusable
+  // (image kind, empty content) OR the note isn't present —
+  // dedicated single-purpose rows cover those cases without dimmed
+  // half-broken combo rows. Same gate predicates as the standalone
+  // rows so the combined row never lies about what's available.
+  const clipNoteCombo = clipAndNoteAsMarkdown(c);
   return [
     {
       id: "open-source",
@@ -524,6 +532,23 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: noteMd,
       available: !!noteMd,
+    },
+    {
+      // "Copy clip + note as Markdown" — composite of fenced-code
+      // body + blockquote note. Common workflow: dropping a snippet
+      // into a PR / doc / chat where the recipient needs BOTH the
+      // code AND the caveat that goes with it ("this is the staging
+      // token format, not production"). The two halves come from
+      // the same pure modules the standalone rows use, so the
+      // combined output is byte-identical to what the user would
+      // get from running both rows back-to-back. Hides when either
+      // side is missing — no dimmed half-broken row.
+      id: "clip-note-md",
+      label: "Copy clip + note as Markdown",
+      hint: "fenced code + > blockquote",
+      kind: "copy",
+      payload: clipNoteCombo,
+      available: !!clipNoteCombo,
     },
   ];
 }
