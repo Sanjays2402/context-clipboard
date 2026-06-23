@@ -2657,6 +2657,66 @@ kbd {
   box-shadow: 0 0 0 4px var(--accent-glow);
 }
 
+/* Per-clip note — free-form user commentary, lives between Locked and
+   Expires in the detail meta. Single editable textarea that auto-saves
+   on blur + on Cmd+Enter; resizes vertically only so the rest of the
+   meta stays stable; the foot row tracks chars-used + offers a Clear
+   button when there's content to clear. */
+.detail-note-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-note {
+  width: 100%;
+  resize: vertical;
+  min-height: 36px;
+  max-height: 200px;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1.45;
+  transition: all 0.18s;
+}
+
+.detail-note:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--glass-elevated);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+}
+
+.detail-note-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  min-height: 16px;
+}
+
+.detail-note-count {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.detail-note-count.over-cap {
+  color: var(--danger, #e06b6b);
+}
+
+.detail-note-clear {
+  padding: 2px 8px;
+  font-size: 10px;
+}
+
 .detail-actions {
   padding: 12px;
   display: flex;

@@ -479,6 +479,37 @@ export async function updateTags(id: string, tags: string[]): Promise<void> {
 }
 
 /**
+ * Set / clear the free-form per-clip note. The note is sanitised at
+ * the caller via `lib/clip-note.sanitizeClipNote(raw)`, which returns
+ * `undefined` for empty/whitespace input — passing that through here
+ * deletes the field so the storage breakdown doesn't carry useless
+ * empty strings.
+ *
+ * No-op fast path when the post-sanitize value equals the existing
+ * note (or both are undefined) — avoids a pointless IDB write when
+ * the user opens the editor and closes it without changing anything.
+ *
+ * Returns the resolved final note (or undefined) on success, or
+ * `null` when the clip wasn't found.
+ */
+export async function setClipNote(
+  id: string,
+  note: string | undefined,
+): Promise<string | undefined | null> {
+  const item = await getClip(id);
+  if (!item) return null;
+  const current = typeof item.note === "string" ? item.note : undefined;
+  if (current === note) return current; // no-op fast path
+  if (note === undefined) {
+    delete item.note;
+  } else {
+    item.note = note;
+  }
+  await putClip(item);
+  return note;
+}
+
+/**
  * Scrub the source metadata off a clip while keeping the content,
  * tags, pin, and OCR. Used by the detail-view "scrub origin" button
  * and the Cmd+K palette command — handy when you want to keep a

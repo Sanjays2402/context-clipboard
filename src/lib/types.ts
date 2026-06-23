@@ -109,6 +109,29 @@ export interface ClipItem {
    * that were never locked, or that were last unlocked.
    */
   lockedAt?: number;
+  /**
+   * Free-form per-clip note — orthogonal to tags (structured +
+   * searchable), template (machine-substitutable), and source/
+   * nearbyText (capture-time context). The note is the *user's*
+   * commentary on the clip itself: "this looks identical to that
+   * one but actually came from the staging branch — be careful",
+   * "use this when onboarding new hires only", "this template
+   * assumes the user is already logged in".
+   *
+   * Survives copy + re-capture (dedup never overwrites the note
+   * — see background.ts ingest path) and round-trips through
+   * import/export untouched. Sanitised via
+   * `lib/clip-note.sanitizeClipNote()`: trimmed, capped at 2,000
+   * chars, control-chars stripped, empty → undefined (so deleted
+   * notes free their tiny storage footprint).
+   *
+   * Additive optional field — undefined for clips that were never
+   * noted, or whose note was deleted. The `is:noted` search
+   * operator + the detail-view note row both gate on
+   * `hasClipNote()` so the empty-string case can never paint a
+   * row with no text.
+   */
+  note?: string;
 }
 
 export interface SearchQuery {

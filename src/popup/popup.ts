@@ -34,6 +34,7 @@ import {
   toggleArchive,
   toggleLock,
   setLocked,
+  setClipNote,
   appendPrivacyAuditEntry,
   listPrivacyAudit,
   clearPrivacyAudit,
@@ -156,6 +157,11 @@ import {
   formatRecentlyLockedLabel,
   RECENTLY_LOCKED_DEFAULT_WINDOW_MS,
 } from "../lib/recently-locked";
+import {
+  sanitizeClipNote,
+  hasClipNote,
+  CLIP_NOTE_MAX_LEN,
+} from "../lib/clip-note";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -216,6 +222,9 @@ const detailTemplateRow = $("detail-template-row");
 const detailTemplateInfo = $("detail-template-info");
 const detailLockedRow = $("detail-locked-row");
 const detailLockedInfo = $("detail-locked-info");
+const detailNote = $<HTMLTextAreaElement>("detail-note");
+const detailNoteCount = $("detail-note-count");
+const detailNoteClear = $<HTMLButtonElement>("detail-note-clear");
 const detailExpiry = $<HTMLSelectElement>("detail-expiry");
 const detailExpiryHint = $("detail-expiry-hint");
 const detailTtlBanner = $("detail-ttl-banner");
@@ -1470,6 +1479,7 @@ async function openDetail(id: string) {
   renderArchiveButton(c);
   renderLockButton(c);
   renderLockedRow(c);
+  renderNoteRow(c);
   // Refresh the "Show audit history" jumper's tooltip with the live
   // match count from the audit ring. Fire-and-forget — the title is
   // a hint, not a gate (the click handler works regardless).
@@ -1810,6 +1820,80 @@ function renderLockedRow(c: ClipItem): void {
   detailLockedRow.hidden = false;
   detailLockedInfo.textContent = formatted.label;
   detailLockedInfo.title = `${formatted.tooltip} · click the padlock above to unlock this clip`;
+}
+
+/**
+ * Paint the per-clip note row in detail-view. The textarea is ALWAYS
+ * present (the row never hides) so the user has an obvious "add a
+ * note here" affordance even on noteless clips — different from the
+ * conditional rows above (locked/template/ocr) which exist to
+ * surface STATE, not to invite input.
+ *
+ * Pre-fills with the current note (if any) and refreshes the
+ * char-counter + Clear button. The actual save happens on blur +
+ * Cmd/Ctrl+Enter via the input handlers wired below renderTrash().
+ *
+ * Defensive: dataset.original tracks the value at-paint time so the
+ * blur-handler can short-circuit a no-op save (the user opened the
+ * detail, didn't touch the note, closed it — no IDB write). The
+ * dataset comparison uses the raw string, NOT the sanitized form,
+ * because the sanitize() pass is symmetric (already-sanitized input
+ * → same string).
+ */
+function renderNoteRow(c: ClipItem): void {
+  const current = typeof c.note === "string" ? c.note : "";
+  detailNote.value = current;
+  detailNote.dataset.clipId = c.id;
+  detailNote.dataset.original = current;
+  updateNoteCount(current);
+  detailNoteClear.hidden = !hasClipNote(c);
+}
+
+/**
+ * Repaint the char-counter + over-cap flag. Called on every input
+ * event + on paint. The display is "N / 2000" — over-cap turns red
+ * because the underlying sanitizer slices to the cap, so anything
+ * over that is content the user is about to LOSE on save.
+ */
+function updateNoteCount(value: string): void {
+  const len = value.length;
+  detailNoteCount.textContent = `${len.toLocaleString()} / ${CLIP_NOTE_MAX_LEN.toLocaleString()}`;
+  if (len > CLIP_NOTE_MAX_LEN) {
+    detailNoteCount.classList.add("over-cap");
+  } else {
+    detailNoteCount.classList.remove("over-cap");
+  }
+  detailNoteClear.hidden = value.trim().length === 0;
+}
+
+/**
+ * Persist the current note value (sanitized) for the open clip.
+ * Returns true when something actually got written. False on
+ * no-op (same value as the painted original) or when the clip
+ * is no longer the open one (rare race — user navigated away
+ * between focus and blur).
+ */
+async function saveDetailNote(): Promise<boolean> {
+  const id = detailNote.dataset.clipId;
+  if (!id) return false;
+  if (detailId !== id) return false; // user navigated
+  const raw = detailNote.value;
+  const sanitized = sanitizeClipNote(raw);
+  const original = detailNote.dataset.original ?? "";
+  const originalSanitized = sanitizeClipNote(original);
+  if (sanitized === originalSanitized) return false; // no-op
+  const result = await setClipNote(id, sanitized);
+  if (result === null) {
+    toast("Clip not found", "error");
+    return false;
+  }
+  // Refresh the dataset to the new canonical value so the next blur
+  // doesn't re-save the same thing.
+  detailNote.dataset.original = sanitized ?? "";
+  // Clear button reflects post-save reality.
+  detailNoteClear.hidden = !sanitized;
+  toast(sanitized ? "Note saved" : "Note cleared");
+  return true;
 }
 
 function closeDetail() {
@@ -6802,6 +6886,32 @@ detailTags.addEventListener("change", async () => {
   await updateTags(detailId, tags);
   await render();
   toast("Tags saved");
+});
+
+// Per-clip note — auto-save on blur + Cmd/Ctrl+Enter. Input event
+// only updates the char counter so the user gets live feedback
+// without an IDB write per keystroke. Cmd+Enter is the explicit
+// save shortcut for users who like keyboard-only flow.
+detailNote.addEventListener("input", () => {
+  updateNoteCount(detailNote.value);
+});
+detailNote.addEventListener("blur", () => {
+  void saveDetailNote();
+});
+detailNote.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    void saveDetailNote();
+  }
+});
+detailNoteClear.addEventListener("click", async () => {
+  if (!detailId) return;
+  // Optimistic UI update — clear the textarea immediately so the
+  // user sees the blank state, then save in the background.
+  detailNote.value = "";
+  updateNoteCount("");
+  detailNoteClear.hidden = true;
+  await saveDetailNote();
 });
 
 detailExpiry.addEventListener("change", async () => {
