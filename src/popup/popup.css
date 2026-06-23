@@ -1319,6 +1319,37 @@ button.small:disabled {
   height: 14px;
 }
 
+/* Restore-and-lock combo button — same shape as restore-pin so the
+   two read as siblings in the row. Different intent: pin = "keep
+   visible", lock = "ask before delete". Shown alongside restore-pin
+   when the trashed clip is neither pinned nor locked at trash time. */
+.trash-restore-lock {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.trash-restore-lock:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.trash-restore-lock svg {
+  width: 14px;
+  height: 14px;
+}
+
 .trash-foot {
   margin-top: 8px;
   font-size: 10.5px;

@@ -2586,9 +2586,21 @@ function trashRow(t: TrashedClip): string {
   // keep just the plain restore. Saves a wasted click and keeps the
   // row tidy.
   const wasPinned = !!t.pinned;
+  const wasLocked = t.locked === true;
   const pinBtn = wasPinned
     ? ""
     : `<button class="trash-restore-pin" data-act="restore-pin" title="Restore + pin — bring back and mark important">${icons.pin()}</button>`;
+  // Restore + lock: companion to restore-pin for the "I almost lost
+  // this — make sure I never do again" workflow. Hidden when the
+  // clip was already locked at trash time (would be a clean no-op
+  // since trash preserves the lock bit alongside the pin bit, just
+  // like restore-pin hides for already-pinned clips). Different
+  // intent from restore-pin: pin = "keep visible at top", lock =
+  // "ask before delete next time". A clip the user just rescued is
+  // a prime candidate for the lock affordance.
+  const lockBtn = wasLocked
+    ? ""
+    : `<button class="trash-restore-lock" data-act="restore-lock" title="Restore + lock — bring back and require confirm-on-delete">${icons.lock()}</button>`;
   return `
     <div class="trash-row" data-id="${t.id}">
       <div class="trash-body">
@@ -2596,6 +2608,7 @@ function trashRow(t: TrashedClip): string {
         <div class="trash-meta">${escapeHtml(src || "—")} · deleted ${timeAgo(t.deletedAt)} · ${left}d left</div>
       </div>
       ${pinBtn}
+      ${lockBtn}
       <button class="trash-restore" data-act="restore" title="Restore">Restore</button>
     </div>
   `;
@@ -2769,6 +2782,46 @@ trashList.addEventListener("click", async (e) => {
       toast("Restored — but couldn't pin", "error");
     } else {
       toast("Restored + pinned", "ok", {
+        label: "Undo",
+        fn: async () => {
+          await trashClip(id);
+          await renderTrash();
+          await render();
+        },
+      });
+    }
+    await renderTrash();
+    await render();
+    return;
+  }
+  if (act === "restore-lock") {
+    // Restore the clip THEN lock it. Two operations, one click —
+    // the user wants the clip back AND marked irreplaceable so they
+    // never almost-lose it again. Mirrors restore-pin's
+    // single-intent surface but applies the lock bit (with the
+    // proper lockedAt stamp from setLocked, so detail-view
+    // breadcrumb reads "Locked just now").
+    //
+    // Toast carries a combined message + undo path so a misclick is
+    // one Esc away from reversal (undo re-trashes the clip, taking
+    // the freshly-set lock bit with it — correct undo semantics
+    // because the user clicked "restore + lock" as a single intent).
+    const ok = await restoreClip(id);
+    if (!ok) {
+      toast("Couldn't restore", "error");
+      return;
+    }
+    // setLocked(id, true) is idempotent + stamps lockedAt on
+    // transition. We use the explicit setter (not toggleLock) so an
+    // edge case where the trash row reflected stale data
+    // (impossibly: it was locked at trash time but the button still
+    // showed) lands as a no-op + truthful "Restored + locked" toast,
+    // not an accidental UN-lock.
+    const nowLocked = await setLocked(id, true);
+    if (!nowLocked) {
+      toast("Restored — but couldn't lock", "error");
+    } else {
+      toast("Restored + locked", "ok", {
         label: "Undo",
         fn: async () => {
           await trashClip(id);
