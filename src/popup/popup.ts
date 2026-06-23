@@ -164,6 +164,10 @@ import {
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
 } from "../lib/clip-note";
+import {
+  findLiveRecaptureForTrash,
+  formatTrashRecaptureTooltip,
+} from "../lib/trash-match";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -2685,7 +2689,7 @@ auditRetentionEl.addEventListener("change", async () => {
   }
 });
 
-function trashRow(t: TrashedClip): string {
+function trashRow(t: TrashedClip, liveClips: ClipItem[] = []): string {
   const previewText =
     t.kind === "image" ? t.preview || "Image" : t.preview || t.content;
   const left = Math.max(
@@ -2715,8 +2719,18 @@ function trashRow(t: TrashedClip): string {
   const lockBtn = wasLocked
     ? ""
     : `<button class="trash-restore-lock" data-act="restore-lock" title="Restore + lock — bring back and require confirm-on-delete">${icons.lock()}</button>`;
+  // Hover-preview tooltip: when a live re-capture exists with the
+  // same hash, the user can purge this trash entry without losing
+  // the content. Surface that so trash-housekeeping is risk-free
+  // when it can be, and so the user knows when it ISN'T (no match
+  // → "purging this is permanent"). Cheap: single pass over the
+  // already-loaded live array via findLiveRecaptureForTrash.
+  const match = findLiveRecaptureForTrash(t.hash, liveClips);
+  const recaptureTooltip = formatTrashRecaptureTooltip({ match, now: Date.now() });
+  // Row-level title attr surfaces on hover anywhere outside the
+  // child buttons (the buttons keep their own actionable titles).
   return `
-    <div class="trash-row" data-id="${t.id}">
+    <div class="trash-row" data-id="${t.id}" title="${escapeHtml(recaptureTooltip)}">
       <div class="trash-body">
         <div class="trash-preview">${escapeHtml(previewText.slice(0, 90))}</div>
         <div class="trash-meta">${escapeHtml(src || "—")} · deleted ${timeAgo(t.deletedAt)} · ${left}d left</div>
@@ -2730,6 +2744,11 @@ function trashRow(t: TrashedClip): string {
 
 async function renderTrash(): Promise<void> {
   const items = await listTrash();
+  // Pre-load the live clip list so each trash row can resolve its
+  // hash-match without a per-row IDB read. Same `wide`-shaped pull
+  // the daily list uses, capped large enough that the typical
+  // 500-unpinned + pinned ceiling fits in one go.
+  const live = await listClips({ limit: 5000 });
   trashSummary.textContent =
     items.length === 0
       ? "empty"
@@ -2788,7 +2807,7 @@ async function renderTrash(): Promise<void> {
     trashList.innerHTML = "";
     return;
   }
-  trashList.innerHTML = items.slice(0, 50).map(trashRow).join("");
+  trashList.innerHTML = items.slice(0, 50).map((t) => trashRow(t, live)).join("");
 }
 
 /**
