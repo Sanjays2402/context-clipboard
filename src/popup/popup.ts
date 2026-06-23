@@ -161,6 +161,13 @@ import {
   autoLockedHostsForClips,
 } from "../lib/host-locked";
 import {
+  idsToNoteForHost,
+  matchedClipsForHostNote,
+  planHostNote,
+  formatNoteFromHostLabel,
+  formatHostNoteToast,
+} from "../lib/host-note";
+import {
   recentlyLockedClips,
   countRecentlyLocked,
   formatRecentlyLockedLabel,
@@ -1099,6 +1106,75 @@ async function lockAllFromActiveHost(): Promise<void> {
       ? `Locked 1 from ${activeTabHost}`
       : `Locked ${ids.length} from ${activeTabHost}`,
   );
+  await render();
+}
+
+/**
+ * Cmd+K companion to `pinAllFromActiveHost` / `lockAllFromActiveHost`:
+ * apply (or replace) the same free-form note on every clip captured
+ * from the popup's owning tab's host. Completes the host-scoped
+ * triage family — pin = sort affinity, lock = delete gate, NOTE =
+ * commentary.
+ *
+ * Overwrite semantics (mirror bulk-bar add-note):
+ *   - Prompts the user for a single note string.
+ *   - Empty input clears existing notes on the matching clips (same
+ *     contract as detail-view save-empty + bulk-bar).
+ *   - Cancel (prompt returns null) is a clean no-op — distinct from
+ *     prompt-empty ("" → clear).
+ *   - Same sanitiseClipNote pipeline as the detail editor so bulk +
+ *     single + host paths can never produce different stored values.
+ *
+ * Pre-warning: before the apply, we project planHostNote against the
+ * live store so the user sees "Replacing N existing notes" in the
+ * prompt label when relevant. That's the same consequence-visibility
+ * contract bulk-note enforces — overwrite for prose needs the
+ * replace-count up front, not buried in the post-action toast.
+ *
+ * Re-reads the live store at click time (not the cached `wide` from
+ * the last render) so a clip captured between render and click joins
+ * the batch. Cheap: same single IDB read render() does.
+ */
+async function noteAllFromActiveHost(): Promise<void> {
+  if (!activeTabHost) {
+    toast("No site context — open this on a normal http(s) tab", "error");
+    return;
+  }
+  // Re-read live store so a freshly-captured clip doesn't get missed.
+  const all = await listClips({ limit: 5000 });
+  const matched = matchedClipsForHostNote(activeTabHost, all);
+  if (matched === 0) {
+    toast(`No clips from ${activeTabHost}`);
+    return;
+  }
+  // Count how many already carry a note so the prompt label can warn
+  // the user about replacements up front. We don't yet know what
+  // they'll type, but the "N currently noted" surface is honest about
+  // the upper bound on potential replacements.
+  let currentlyNoted = 0;
+  for (const c of all) {
+    if (idsToNoteForHost(activeTabHost, [c]).length === 0) continue;
+    if (typeof c.note === "string" && c.note.trim().length > 0) currentlyNoted++;
+  }
+  const promptLabel =
+    currentlyNoted > 0
+      ? `Note to apply to ${matched} clip${matched === 1 ? "" : "s"} from ${activeTabHost} (${currentlyNoted} will be replaced) — leave empty to clear:`
+      : `Note to apply to ${matched} clip${matched === 1 ? "" : "s"} from ${activeTabHost} — leave empty to clear:`;
+  const raw = prompt(promptLabel, "");
+  if (raw === null) return; // Cancel → clean no-op.
+  // Project the plan so the post-action toast is truthful even when
+  // the user's input would no-op (e.g. clears that hit only un-noted
+  // clips, or a note identical to the current value on a re-run).
+  const plan = planHostNote(activeTabHost, all, raw);
+  if (plan.created + plan.replaced + plan.cleared === 0) {
+    toast(formatHostNoteToast(activeTabHost, plan));
+    return;
+  }
+  const ids = idsToNoteForHost(activeTabHost, all);
+  for (const id of ids) {
+    await setClipNote(id, plan.finalValue);
+  }
+  toast(formatHostNoteToast(activeTabHost, plan));
   await render();
 }
 
@@ -6179,6 +6255,34 @@ function buildPaletteActions(): PaletteAction[] {
         run: async () => {
           closePalette();
           await lockAllFromActiveHost();
+        },
+      };
+    })(),
+    // Completes the host-scoped triage trio (pin / lock / note).
+    // Same active-tab anchoring as the pin + lock variants; same
+    // 4-shape label matrix (no host / 0 matched / N matched). Apply
+    // path prompts for a note value, then overwrites every matching
+    // clip's note via setClipNote — same sanitiseClipNote pipeline
+    // the detail editor + bulk-bar use, so the stored value is
+    // identical across all three entry points. Empty input clears
+    // existing notes (mirrors bulk-bar's "save empty" contract);
+    // cancel (null prompt) is a clean no-op.
+    ((): PaletteAction => {
+      const bits = formatNoteFromHostLabel({
+        host: activeTabHost,
+        matched: activeHostMatched,
+      });
+      return {
+        id: "note-from-active-host",
+        label: bits.label,
+        hint: bits.hint,
+        group: "Bulk",
+        keywords:
+          "note host site annotate annotation commentary caveat memo triage active tab current page batch every clip prose",
+        available: bits.available,
+        run: async () => {
+          closePalette();
+          await noteAllFromActiveHost();
         },
       };
     })(),
