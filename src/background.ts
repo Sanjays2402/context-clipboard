@@ -756,7 +756,14 @@ async function ingest(inp: IngestInput, rule?: SiteRule): Promise<string> {
     // autoLock is also sticky — once a rule locks, later hits never
     // silently unlock. The user's per-clip unlock action is the only
     // way the bit comes off after that, matching how autoPin behaves.
-    if (rule?.autoLock && existing.locked !== true) existing.locked = true;
+    // Stamp lockedAt on transition so the detail breadcrumb has a
+    // truthful "Locked since" — only on the false→true transition,
+    // so a dedup hit on an already-locked clip preserves the
+    // original lock timestamp instead of bumping it.
+    if (rule?.autoLock && existing.locked !== true) {
+      existing.locked = true;
+      existing.lockedAt = now;
+    }
     await putClip(existing);
     return existing.id;
   }
@@ -822,7 +829,7 @@ async function ingest(inp: IngestInput, rule?: SiteRule): Promise<string> {
     bytes: storedContent.length,
     hash,
     ...(redacted ? { redacted: true } : {}),
-    ...(rule?.autoLock ? { locked: true } : {}),
+    ...(rule?.autoLock ? { locked: true, lockedAt: now } : {}),
   };
   // Per-host auto-scrub: drop URL / title / nearby-context / favicon
   // BEFORE the clip lands on disk so the page identity never makes

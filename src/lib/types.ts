@@ -94,6 +94,21 @@ export interface ClipItem {
    * Additive flag — undefined = not locked. No IDB schema bump.
    */
   locked?: boolean;
+  /**
+   * Unix-ms stamp recorded when the lock bit transitioned from
+   * `!== true` to `true` (manual `toggleLock`, idempotent
+   * `setLocked(true)`, or ingest under `autoLock`). Cleared back to
+   * `undefined` when the lock comes off, so a future re-lock starts
+   * the clock fresh — the value answers "when did I decide this is
+   * irreplaceable?" not "when have I EVER locked this", which is
+   * the question the user actually asks.
+   *
+   * Surfaced in detail-view as a "Locked since <date>" breadcrumb
+   * so the user can see the lock-trail without flipping to the
+   * audit panel. Additive optional field — undefined for clips
+   * that were never locked, or that were last unlocked.
+   */
+  lockedAt?: number;
 }
 
 export interface SearchQuery {

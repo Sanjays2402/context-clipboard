@@ -125,6 +125,7 @@ import {
   formatBulkLockToast,
   formatBulkLockButtonTitle,
 } from "../lib/bulk-lock";
+import { formatLockedSince } from "../lib/locked-since";
 import {
   bulkExportJson,
   bulkExportFilename,
@@ -200,6 +201,8 @@ const detailOcrRow = $("detail-ocr-row");
 const detailOcrText = $("detail-ocr-text");
 const detailTemplateRow = $("detail-template-row");
 const detailTemplateInfo = $("detail-template-info");
+const detailLockedRow = $("detail-locked-row");
+const detailLockedInfo = $("detail-locked-info");
 const detailExpiry = $<HTMLSelectElement>("detail-expiry");
 const detailExpiryHint = $("detail-expiry-hint");
 const detailTtlBanner = $("detail-ttl-banner");
@@ -1431,6 +1434,7 @@ async function openDetail(id: string) {
   renderRedactButton(c);
   renderArchiveButton(c);
   renderLockButton(c);
+  renderLockedRow(c);
   // Refresh the "Show audit history" jumper's tooltip with the live
   // match count from the audit ring. Fire-and-forget — the title is
   // a hint, not a gate (the click handler works regardless).
@@ -1744,6 +1748,33 @@ function renderLockButton(c: ClipItem) {
     detailLock.title = "Lock — ask before deleting this clip";
     detailLock.classList.remove("active");
   }
+}
+
+/**
+ * Render the "Locked" breadcrumb in the detail-view meta row.
+ * Visible only when `c.locked === true` AND we have a `lockedAt`
+ * stamp (back-compat: clips locked before the stamp existed don't
+ * have the field — those simply hide the row until the user
+ * re-locks). Clears on unlock.
+ *
+ * Why a separate row from the padlock toggle?
+ *   - The padlock is the ACTION (toggle).
+ *   - The breadcrumb is the HISTORY ("when did I commit to this?").
+ *   Both belong in detail-view but answer different questions.
+ *
+ * Uses formatLockedSince() so the date math is testable in isolation
+ * without spinning up the popup.
+ */
+function renderLockedRow(c: ClipItem): void {
+  if (c.locked !== true || typeof c.lockedAt !== "number") {
+    detailLockedRow.hidden = true;
+    detailLockedInfo.textContent = "";
+    return;
+  }
+  const formatted = formatLockedSince(c.lockedAt, Date.now());
+  detailLockedRow.hidden = false;
+  detailLockedInfo.textContent = formatted.label;
+  detailLockedInfo.title = `${formatted.tooltip} · click the padlock above to unlock this clip`;
 }
 
 function closeDetail() {
@@ -6845,10 +6876,15 @@ async function toggleDetailLock(): Promise<void> {
     toast("Clip not found", "error");
     return;
   }
-  // Repaint just the lock button (cheap) instead of the whole detail
-  // panel — the user's cursor + scroll position stay intact.
+  // Repaint just the lock button + breadcrumb (cheap) instead of the
+  // whole detail panel — the user's cursor + scroll position stay
+  // intact. renderLockedRow handles both directions: shows the new
+  // "Locked since just now" on lock, hides the row on unlock.
   const c = await getClip(id);
-  if (c) renderLockButton(c);
+  if (c) {
+    renderLockButton(c);
+    renderLockedRow(c);
+  }
   await render();
   toast(
     next

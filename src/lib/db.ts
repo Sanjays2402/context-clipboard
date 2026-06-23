@@ -393,11 +393,22 @@ export async function toggleArchive(id: string): Promise<boolean | null> {
  * No `lastSeenAt` bump: locking is a meta property of the clip, not
  * a usage event. Bumping would shuffle the daily-list order under
  * the user's cursor, which is jarring.
+ *
+ * Stamps `lockedAt` on transition into the locked state so the
+ * detail-view breadcrumb can show "Locked since <date>". Cleared
+ * back to undefined when the lock comes off so a future re-lock
+ * starts the clock fresh — the field answers "when did I decide
+ * this is irreplaceable?" not "when have I EVER locked this".
  */
 export async function toggleLock(id: string): Promise<boolean | null> {
   const item = await getClip(id);
   if (!item) return null;
   item.locked = !item.locked;
+  if (item.locked) {
+    item.lockedAt = Date.now();
+  } else {
+    delete item.lockedAt;
+  }
   await putClip(item);
   return !!item.locked;
 }
@@ -417,6 +428,11 @@ export async function toggleLock(id: string): Promise<boolean | null> {
  * already in the requested state). Returns `null` when the clip is
  * gone. Single-tx — no `lastSeenAt` bump (lock is metadata, not
  * usage).
+ *
+ * Stamps `lockedAt` on transition false→true (matches `toggleLock`
+ * contract); clears it on transition true→false. No-op fast path
+ * skips both the write AND the lockedAt mutation so an idempotent
+ * "lock the lock" doesn't pointlessly bump the stamp.
  */
 export async function setLocked(id: string, locked: boolean): Promise<boolean | null> {
   const item = await getClip(id);
@@ -424,6 +440,11 @@ export async function setLocked(id: string, locked: boolean): Promise<boolean | 
   const want = locked === true;
   if (!!item.locked === want) return want; // no-op fast path
   item.locked = want;
+  if (want) {
+    item.lockedAt = Date.now();
+  } else {
+    delete item.lockedAt;
+  }
   await putClip(item);
   return want;
 }
