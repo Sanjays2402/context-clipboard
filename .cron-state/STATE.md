@@ -226,7 +226,7 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Search: `is:locked` operator — surface every clip carrying the new lock bit — `19c38fc`
 - [ ] Trash row: hover-preview matching clip from the live store if a re-capture exists (so the user knows it's safe to purge)
 
-### New (added this tick — 2026-06-22 19:00 PT refill)
+### New (added this tick — 2026-06-22 22:14 PT refill)
 - [ ] Audit log: "Mark as resolved" pill — recurring
 - [ ] Settings: per-kind retention split — recurring
 - [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring
@@ -242,14 +242,23 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier (Tab → Enter sequence) — recurring
 - [ ] Detail-view: "Add note" button — recurring
 - [ ] Trash row: hover-preview matching clip from the live store if a re-capture exists — recurring
-- [ ] Cmd+K: "Lock selected" hotkey when bulk-bar is open (companion to the new bulk-lock button — needs a one-key binding so power users don't hover)
-- [ ] Detail send-to: "Open all background tabs from similar clips" — bulk variant of the new bg-tab action; opens every kind=link similar match in background tabs
-- [ ] Bulk-bar: "Lock + pin selected" combo button — one click for clips you want to both keep at top AND require confirm-on-delete
-- [ ] Search: `is:unlocked` operator (parity twin of `is:locked`) — useful for "what should I lock?" review pass after a is:locked audit
+- [ ] Cmd+K: "Lock selected" hotkey when bulk-bar is open (companion to bulk-lock button) — recurring
+- [ ] Detail send-to: "Open all background tabs from similar clips" — recurring
+- [x] Bulk-bar: "Lock + pin selected" combo button — additive only, lives between bulk-lock and bulk-tag, hides when no clip needs either bit — `4f383ae`
+- [x] Search: `is:unlocked` operator (parity twin of `is:locked`) — useful for "what should I lock?" review pass — `0fd089d`
 - [ ] Bulk export: tag-filter dropdown — "Export selected, only clips tagged X" so the user can cherry-pick by category from a wider selection
-- [ ] Per-host rule: "lock by default" bit — every capture from this host auto-locks (parity with `autoPin` + `autoRedact`)
+- [x] Per-host rule: "lock by default" bit — every capture from this host auto-locks (parity with autoPin + autoRedact) — `12fa643`
 - [ ] Audit log row: "Restore last lock" — for unlocked-via-bulk entries, one-click undo to re-lock just that clip
-- [ ] Detail-view: lock-state breadcrumb in the meta row ("Locked since YYYY-MM-DD" — first time you set the bit, so audit-trail is visible)
+- [x] Detail-view: lock-state breadcrumb in the meta row ("Locked since YYYY-MM-DD") — `47d43bf`
+- [x] Trash row: "Restore + lock" combo button — companion to restore-pin for the "I almost lost this — make it safer" workflow — `5db5bec`
+- [ ] Cmd+K: "Lock all from active host" hotkey-binding (host-lock pure module is already in place; needs a fast keybinding)
+- [ ] Audit log: track lock + unlock kinds (deferred — current rationale comment says "locking is UX not privacy"; flip would need broader design discussion + UI surfaces)
+- [ ] Site-rule row: show "lock" badge alongside pin/redact/scrub badges (already shipped in the badge strip; refining recurring)
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring (worth flagging again)
+- [ ] Bulk-bar: visible "Lock + pin" hover should preview projected count even when partially actionable — already done via formatBulkLockPinButtonTitle
+- [ ] Cmd+K palette: "Show recently locked" — surface clips with lockedAt within last 7 days as a chronology view
+
+
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -366,12 +375,127 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Cmd+K palette: "Lock N clips from <host>" — companion to pin-from-host, shares activeTabHost cache, new host-lock pure module + 4-shape label matrix — `864fd69`
 - [x] Detail send-to: "Open in background tab" — chrome.tabs.create({active:false}) row between incognito and site-search, fallback path with toast — `fb2020d`
 - [x] Bulk-bar: "Export selected as JSON" — importAll-compatible envelope from selectedIds, separate from Settings → Export, send/arrow icon + Cmd+K + filename includes count — `1cacba4`
+- [x] Search: `is:unlocked` operator — strict-complement inverse of `is:locked` so no clip ever passes both / fails both, with parser branch + applyQuery + describeQuery + Cmd+K command + empty-state hint — `0fd089d`
+- [x] Per-host site rule: `autoLock` — flip per-clip `locked: true` bit at ingest (fresh + dedup sticky), with form checkbox + row badge + IO round-trip + RPC passthrough — `12fa643`
+- [x] Detail-view: lock-state breadcrumb — `lockedAt?: number` on ClipItem stamped on transition false→true, cleared on unlock, surfaced as "Locked since <date>" meta row with 6-tier formatter (just-now / Nm / Nh / yesterday / weekday / ISO) + absolute tooltip — `47d43bf`
+- [x] Bulk-bar: "Lock + pin" combo — additive-only one-click "keep at top AND mark irreplaceable", new pure bulk-lockpin module + idempotent setPinned in db, button hidden when all-already-both, Cmd+K mirror with live projection label — `4f383ae`
+- [x] Trash row: "Restore + lock" combo — companion to restore-pin for the just-rescued-clip lock workflow, uses setLocked (idempotent + stamps lockedAt) with full undo-via-trashClip path + CSS sibling to .trash-restore-pin — `5db5bec`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-22 22:14 PT** — 5/5 shipped. (1) `is:unlocked` operator:
+  strict-complement inverse of last tick's `is:locked` so the two
+  form an exact partition over the locked-bit semantic — no clip
+  ever passes both, no clip ever fails both. Strict gate `c.locked
+  === true` for locked + `c.locked !== true` for unlocked means
+  truthy non-boolean (locked:1 from older import) falls in the
+  unlocked bucket because `is:locked` also rejects it — end-to-end
+  semantic stays uniform. Natural use case: "what should I lock?"
+  review pass via `is:unlocked tag:irreplaceable`. New `unlockedOnly:
+  boolean` on ParsedQuery, parser branch only on exact `is:unlocked`
+  (typos fall through to freeText), describeQuery emits "unlocked",
+  empty-state hint updated, new Cmd+K "Show unlocked clips" in
+  Filter group. AND-semantics contradiction `is:locked is:unlocked`
+  returns empty set (same intent contract as is:template
+  is:notemplate). 24/24 sanity covers parser/applyQuery/describe +
+  parser combos + case-insensitivity + typo rejection + AND-empty +
+  exact-complement check across truthy/falsy/undefined truth table
+  + realistic narrowing + archive-default interaction (0fd089d).
+  (2) Per-host site rule autoLock: new `autoLock?: boolean` on
+  SiteRule layered same as autoPin + autoRedact — flips the per-clip
+  `locked: true` bit BEFORE the ingest write hits IDB. Use case:
+  sites where every capture is irreplaceable by default (partner
+  portal with one-time tokens, draft URL with secrets, private
+  snippet hub). Orthogonal to autoPin (typical "lock + pin for
+  safety" needs both) and autoRedact (lock = delete-intent, redact
+  = content). Wired through types.ts + db.upsertSiteRule defensive
+  cast + background.ts ingest (fresh-clip spread `{ locked: true }`
+  + dedup-path sticky with strict `!== true` so already-locked
+  stays and truthy non-bool cleans up + autoLock RPC passthrough)
+  + site-rules-io.ts (SerializedRule field, emit-only-when-true,
+  strict `=== true` validate, `!!` liveRuleFrom coercion) + popup
+  (form checkbox + ruleLockInput binding + "pick at least one
+  effect" gate + row badge with hover title). Same stickiness as
+  autoPin — user's per-clip unlock action is the only way the bit
+  comes off. 26/26 autoLock sanity + 78/78 existing site-rules-io
+  sanity still green (12fa643). (3) Detail-view lockedAt
+  breadcrumb: new optional `lockedAt?: number` on ClipItem
+  records when the lock bit transitioned `!== true` → `true`
+  (manual toggleLock, idempotent setLocked(true), or ingest under
+  autoLock). Cleared back to undefined when lock comes off so a
+  future re-lock starts fresh — answers "when did I decide this
+  is irreplaceable?" not "when have I EVER locked this". New
+  "Locked" meta row below template-tokens, hidden unless `locked
+  === true` AND `typeof lockedAt === "number"` (back-compat:
+  clips locked before stamp existed simply hide row until
+  re-lock). db.toggleLock + setLocked stamp on false→true, delete
+  on true→false; setLocked's no-op fast path skips BOTH write AND
+  lockedAt mutation. background.ts autoLock spreads `{ locked:
+  true, lockedAt: now }` on fresh path + dedup-path stamps on the
+  transition only (preserves original lock timestamp for repeat
+  dedup hits). NEW pure `lib/locked-since.ts` with 6-tier
+  formatLockedSince(at, now) returning {label, tooltip} pair:
+  <1m "just now", <1h "Nm ago", <24h "Nh ago",
+  yesterday-with-clock, 2-6 days weekday-with-clock, 7+ days ISO
+  date. Tooltip always carries the absolute "YYYY-MM-DD HH:MM" so
+  hover reveals exact moment. Defensive: negative ages clamp to
+  "just now" (clock-skew safety), missing/null/NaN fall back to
+  minimal "Locked". 30/30 sanity covers all 6 tiers + defensive
+  shapes (undefined / null / NaN / Infinity / string / future)
+  + boundary precision (59s vs 60s, 23h vs 24h, last-night 23:59
+  in hour tier not yesterday tier, day-6 vs day-7 ISO crossover)
+  + tooltip always-absolute contract + clock zero-padding
+  (47d43bf). (4) Bulk-bar Lock + pin combo: new bookmark-icon
+  button between bulk-lock and bulk-tag that flips BOTH bits in
+  one chord. ADDITIVE ONLY: never strips pin or lock — dedicated
+  bulk-pin / bulk-lock handle the toggle direction; this combo
+  only adds state. Already-both clip is clean no-op. NEW pure
+  `lib/bulk-lockpin.ts` with planBulkLockPin (4-field truth-table
+  projection: pinWrites, lockWrites, alreadyBoth, total),
+  isBulkLockPinActionable (hide button when nothing needs either
+  bit — no dead chord), formatBulkLockPinToast (4-shape grammar
+  with degenerate-input clamp), formatBulkLockPinButtonTitle
+  (live hover-tooltip). New `db.setPinned(id, want)` idempotent
+  setter mirroring setLocked — REQUIRED so the combo doesn't
+  accidentally un-pin already-pinned clips when targeting
+  lock-only subset (togglePin would flip wrong). Click handler
+  does sequential setPinned-then-setLocked with no-op fast paths
+  so already-correct clips cost zero IDB writes. Cmd+K mirror
+  with live projection label + available gate matching button
+  visibility. 35/35 sanity covers defensive shapes + truth-table
+  (all 4 pinned×locked combos) + strict lock gate + 5/8-clip
+  mixed selections + visibility gate + toast formatting + button
+  title + degenerate input clamps (skipped > total → "all already
+  both" instead of negative changed) (4f383ae). (5) Trash row
+  Restore + lock combo: new padlock-icon button between
+  restore-pin and the plain Restore pill for the "I almost lost
+  this — make it safer next time" workflow. Mirrors restore-pin's
+  contract: hidden when wasLocked = `t.locked === true`, 26x26
+  square icon button with .trash-restore-lock CSS sibling to
+  .trash-restore-pin, "Restored + locked" toast with Undo via
+  trashClip (atomic-intent reversal — re-trashing takes the
+  freshly-set lock + lockedAt with it). Handler uses setLocked
+  (not toggleLock) for the right edge-case behavior: stale render
+  + already-locked = no-op + truthful toast, not accidental
+  UN-lock. Short-circuits setLocked when restoreClip fails so
+  half-restored state never silently picks up lock. Visibility
+  matrix: neither bit → both combos show (most common), pin-only
+  → only restore-lock, lock-only → only restore-pin, both → just
+  plain Restore. 18/18 sanity covers matrix + strict-gate
+  interpretation + handler op chain + error-path short-circuit +
+  undo semantics + realistic round-trip (5db5bec). tsc + chrome/
+  firefox builds green (popup 296.5KB +9.5 vs last tick — new
+  bulk-lockpin + locked-since modules + setPinned + lock
+  breadcrumb + restore-lock CSS + autoLock wiring + is:unlocked
+  + new Cmd+K commands; background 47.4KB +0.2 for autoLock
+  ingest branch; content 26.9KB unchanged). All 59 sanity suites
+  pass — 133 new this tick (24 is-unlocked + 26 autoLock + 30
+  locked-since + 35 bulk-lockpin + 18 trash-restore-lock).
+  Pushed as 5 separate revertible commits.
 
 - **2026-06-22 19:00 PT** — 5/5 shipped. (1) `is:locked` search
   operator: parity twin joining the is:pinned/redacted/template/
