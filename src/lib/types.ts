@@ -132,6 +132,32 @@ export interface ClipItem {
    * row with no text.
    */
   note?: string;
+  /**
+   * Unix-ms stamp recorded when `note` was last written (created
+   * OR updated) — the answer to "when did I leave this caveat?",
+   * which is the question the user actually asks when reviewing
+   * their annotated clips.
+   *
+   * Stamped by `db.setClipNote()` on every WRITE that actually
+   * changes the note value (the no-op fast path doesn't bump the
+   * stamp — re-saving the same text shouldn't refresh "noted
+   * recency"). Cleared back to `undefined` when the note is
+   * deleted (setClipNote(undefined)), so a future fresh note
+   * starts the clock from zero — same contract as `lockedAt`
+   * around lock/unlock transitions.
+   *
+   * Surfaced in detail-view as a "Noted <X ago>" breadcrumb
+   * (formatNoteUpdatedSince in lib/note-updated-since.ts) and
+   * powers the Cmd+K "Show recently noted" command's chronology
+   * window — same 7d default as recently-locked.
+   *
+   * Additive optional field — undefined for clips that were
+   * never noted, or whose note was deleted, OR clips that were
+   * noted before this stamp shipped (legacy: still noted, but
+   * we can't tell WHEN, so they correctly fall out of "recently
+   * noted" by definition).
+   */
+  noteUpdatedAt?: number;
 }
 
 export interface SearchQuery {

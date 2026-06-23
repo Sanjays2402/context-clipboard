@@ -499,11 +499,15 @@ export async function setClipNote(
   const item = await getClip(id);
   if (!item) return null;
   const current = typeof item.note === "string" ? item.note : undefined;
-  if (current === note) return current; // no-op fast path
+  if (current === note) return current; // no-op fast path — doesn't bump noteUpdatedAt
   if (note === undefined) {
     delete item.note;
+    // Clear the breadcrumb too — a future re-noted starts the clock
+    // fresh, mirroring the lockedAt clear-on-unlock contract.
+    delete item.noteUpdatedAt;
   } else {
     item.note = note;
+    item.noteUpdatedAt = Date.now();
   }
   await putClip(item);
   return note;

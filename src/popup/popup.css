@@ -2712,6 +2712,26 @@ kbd {
   color: var(--danger, #e06b6b);
 }
 
+/* "Noted <X ago>" breadcrumb pill in the note-row foot. Sits between
+ * the char counter and the Clear button, surfaces only when the clip
+ * carries a noteUpdatedAt stamp (clips noted before the stamp
+ * shipped hide it). Pure CSS hide via [hidden]; popup toggles
+ * visibility via element.hidden. Faintly de-emphasised so the char
+ * counter (a state indicator the user reads while typing) stays
+ * primary in the foot row.
+ */
+.detail-note-stamp {
+  flex: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+
 .detail-note-clear {
   padding: 2px 8px;
   font-size: 10px;

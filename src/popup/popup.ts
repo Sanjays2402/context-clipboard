@@ -134,6 +134,7 @@ import {
   formatBulkLockPinButtonTitle,
 } from "../lib/bulk-lockpin";
 import { formatLockedSince } from "../lib/locked-since";
+import { formatNoteUpdatedSince } from "../lib/note-updated-since";
 import {
   bulkExportJson,
   bulkExportFilename,
@@ -230,6 +231,7 @@ const detailLockedRow = $("detail-locked-row");
 const detailLockedInfo = $("detail-locked-info");
 const detailNote = $<HTMLTextAreaElement>("detail-note");
 const detailNoteCount = $("detail-note-count");
+const detailNoteStamp = $("detail-note-stamp");
 const detailNoteClear = $<HTMLButtonElement>("detail-note-clear");
 const detailExpiry = $<HTMLSelectElement>("detail-expiry");
 const detailExpiryHint = $("detail-expiry-hint");
@@ -1854,6 +1856,33 @@ function renderNoteRow(c: ClipItem): void {
   detailNote.dataset.original = current;
   updateNoteCount(current);
   detailNoteClear.hidden = !hasClipNote(c);
+  paintNoteStamp(c.noteUpdatedAt);
+}
+
+/**
+ * Paint the "Noted <X ago>" breadcrumb pill in the note-row foot.
+ * Hidden when:
+ *   - the clip has no note (no point showing a stamp for a non-thing)
+ *   - the clip was noted before noteUpdatedAt shipped (legacy: still
+ *     a note, but we can't tell when, so we silently omit the stamp
+ *     rather than show a misleading "Noted" with no age)
+ *
+ * formatNoteUpdatedSince is the single source of truth for the
+ * label + tooltip math — same module powers the chronology cutoff
+ * the Cmd+K "Show recently noted" command uses, so the user sees
+ * the same age the palette tally is computed against.
+ */
+function paintNoteStamp(noteUpdatedAt: number | undefined): void {
+  if (typeof noteUpdatedAt !== "number" || !Number.isFinite(noteUpdatedAt)) {
+    detailNoteStamp.hidden = true;
+    detailNoteStamp.textContent = "";
+    detailNoteStamp.title = "";
+    return;
+  }
+  const formatted = formatNoteUpdatedSince(noteUpdatedAt, Date.now());
+  detailNoteStamp.hidden = false;
+  detailNoteStamp.textContent = formatted.label;
+  detailNoteStamp.title = formatted.tooltip;
 }
 
 /**
@@ -1899,6 +1928,18 @@ async function saveDetailNote(): Promise<boolean> {
   detailNote.dataset.original = sanitized ?? "";
   // Clear button reflects post-save reality.
   detailNoteClear.hidden = !sanitized;
+  // Refresh the "Noted <X ago>" stamp — paint immediately so the user
+  // sees the breadcrumb appear without having to close and re-open
+  // detail. setClipNote stamps noteUpdatedAt = Date.now() on the
+  // write side, so passing Date.now() here paints the same value
+  // (within a few ms) that the next paint via render→openDetail
+  // would. The save's IDB round-trip lands before the next render
+  // pulls the clip, so the future paint is consistent too.
+  if (sanitized) {
+    paintNoteStamp(Date.now());
+  } else {
+    paintNoteStamp(undefined);
+  }
   toast(sanitized ? "Note saved" : "Note cleared");
   return true;
 }
