@@ -79,6 +79,21 @@ export interface ParsedQuery {
    * accidentally surfaces here).
    */
   lockedOnly: boolean;
+  /**
+   * Inverse of `lockedOnly`. When true, only clips WITHOUT the
+   * lock bit match. Useful for the "what should I lock?" review
+   * pass: after auditing `is:locked` clips, flipping to
+   * `is:unlocked tag:irreplaceable` (or similar) surfaces the
+   * candidates for the new lock. Mutually-exclusive with
+   * `lockedOnly` by definition; if both flags are set the result
+   * is always empty (parser preserves intent — same contract as
+   * `is:template is:notemplate`). Strict gate: `c.locked !== true`
+   * matches everything except the explicit `true` bit, including
+   * `undefined`, `false`, or a truthy non-boolean (which would
+   * also fail the `is:locked` strict check, so semantics stay
+   * consistent end-to-end).
+   */
+  unlockedOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -119,6 +134,7 @@ export function parseQuery(raw: string): ParsedQuery {
     archivedOnly: false,
     linkOnly: false,
     lockedOnly: false,
+    unlockedOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -153,6 +169,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "archived") out.archivedOnly = true;
       else if (v === "link") out.linkOnly = true;
       else if (v === "locked") out.lockedOnly = true;
+      else if (v === "unlocked") out.unlockedOnly = true;
       else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
@@ -204,6 +221,15 @@ export function applyQuery(
     // db.toggleLock both apply on the write side, so user-facing
     // semantics stay consistent end-to-end.
     if (q.lockedOnly && c.locked !== true) return false;
+    // `is:unlocked` — inverse strict check. Matches every clip where
+    // the lock bit ISN'T explicitly `true`: undefined, false, or a
+    // truthy non-boolean (which the strict `is:locked` gate also
+    // rejects, so the two operators are exact complements over the
+    // is-locked semantic — no clip ever passes both, no clip ever
+    // fails both). When combined with `is:locked` the set is empty
+    // by AND-semantics — same intent contract as `is:template
+    // is:notemplate`, surfacing the user's contradiction explicitly.
+    if (q.unlockedOnly && c.locked === true) return false;
     if (q.host && hostFrom(c.source.url) !== q.host) return false;
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
@@ -255,6 +281,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.archivedOnly) bits.push("archived");
   if (q.linkOnly) bits.push("link");
   if (q.lockedOnly) bits.push("locked");
+  if (q.unlockedOnly) bits.push("unlocked");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");

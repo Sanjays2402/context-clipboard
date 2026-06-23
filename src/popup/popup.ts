@@ -1152,7 +1152,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -5277,6 +5277,22 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:locked");
+      },
+    },
+    {
+      // `is:unlocked` — inverse twin of `is:locked`. The natural use
+      // case is the "what should I lock?" review pass after auditing
+      // is:locked clips: pair with `tag:irreplaceable` or `host:<x>`
+      // to surface unlock candidates. Cheap parity — keeps users from
+      // having to remember a custom negation operator.
+      id: "filter-unlocked",
+      label: "Show unlocked clips",
+      hint: "is:unlocked — clips without the lock bit",
+      group: "Filter",
+      keywords: "is:unlocked unlock padlock missing lock candidates review",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:unlocked");
       },
     },
     {
