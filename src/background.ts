@@ -120,6 +120,13 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
         preview: c.preview,
         pinned: !!c.pinned,
         source: { url: c.source.url, title: c.source.title },
+        // Surface the per-clip note so the in-page palette can show
+        // the user's caveat ("staging only", "needs login") below
+        // the preview line. Same field as detail-view + send-to
+        // note-md row; in-page palette gates on its own
+        // paletteNoteTailAvailable predicate so a missing/empty
+        // note renders nothing (no dead element).
+        note: c.note,
       }));
       const lastQuery = await getPaletteLastQuery();
       // Pass the active tab's host so the in-page palette can boost
@@ -174,6 +181,10 @@ if (api.commands) {
             preview: c.preview,
             pinned: !!c.pinned,
             source: { url: c.source.url, title: c.source.title },
+            // Same note pass-through as the context-menu palette path
+            // (the in-page palette gates on the field; missing/empty
+            // notes render nothing).
+            note: c.note,
           }));
           const lastQuery = await getPaletteLastQuery();
           const tabHost = hostFrom(tab.url);

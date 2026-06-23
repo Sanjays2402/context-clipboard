@@ -2,6 +2,8 @@
 // Captures copy events (text AND images), and renders an in-page command palette
 // that the popup keyboard shortcut can summon via the background.
 
+import { paletteNoteTail, paletteNoteTailAvailable } from "./lib/palette-note-tail";
+
 const api: typeof chrome =
   // @ts-expect-error firefox global
   (typeof browser !== "undefined" ? browser : chrome) as typeof chrome;
@@ -111,6 +113,18 @@ interface PaletteClip {
   preview?: string;
   pinned?: boolean;
   source?: { url?: string; title?: string };
+  /**
+   * Optional per-clip free-form note. When present + non-empty,
+   * the in-page palette renders a small italicised tail under
+   * the preview line so the user sees the caveat ("staging only",
+   * "needs login") BEFORE pasting. Most common request: avoid
+   * pasting deprecated/staging snippets without seeing the warning
+   * the user wrote on the clip in the first place.
+   *
+   * Sent by background.ts when listClips returns clips with notes;
+   * older message-shapes without this field render unchanged.
+   */
+  note?: string;
 }
 
 api.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
@@ -535,6 +549,14 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
     .preview { font-size: 13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .meta { margin-top:2px; font-size: 11px; color:#8a93a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .host-badge { display:inline-block; margin-left: 6px; padding: 1px 6px; background: rgba(120, 200, 255, 0.12); color: #93c5fd; border-radius: 999px; font-size: 9px; font-weight: 600; text-transform: lowercase; letter-spacing: 0.02em; vertical-align: 2px; }
+    /* Per-clip note tail in the in-page palette. Renders BELOW the
+       preview line as a subtle italicised note so the user sees the
+       caveat ("staging only", "needs login") before pasting. Color
+       sits between meta and preview so it visually anchors to the
+       clip context, not the title metadata. Single-line truncate
+       matches the preview's overflow handling. */
+    .note-tail { margin-top:2px; font-size: 11px; color:#c4a86b; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity: 0.85; }
+    .note-tail::before { content:'note: '; font-style:normal; opacity: 0.65; }
     .empty { padding: 24px; text-align:center; color:#8a93a6; font-size: 13px; }
     .hint { font-size: 10px; padding: 6px 12px; background:#0f1115; color:#8a93a6; text-align:center; border-top:1px solid #232936; }
   `;
@@ -738,7 +760,17 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
           anyHostMatch && firstNonHostIdx === i && i > 0 && !pinnedDivider
             ? " host-divider"
             : "";
-        return `<div class="row${i === active ? " active" : ""}${dim}${pinnedDivider}${hostDivider}" data-i="${i}">${thumb}<div class="body"><div class="preview">${esc(preview.slice(0, 140))}</div><div class="meta">${esc(metaText || "")}${hostBadge}</div></div></div>`;
+        // Per-clip note tail: when the user has left a caveat on
+        // the clip ("staging only", "needs login", "deprecated"),
+        // surface it under the preview line so they see the
+        // warning BEFORE pasting. paletteNoteTail handles trim +
+        // whitespace-collapse + 80-char word-boundary truncation;
+        // the gate predicate ensures empty/missing notes render
+        // nothing (no dead element).
+        const noteTail = paletteNoteTailAvailable(c.note)
+          ? `<div class="note-tail">${esc(paletteNoteTail(c.note))}</div>`
+          : "";
+        return `<div class="row${i === active ? " active" : ""}${dim}${pinnedDivider}${hostDivider}" data-i="${i}">${thumb}<div class="body"><div class="preview">${esc(preview.slice(0, 140))}</div><div class="meta">${esc(metaText || "")}${hostBadge}</div>${noteTail}</div></div>`;
       })
       .join("");
   }
