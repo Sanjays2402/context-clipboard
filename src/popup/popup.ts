@@ -1207,7 +1207,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:noted</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -5542,6 +5542,25 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:noted");
+      },
+    },
+    {
+      // `is:nonoted` — inverse twin of `is:noted`. Same review-pass
+      // logic as `is:unlocked` for the lock family: after auditing
+      // what HAS a note, flip to find candidates worth a note. Pair
+      // with `is:locked` to surface "irreplaceable but uncommented"
+      // — the highest-leverage place to leave a caveat. Pure
+      // complement of `is:noted` so `is:noted is:nonoted` is empty
+      // by AND-semantics, matching `is:template is:notemplate` and
+      // `is:locked is:unlocked`.
+      id: "filter-nonoted",
+      label: "Hide noted clips (un-annotated only)",
+      hint: "is:nonoted — clips WITHOUT a free-form note",
+      group: "Filter",
+      keywords: "is:nonoted no note un-annotated missing commentary review candidates without",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:nonoted");
       },
     },
     {

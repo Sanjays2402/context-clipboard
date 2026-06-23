@@ -113,6 +113,24 @@ export interface ParsedQuery {
    * detail-view paint can never disagree.
    */
   notedOnly: boolean;
+  /**
+   * Inverse of `notedOnly`. When true, only clips WITHOUT a non-empty
+   * `note` field match. Useful for the "what should I annotate?"
+   * review pass — after auditing `is:noted` clips, flipping to
+   * `is:nonoted host:<x>` (or `is:nonoted is:locked` for the
+   * "irreplaceable but uncommented" set) surfaces the candidates that
+   * deserve a caveat. Mutually-exclusive with `notedOnly` by
+   * definition; if both flags are set the result is always empty
+   * (parser preserves intent — same contract as
+   * `is:template is:notemplate` and `is:locked is:unlocked`).
+   *
+   * Strict gate: `!hasClipNote(c)` — matches every clip where the
+   * note isn't a non-empty trimmed string, which is the exact
+   * complement of the `is:noted` gate. Together the two operators
+   * partition the clip space: every clip passes exactly one of
+   * `is:noted` / `is:nonoted`, and the AND of both is always empty.
+   */
+  nonotedOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -155,6 +173,7 @@ export function parseQuery(raw: string): ParsedQuery {
     lockedOnly: false,
     unlockedOnly: false,
     notedOnly: false,
+    nonotedOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -191,6 +210,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "locked") out.lockedOnly = true;
       else if (v === "unlocked") out.unlockedOnly = true;
       else if (v === "noted") out.notedOnly = true;
+      else if (v === "nonoted") out.nonotedOnly = true;
       else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
@@ -257,6 +277,13 @@ export function applyQuery(
     // trim — a clip whose note was deleted (setClipNote(undefined))
     // correctly falls out of the noted set on the next read.
     if (q.notedOnly && !hasClipNote(c)) return false;
+    // `is:nonoted` — exact complement of `is:noted`. A clip passes
+    // this when `hasClipNote(c)` is false: missing note, empty
+    // string, whitespace-only, or wrong type. Combined with
+    // `is:noted` the AND-semantics empty the result set by
+    // construction — same intent contract as `is:template
+    // is:notemplate` / `is:locked is:unlocked`.
+    if (q.nonotedOnly && hasClipNote(c)) return false;
     if (q.host && hostFrom(c.source.url) !== q.host) return false;
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
@@ -310,6 +337,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.lockedOnly) bits.push("locked");
   if (q.unlockedOnly) bits.push("unlocked");
   if (q.notedOnly) bits.push("noted");
+  if (q.nonotedOnly) bits.push("not-noted");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");
