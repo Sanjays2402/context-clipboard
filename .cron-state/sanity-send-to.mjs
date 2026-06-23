@@ -151,10 +151,11 @@ try {
 
   // buildSendActions matrix
   const textActs = mod.buildSendActions(textClip);
-  // json-line was added after json → curl added after url-only → 13 total.
+  // json-line was added after json → curl added after url-only →
+  // bg-tab added between incognito and site-search → 14 total.
   // Each row is gated by its own availability check so adding new rows
   // here only matters for the total-count assertion.
-  total++; if (textActs.length === 13) pass++;
+  total++; if (textActs.length === 14) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
@@ -242,6 +243,50 @@ try {
   check('actions: incognito follows open-source in row order',
     textActs.findIndex((a) => a.id === 'open-incognito') - textActs.findIndex((a) => a.id === 'open-source'),
     1);
+
+  // --- bg-tab (open in background tab) ---
+  //
+  // Same URL math as urlForOpenSource (no http(s) -> no row), routed
+  // through chrome.tabs.create({ active: false }) by the popup so the
+  // new tab loads without stealing focus. Useful for triaging multiple
+  // link clips in a row (similar-clips panel, citations) without
+  // bouncing back to the popup each time.
+
+  check('bg-tab: text+url -> URL', mod.urlForBackgroundTabOpen(textClip), 'https://github.com/foo/bar');
+  check('bg-tab: scrubbed -> undefined', mod.urlForBackgroundTabOpen(scrubbedClip), undefined);
+  check('bg-tab: chrome:// -> undefined',
+    mod.urlForBackgroundTabOpen({ ...textClip, source: { url: 'chrome://newtab' } }), undefined);
+  check('bg-tab: data: -> undefined',
+    mod.urlForBackgroundTabOpen({ ...textClip, source: { url: 'data:text/plain;base64,foo' } }), undefined);
+  check('bg-tab: file: -> undefined',
+    mod.urlForBackgroundTabOpen({ ...textClip, source: { url: 'file:///tmp/x.txt' } }), undefined);
+  check('bg-tab: image+url -> URL', mod.urlForBackgroundTabOpen(imageClip), 'https://imgur.com/foo');
+  check('bg-tab: note (no url) -> undefined', mod.urlForBackgroundTabOpen(noteClip), undefined);
+
+  const bgText = textActs.find((a) => a.id === 'open-bg-tab');
+  checkTruthy('actions: bg-tab row exists', bgText);
+  check('actions: bg-tab kind is "bg-tab"', bgText.kind, 'bg-tab');
+  check('actions: bg-tab available for text+url', bgText.available, true);
+  check('actions: bg-tab payload matches open-source',
+    bgText.payload, textActs.find((a) => a.id === 'open-source').payload);
+
+  const bgScrub = scrubbedActs.find((a) => a.id === 'open-bg-tab');
+  check('actions: bg-tab unavailable for scrubbed', bgScrub.available, false);
+
+  const bgImg = imageActs.find((a) => a.id === 'open-bg-tab');
+  check('actions: bg-tab available for image (has url)', bgImg.available, true);
+
+  const bgNote = noteActs.find((a) => a.id === 'open-bg-tab');
+  check('actions: bg-tab unavailable for note (no url)', bgNote.available, false);
+
+  // Row order: bg-tab sits right after incognito for muscle memory
+  // (open / open-private / open-bg-tab cluster).
+  check('actions: bg-tab follows open-incognito in row order',
+    textActs.findIndex((a) => a.id === 'open-bg-tab') - textActs.findIndex((a) => a.id === 'open-incognito'),
+    1);
+  check('actions: open / incognito / bg-tab are first three rows',
+    [textActs[0].id, textActs[1].id, textActs[2].id].join(','),
+    'open-source,open-incognito,open-bg-tab');
 
   const json1 = mod.jsonEnvelopeForClip(textClip);
   checkTruthy('json: returns non-empty string for text', json1);

@@ -7132,6 +7132,34 @@ detailSendMenu.addEventListener("click", async (e) => {
     }
     return;
   }
+  if (action.kind === "bg-tab") {
+    // Background tab: chrome.tabs.create with active:false so the new
+    // tab loads without stealing focus. Lets the user triage a list of
+    // link clips in a row (similar-clips panel, citations) without
+    // bouncing back to the popup each time. Fallback is window.open
+    // with no opts — that DOES steal focus, but the better-than-nothing
+    // story matters more than the perfect focus behaviour on the rare
+    // Firefox/no-tabs-API path.
+    try {
+      if (api.tabs?.create) {
+        await api.tabs.create({ url: action.payload, active: false });
+      } else {
+        // window.open can't reliably open in background; do our best
+        // and let the user know.
+        window.open(action.payload, "_blank");
+        toast("Opened in a normal tab — background tab unavailable", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      try {
+        window.open(action.payload, "_blank");
+        toast("Opened in a normal tab — background tab unavailable", "error");
+      } catch {
+        toast("Couldn't open URL", "error");
+      }
+    }
+    return;
+  }
   // kind: "copy" — clipboard write. Mirror existing copy-paths
   // (popup writes natively because the service worker can't reach
   // navigator.clipboard).

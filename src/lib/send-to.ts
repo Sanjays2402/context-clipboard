@@ -299,11 +299,13 @@ export interface SendAction {
   label: string;
   hint?: string;
   /**
-   * - `nav`        → open URL in a new normal tab
+   * - `nav`        → open URL in a new normal tab (active by default)
    * - `copy`       → write the payload string to the clipboard
    * - `incognito`  → open URL in a new private/incognito window
+   * - `bg-tab`     → open URL in a new tab WITHOUT stealing focus
+   *                  (chrome.tabs.create with active:false)
    */
-  kind: "nav" | "copy" | "incognito";
+  kind: "nav" | "copy" | "incognito" | "bg-tab";
   payload?: string;
   available: boolean;
 }
@@ -323,9 +325,30 @@ export function urlForIncognitoOpen(c: SendableClip): string | undefined {
   return urlForOpenSource(c);
 }
 
+/**
+ * "Open in new background tab" — same URL math again, but the popup
+ * routes through chrome.tabs.create({ active: false }) so the new
+ * tab loads in the background without stealing focus from the popup.
+ *
+ * Why a separate row? When the user has 10+ link clips in the
+ * detail-view's "Similar clips" pane (or just wants to triage a list
+ * of citations), the default open-source action steals focus and
+ * forces them back to the popup for each one. Background-tab opens
+ * stack them up and let the user keep reading / picking. Common
+ * pattern in research workflows.
+ *
+ * Same availability rules as urlForOpenSource — no http(s) URL, no
+ * row. Tab activation is a UI concern, not a URL concern, so we just
+ * delegate to the existing builder.
+ */
+export function urlForBackgroundTabOpen(c: SendableClip): string | undefined {
+  return urlForOpenSource(c);
+}
+
 export function buildSendActions(c: ClipForJson): SendAction[] {
   const open = urlForOpenSource(c);
   const incognito = urlForIncognitoOpen(c);
+  const bgTab = urlForBackgroundTabOpen(c);
   const google = urlForGoogleSearch(c);
   const site = urlForSiteSearch(c);
   const mail = mailtoForClip(c);
@@ -353,6 +376,19 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "incognito",
       payload: incognito,
       available: !!incognito,
+    },
+    {
+      // Background-tab open: same URL as open-source, but the popup
+      // routes through chrome.tabs.create({ active: false }) so the
+      // new tab loads without stealing focus. Useful for triaging
+      // multiple link clips in a row (similar-clips panel, a list of
+      // citations) without bouncing back to the popup each time.
+      id: "open-bg-tab",
+      label: "Open in background tab",
+      hint: "New tab, no focus steal",
+      kind: "bg-tab",
+      payload: bgTab,
+      available: !!bgTab,
     },
     {
       id: "site-search",
