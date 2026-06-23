@@ -1200,7 +1200,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:noted</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -5502,6 +5502,24 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:unlocked");
+      },
+    },
+    {
+      // `is:noted` — surface every clip carrying a free-form note.
+      // The note feature (shipped this tick) lets users attach a
+      // caveat to a clip ("only for staging" / "needs login" /
+      // "deprecated as of June"). This operator answers the natural
+      // follow-up: "show me everything I've left a note on so I can
+      // review the caveats". Pairs well with host:/tag:/before: for
+      // scoped audit passes.
+      id: "filter-noted",
+      label: "Show noted clips",
+      hint: "is:noted — clips with a free-form note in detail-view",
+      group: "Filter",
+      keywords: "is:noted note annotation caveat commentary memo annotated review",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:noted");
       },
     },
     {

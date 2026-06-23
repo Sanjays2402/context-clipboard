@@ -20,6 +20,7 @@
  */
 import type { ClipItem, ClipKind } from "./types";
 import { hostFrom } from "./util";
+import { hasClipNote } from "./clip-note";
 
 export interface ParsedQuery {
   freeText: string;
@@ -94,6 +95,24 @@ export interface ParsedQuery {
    * consistent end-to-end).
    */
   unlockedOnly: boolean;
+  /**
+   * Surface clips carrying a non-empty free-form `note` (the
+   * detail-view textarea field). Joins the `is:` family alongside
+   * pinned/redacted/template/expiring/archived/link/locked/unlocked
+   * so the user can review every clip they've annotated in one
+   * keystroke — the natural workflow for "did I leave a caveat I
+   * should re-read?" Audit pass.
+   *
+   * Strict gate via `hasClipNote(c)` (lib/clip-note.ts): `typeof
+   * c.note === "string"` AND `c.note.trim().length > 0`. Mirrors
+   * the sanitizer's empty contract so a clip with an accidentally
+   * empty-string note (shouldn't happen — setClipNote deletes the
+   * field on empty — but defensive) doesn't accidentally surface
+   * here. Predicate is the same one renderNoteRow uses to decide
+   * the Clear-button visibility, so the search filter and the
+   * detail-view paint can never disagree.
+   */
+  notedOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -135,6 +154,7 @@ export function parseQuery(raw: string): ParsedQuery {
     linkOnly: false,
     lockedOnly: false,
     unlockedOnly: false,
+    notedOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -170,6 +190,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "link") out.linkOnly = true;
       else if (v === "locked") out.lockedOnly = true;
       else if (v === "unlocked") out.unlockedOnly = true;
+      else if (v === "noted") out.notedOnly = true;
       else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
@@ -230,6 +251,12 @@ export function applyQuery(
     // by AND-semantics — same intent contract as `is:template
     // is:notemplate`, surfacing the user's contradiction explicitly.
     if (q.unlockedOnly && c.locked === true) return false;
+    // `is:noted` — predicate gate via hasClipNote(). Mirrors the
+    // detail-view note-row's Clear-button visibility predicate so
+    // the filter + the paint can never disagree. Pure type-check +
+    // trim — a clip whose note was deleted (setClipNote(undefined))
+    // correctly falls out of the noted set on the next read.
+    if (q.notedOnly && !hasClipNote(c)) return false;
     if (q.host && hostFrom(c.source.url) !== q.host) return false;
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
@@ -282,6 +309,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.linkOnly) bits.push("link");
   if (q.lockedOnly) bits.push("locked");
   if (q.unlockedOnly) bits.push("unlocked");
+  if (q.notedOnly) bits.push("noted");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");
