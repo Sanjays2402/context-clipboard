@@ -156,6 +156,43 @@ export interface ParsedQuery {
    * hosts").
    */
   hostLockedOnly: boolean;
+  /**
+   * Lower bound on the length of `c.note` (trimmed) when set.
+   * Triggered by `is:notelonger:N` — surfaces clips whose note is
+   * STRICTLY longer than N characters (>=N+1). Implies `is:noted`
+   * (a clip without a note has length 0, which never satisfies
+   * `> N` for N >= 0). Useful for finding the essay-length notes
+   * the user wrote ages ago and might want to revisit / trim.
+   *
+   * `is:notelonger:0` is equivalent to `is:noted`. Negative N is
+   * normalized to 0 (so `is:notelonger:-5` matches every noted
+   * clip). The exact length is measured POST-sanitize (trim +
+   * control-char strip) to match what's actually stored.
+   *
+   * When both `noteLongerThan` and `noteShorterThan` are set the
+   * filter is AND-semantics: the note must be > longer AND <
+   * shorter. With contradictory bounds (e.g. longer=100,
+   * shorter=10) the result is empty — same intent contract as
+   * `is:noted is:nonoted`.
+   */
+  noteLongerThan?: number;
+  /**
+   * Upper bound on the length of `c.note` (trimmed) when set.
+   * Triggered by `is:noteshorter:N` — surfaces clips whose note
+   * is STRICTLY shorter than N characters (<=N-1). Implies
+   * `is:noted` (a clip without a note has no note to be "shorter
+   * than N" — the filter is about the note's length, not its
+   * absence; use `is:nonoted` for absence). Useful for finding
+   * the one-word reminders / sticky-note style notes the user
+   * wants to triage into proper tags.
+   *
+   * `is:noteshorter:0` matches nothing (no note has length < 0).
+   * Pairing with `is:noted` is implicit — we require a note to
+   * exist BEFORE measuring its length, so an absent note never
+   * satisfies the filter even with a generous `is:noteshorter:
+   * 10000` bound.
+   */
+  noteShorterThan?: number;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -238,7 +275,31 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "noted") out.notedOnly = true;
       else if (v === "nonoted") out.nonotedOnly = true;
       else if (v === "hostlocked") out.hostLockedOnly = true;
-      else leftover.push(tok);
+      else if (v.startsWith("notelonger:") || v.startsWith("noteshorter:")) {
+        // `is:notelonger:N` / `is:noteshorter:N` — parse N as a
+        // non-negative integer. Bad numerics (NaN, decimals, sign,
+        // non-digits) fall through to leftover so the user sees
+        // their typo as plain text rather than getting silently
+        // dropped or applied with a coerced value.
+        const colonInVal = v.indexOf(":");
+        const op = v.slice(0, colonInVal);
+        const raw = v.slice(colonInVal + 1);
+        // Strict integer parse — no decimals, no signs, no whitespace.
+        // Number(raw) would accept "1.5", " 3 ", "+5", etc; we want a
+        // tight grammar so the operator's contract is obvious.
+        if (!/^\d+$/.test(raw)) {
+          leftover.push(tok);
+        } else {
+          const n = Math.max(0, parseInt(raw, 10));
+          if (!Number.isFinite(n)) {
+            leftover.push(tok);
+          } else if (op === "notelonger") {
+            out.noteLongerThan = n;
+          } else {
+            out.noteShorterThan = n;
+          }
+        }
+      } else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
       if (d != null) out.before = now - d;
@@ -327,6 +388,26 @@ export function applyQuery(
     // construction — same intent contract as `is:template
     // is:notemplate` / `is:locked is:unlocked`.
     if (q.nonotedOnly && hasClipNote(c)) return false;
+    // `is:notelonger:N` / `is:noteshorter:N` — measure the note
+    // length AFTER trim (same length the editor + breadcrumb see),
+    // gate strictly (`>` / `<`). A clip with no note has trimmed
+    // length 0, which never satisfies `> N` for N >= 0 — so
+    // `is:notelonger` implicitly requires `is:noted`. For
+    // `is:noteshorter` we ALSO require the note to exist (length
+    // < N with no note would otherwise accidentally include every
+    // clip when N >= 1, which contradicts the user's intent —
+    // they typed an operator about NOTE length, not its absence;
+    // use `is:nonoted` for absence).
+    if (q.noteLongerThan != null) {
+      if (!hasClipNote(c)) return false;
+      const len = typeof c.note === "string" ? c.note.trim().length : 0;
+      if (len <= q.noteLongerThan) return false;
+    }
+    if (q.noteShorterThan != null) {
+      if (!hasClipNote(c)) return false;
+      const len = typeof c.note === "string" ? c.note.trim().length : 0;
+      if (len >= q.noteShorterThan) return false;
+    }
     // `is:hostlocked` — cross-store join via the supplied
     // predicate. Gate falls open when the predicate wasn't
     // supplied so a test calling applyQuery without rules access
@@ -391,6 +472,8 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.notedOnly) bits.push("noted");
   if (q.nonotedOnly) bits.push("not-noted");
   if (q.hostLockedOnly) bits.push("hostlocked");
+  if (q.noteLongerThan != null) bits.push(`note>${q.noteLongerThan}`);
+  if (q.noteShorterThan != null) bits.push(`note<${q.noteShorterThan}`);
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");

@@ -1292,7 +1292,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -5739,6 +5739,53 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:hostlocked");
+      },
+    },
+    {
+      // `is:notelonger:N` — surfaces clips whose note is longer than
+      // N chars. Default N=120 picks the prose-style notes (multi-
+      // sentence caveats / context paragraphs) — distinct from the
+      // sticky-note style. The user can edit N inline in the search
+      // bar after the operator drops in. Greys when no clip in the
+      // current view satisfies the threshold so the row never lies
+      // about an empty result. Scans currentClips (the visible set)
+      // rather than wide — the gate matters for what the user is
+      // ACTUALLY seeing post-filter.
+      id: "filter-notelonger",
+      label: "Show long notes (>120 chars)",
+      hint: "is:notelonger:120 — find the essay-style caveats",
+      group: "Filter",
+      keywords:
+        "is:notelonger long note essay paragraph prose multi-line review trim verbose extensive thoughtful caveat",
+      available: currentClips.some((c) => {
+        if (typeof c.note !== "string") return false;
+        return c.note.trim().length > 120;
+      }),
+      run: () => {
+        closePalette();
+        appendSearchOp("is:notelonger:120");
+      },
+    },
+    {
+      // `is:noteshorter:N` — companion to is:notelonger. Default
+      // N=30 picks one-line reminders — good candidates to promote
+      // into structured tags, since "todo" / "draft" / "deprecated"
+      // notes are tags-in-disguise. Greys when no short notes
+      // exist. The label hint nudges toward the triage workflow.
+      id: "filter-noteshorter",
+      label: "Show short notes (<30 chars)",
+      hint: "is:noteshorter:30 — sticky-note style reminders",
+      group: "Filter",
+      keywords:
+        "is:noteshorter short note brief tag reminder sticky one-line triage convert promote tagify",
+      available: currentClips.some((c) => {
+        if (typeof c.note !== "string") return false;
+        const len = c.note.trim().length;
+        return len > 0 && len < 30;
+      }),
+      run: () => {
+        closePalette();
+        appendSearchOp("is:noteshorter:30");
       },
     },
     {
