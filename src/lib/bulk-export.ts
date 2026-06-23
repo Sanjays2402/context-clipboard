@@ -170,3 +170,88 @@ export function formatBulkExportToast(opts: {
   const skipped = Math.max(0, selected - exported);
   return `Exported ${exported} of ${selected} ${noun} (${skipped} skipped)`;
 }
+
+/**
+ * Minimal structural shape for the tag filter — needs id + tags.
+ * Kept separate from BulkExportClip so the tag filter can operate
+ * on the same selection list without forcing callers to type-narrow.
+ */
+export interface BulkExportTaggedClip extends BulkExportClip {
+  tags?: unknown;
+}
+
+/**
+ * Filter a selection of clips to those carrying a specific tag.
+ * Used by the bulk-bar "Export selected with tag X" dropdown:
+ * lets the user cherry-pick by category from a wider selection
+ * without breaking the existing all-selected default.
+ *
+ * Empty / whitespace tag filter → returns the input untouched
+ * (signal: "no tag filter, export everything selected").
+ *
+ * Tag matching is case-insensitive + trimmed on both sides
+ * (matches the rest of the codebase's tag handling — see
+ * util.normaliseTag pattern + db.updateTags trim). Clips with a
+ * non-array `tags` field are treated as having zero tags
+ * (defensive — same as the existing search.applyQuery tag gate).
+ *
+ * Pure: no allocation for the tag-needle (lowercased once before
+ * the loop). Preserves input order so the existing bulk-export
+ * envelope's selection-order contract holds.
+ */
+export function filterClipsByTag<T extends BulkExportTaggedClip>(
+  clips: T[],
+  tag: string | null | undefined,
+): T[] {
+  if (!Array.isArray(clips)) return [];
+  const needle = typeof tag === "string" ? tag.trim().toLowerCase() : "";
+  if (!needle) return clips.slice(); // no filter
+  const out: T[] = [];
+  for (const c of clips) {
+    if (!c || typeof c.id !== "string" || c.id.length === 0) continue;
+    if (!Array.isArray(c.tags)) continue;
+    let hit = false;
+    for (const t of c.tags) {
+      if (typeof t !== "string") continue;
+      if (t.trim().toLowerCase() === needle) {
+        hit = true;
+        break;
+      }
+    }
+    if (hit) out.push(c);
+  }
+  return out;
+}
+
+/**
+ * Compose the per-tag bulk-export toast. Surfaces the tag in the
+ * grammar so the user sees what filter was applied. Two variants:
+ *
+ *   - hit count > 0: "Exported 3 of 8 selected (tag: secrets)"
+ *   - hit count === 0: "No selected clips tagged 'secrets'"
+ *
+ * Defensive against bad numeric input. Empty-tag input falls back
+ * to the non-tag toast (caller branches accordingly — this helper
+ * assumes a real tag was supplied).
+ */
+export function formatBulkExportTagToast(opts: {
+  exported: number;
+  selected: number;
+  tag: string;
+}): string {
+  const exported = Math.max(0, Math.floor(Number(opts.exported) || 0));
+  const selected = Math.max(0, Math.floor(Number(opts.selected) || 0));
+  const tag = (typeof opts.tag === "string" ? opts.tag : "").trim();
+  if (!tag) {
+    // Caller fell through to the tag path with no tag — be honest.
+    return formatBulkExportToast({ exported, selected });
+  }
+  if (exported === 0) {
+    return `No selected clips tagged "${tag}"`;
+  }
+  const noun = exported === 1 ? "clip" : "clips";
+  if (exported === selected) {
+    return `Exported ${exported} ${noun} (tag: ${tag})`;
+  }
+  return `Exported ${exported} of ${selected} selected ${noun} (tag: ${tag})`;
+}

@@ -138,6 +138,8 @@ import {
   bulkExportJson,
   bulkExportFilename,
   formatBulkExportToast,
+  filterClipsByTag,
+  formatBulkExportTagToast,
 } from "../lib/bulk-export";
 import {
   idsToPinForHost,
@@ -325,6 +327,7 @@ const bulkLock = $<HTMLButtonElement>("bulk-lock");
 const bulkLockPin = $<HTMLButtonElement>("bulk-lockpin");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
+const bulkExportTag = $<HTMLInputElement>("bulk-export-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
 const bulkClear = $<HTMLButtonElement>("bulk-clear");
 const selectAllFilteredBtn = $<HTMLButtonElement>("select-all-filtered");
@@ -8127,10 +8130,30 @@ bulkExport.addEventListener("click", async () => {
     toast("Selection vanished — nothing to export", "error");
     return;
   }
+  // Optional tag filter — empty input falls through to the
+  // unfiltered export. Pure helper handles trim/case-fold so
+  // "Secrets" matches "secrets" the way the rest of the codebase
+  // treats tags. When a tag is supplied but no selected clip
+  // carries it, we toast honestly and don't write a file.
+  const tagFilter = bulkExportTag.value.trim();
+  const filtered = tagFilter
+    ? filterClipsByTag(present, tagFilter)
+    : present;
+  if (tagFilter && filtered.length === 0) {
+    toast(
+      formatBulkExportTagToast({
+        exported: 0,
+        selected: present.length,
+        tag: tagFilter,
+      }),
+      "error",
+    );
+    return;
+  }
   // bulkExportJson + bulkExportFilename + formatBulkExportToast all
   // share the same defensive filtering, so the toast count, filename
   // count, and JSON clip count are guaranteed to agree.
-  const json = bulkExportJson(present, { version: 4 });
+  const json = bulkExportJson(filtered, { version: 4 });
   if (!json) {
     toast("Nothing to export", "error");
     return;
@@ -8140,10 +8163,18 @@ bulkExport.addEventListener("click", async () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = bulkExportFilename({ count: present.length });
+    a.download = bulkExportFilename({ count: filtered.length });
     a.click();
     URL.revokeObjectURL(url);
-    toast(formatBulkExportToast({ exported: present.length, selected: ids.length }));
+    toast(
+      tagFilter
+        ? formatBulkExportTagToast({
+            exported: filtered.length,
+            selected: present.length,
+            tag: tagFilter,
+          })
+        : formatBulkExportToast({ exported: filtered.length, selected: ids.length }),
+    );
   } catch (e) {
     console.error(e);
     toast(e instanceof Error ? e.message : "Export failed", "error");
