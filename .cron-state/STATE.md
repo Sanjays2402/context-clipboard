@@ -226,6 +226,37 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Search: `is:locked` operator — surface every clip carrying the new lock bit — `19c38fc`
 - [ ] Trash row: hover-preview matching clip from the live store if a re-capture exists (so the user knows it's safe to purge)
 
+### New (added this tick — 2026-06-23 01:46 PT refill)
+- [ ] Audit log: "Mark as resolved" pill — recurring
+- [ ] Settings: per-kind retention split — recurring
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring
+- [ ] Note composer: paste an image directly — recurring
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — recurring
+- [ ] Detail: "Re-capture from URL" — recurring
+- [ ] Site-rule form: per-rule "test against active tab" — recurring
+- [ ] In-page palette: pinned-bias slider in settings — recurring
+- [ ] In-page palette: live token-counter in palette search input — recurring
+- [ ] Quick-capture: paste an image directly (system clipboard image → new image clip) — recurring
+- [ ] Site rules: "Suggest from top hosts" — recurring
+- [ ] Audit panel: hover-preview the clip on each row — recurring
+- [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier (Tab → Enter sequence) — recurring
+- [ ] Trash row: hover-preview matching live re-capture (image kind too — current text/link match by hash; image-blob-hash variant deferred) — recurring follow-up
+- [ ] Cmd+K: "Lock selected" hotkey when bulk-bar is open — recurring
+- [ ] Detail send-to: "Open all background tabs from similar clips" — recurring
+- [ ] Bulk export: tag-filter dropdown (autocompleter for the input, current ships free-text only)
+- [ ] Detail-view: per-clip note — show on hover-preview in trash too (closes the loop with this tick's trash-match feature)
+- [ ] `is:hostlocked` search operator — surface clips whose host has an autoLock site rule (cross-store join)
+- [ ] Cmd+K: "Show recently noted" — chronology of last-edited notes (companion to recently-locked)
+- [ ] Bulk-bar: "Add note to selection" — apply a note to N clips in one shot
+- [ ] Note composer pre-fill from active tab `title` — "Captured from <title>" boilerplate that the user can edit/clear
+- [ ] Search: `is:nonoted` inverse operator — parity twin of `is:noted` for the "what should I annotate?" review pass
+- [x] Cmd+K palette: "Show recently locked" — 7d chronology of lock decisions via `lockedAt` (not `lastSeenAt`), live count + freshest-age in label, gates on `is:locked` not lockedAt directly because the search bar can't express that — `5c4ed2e`
+- [x] Detail-view: per-clip "Add note" field — free-form user commentary, schema-additive `note?: string`, sanitize+cap+control-strip pure module, auto-save on blur + Cmd/Ctrl+Enter, char-counter with over-cap red flag — `2134bfc`
+- [x] Search: `is:noted` operator — joins is: family via hasClipNote() predicate (same gate as detail-view Clear-button visibility), parser branch + applyQuery + describeQuery + Cmd+K + empty-state hint — `72835ca`
+- [x] Bulk-bar: "Export selected with tag X" — optional tag filter input between bulk-tag and bulk-export, pure filterClipsByTag (case-insensitive + trimmed) + formatBulkExportTagToast grammar, zero-match toasts honestly without writing file — `87a8e7d`
+- [x] Trash row: hover-preview matching live re-capture — pure trash-match module finds latest live clip by hash, formats "Live re-capture exists — Xm/h/d ago. Safe to purge." vs "No live re-capture — purging this is permanent." tooltip surfaced via row `title` attr — `5726170`
+
+
 ### New (added this tick — 2026-06-22 22:14 PT refill)
 - [ ] Audit log: "Mark as resolved" pill — recurring
 - [ ] Settings: per-kind retention split — recurring
@@ -380,12 +411,115 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Detail-view: lock-state breadcrumb — `lockedAt?: number` on ClipItem stamped on transition false→true, cleared on unlock, surfaced as "Locked since <date>" meta row with 6-tier formatter (just-now / Nm / Nh / yesterday / weekday / ISO) + absolute tooltip — `47d43bf`
 - [x] Bulk-bar: "Lock + pin" combo — additive-only one-click "keep at top AND mark irreplaceable", new pure bulk-lockpin module + idempotent setPinned in db, button hidden when all-already-both, Cmd+K mirror with live projection label — `4f383ae`
 - [x] Trash row: "Restore + lock" combo — companion to restore-pin for the just-rescued-clip lock workflow, uses setLocked (idempotent + stamps lockedAt) with full undo-via-trashClip path + CSS sibling to .trash-restore-pin — `5db5bec`
+- [x] Cmd+K palette: "Show recently locked" — 7d window helper over `lockedAt` (not `lastSeenAt`), strict `c.locked === true` + `Number.isFinite(lockedAt)` gate, label shapes (singular/plural/zero) with freshest-age hint, gates on `is:locked` not lockedAt directly since the search bar can't express it — `5c4ed2e`
+- [x] Detail-view: per-clip free-form `note` field — schema-additive `note?: string` on ClipItem, pure clip-note module (sanitize/has/summarize/delta) with 2k cap + C0-control stripping + empty-strip-on-save, always-visible textarea row between Locked and Expires, auto-save on blur + Cmd/Ctrl+Enter, char-counter with over-cap red flag, Clear button with optimistic UI — `2134bfc`
+- [x] Search: `is:noted` operator — joins the is: family (pinned/redacted/template/expiring/archived/link/locked/unlocked), strict predicate via hasClipNote() so the search filter + detail-view Clear-button visibility can't disagree, parser/applyQuery/describeQuery/Cmd+K command + empty-state hint — `72835ca`
+- [x] Bulk-bar: "Export selected with tag X" — optional tag filter input between bulk-tag and bulk-export buttons, pure filterClipsByTag helper (case-insensitive + trimmed match, defensive against non-array clips + bad tag arrays), formatBulkExportTagToast grammar (zero-match honest no-write, partial-selected, all-selected, singular noun), 84px → 130px focus-expand input — `87a8e7d`
+- [x] Trash row: hover-preview live re-capture — pure trash-match module finds latest live clip by content hash (newest-lastSeenAt wins, stamped beats unstamped), formats two-shape tooltip ("Live re-capture exists — Xm/h/d ago. Safe to purge." with optional preview snippet vs "No live re-capture — purging this is permanent."), surfaced via row `title` attr — `5726170`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-23 01:46 PT** — 5/5 shipped. (1) Cmd+K palette
+  "Show recently locked" — 7d chronology of lock decisions via
+  the `lockedAt` breadcrumb (NOT `lastSeenAt`), so a clip locked
+  last week then re-copied today doesn't pollute the "recent
+  lock decisions" view the way `is:locked after:1d` would.
+  Strict gate: `c.locked === true` AND `typeof c.lockedAt ===
+  "number" && Number.isFinite(...)` — clips locked before the
+  lockedAt breadcrumb shipped are still locked but have no stamp,
+  so they correctly fall out of "recently" (we can't tell WHEN).
+  Newest-first sort gives the freshest at the top. New pure
+  `lib/recently-locked.ts` with recentlyLockedClips/
+  countRecentlyLocked/formatRecentlyLockedLabel + module-level
+  popup cache slots (count + freshestLockedAt) refreshed once
+  per render() from `wide` — no extra IDB read on palette open.
+  Run handler appends `is:locked` to the search box since the
+  parsed query can't express `lockedAt >= now - 7d` directly;
+  the count + freshest-age hint above tells the user the
+  precise chronology scope. 29/29 sanity (5c4ed2e). (2) Detail
+  free-form note — new schema-additive `note?: string` on
+  ClipItem, the user's commentary on the clip ("only for
+  staging" / "needs login" / "deprecated as of June") orthogonal
+  to tags (structured + searchable), template (machine-
+  substitutable), source/nearbyText (capture-time context). New
+  pure `lib/clip-note.ts`: sanitizeClipNote (trim + 2k cap +
+  C0-control strip + empty-to-undefined so deleted notes free
+  their storage), hasClipNote (predicate used by detail-view
+  Clear visibility + future `is:noted`), summarizeClipNote
+  (one-liner with newline-collapse + word-boundary truncation),
+  clipNoteDelta (char delta for future live counter). New
+  `db.setClipNote` with no-op fast path when post-sanitize value
+  matches existing. Detail-view: always-visible textarea row
+  between Locked and Expires, dataset.original short-circuits
+  no-op saves, auto-save on blur + Cmd/Ctrl+Enter, live char-
+  counter "N / 2000" with over-cap red flag (the sanitizer
+  slices over-cap content, so red flags imminent loss), Clear
+  button with optimistic UI. Toast on save/clear, error toast
+  on mid-edit clip-vanish race. 38/38 sanity (2134bfc). (3)
+  `is:noted` search operator — companion to (2), joins the is:
+  family alongside pinned/redacted/template/expiring/archived/
+  link/locked/unlocked. Strict gate via hasClipNote(c) so the
+  search filter and the detail-view Clear-button visibility
+  predicate can never disagree — same predicate, both call sites.
+  A clip whose note got deleted (setClipNote(undefined) → field
+  removed) correctly falls out of the noted set on next read
+  because the sanitizer's empty contract guarantees the IDB
+  field stays absent (not stored as ""). New `notedOnly: boolean`
+  on ParsedQuery, parser branch on exact `is:noted` (typos like
+  `is:noted2` / `is:not` fall through to freeText per the
+  parser's typo-rejection contract), applyQuery predicate gate,
+  describeQuery emits "noted", empty-state hint adds is:noted to
+  the operator legend, new Cmd+K "Show noted clips" in Filter
+  group with synonyms (note/annotation/caveat/commentary/memo/
+  annotated/review). AND-semantics with other is: operators —
+  `is:noted is:locked` means "locked AND noted", standard
+  intersection. 31/31 sanity (72835ca). (4) Bulk-bar tag-filter
+  for Export — optional 84px input between bulk-tag and bulk-
+  export buttons (expands to 130px on focus), empty input falls
+  through to existing all-selected unfiltered export. Real input
+  scopes the export to selected clips carrying that tag without
+  shrinking the selection itself — workflow: triage a wide
+  selection into share-with-friend / archive partitions across
+  separate exports. New `filterClipsByTag` pure helper in
+  bulk-export module: case-insensitive + trimmed match on both
+  sides (matches db.updateTags' trim contract), defensive against
+  non-array clips + bad entries (missing id, non-array tags,
+  non-string tag in array — the array can have mixed valid +
+  invalid entries and the valid ones still match). New
+  `formatBulkExportTagToast` four-shape grammar: empty tag falls
+  back to non-tag toast, zero-match honest error toast (no file
+  written), all-selected match "(tag: X)" tail, partial-selected
+  "N of M" tail. Backward compatible — empty input gives exact
+  existing behavior. 29/29 sanity (87a8e7d). (5) Trash row
+  hover-preview — when a trashed clip's content hash matches a
+  live clip's hash, purging the trash entry is risk-free because
+  the content survives in the live store. New pure
+  `lib/trash-match.ts`: findLiveRecaptureForTrash returns the
+  most-recently-seen live match (tie-break by lastSeenAt desc),
+  stamped clips beat unstamped (NaN/missing lastSeenAt loses to
+  a real number via strict > -Infinity), defensive against
+  missing/non-string hash + non-array live + broken entries.
+  formatTrashRecaptureTooltip emits two shapes: "Live re-capture
+  exists — Xm/h/d ago. Safe to purge." with optional preview
+  snippet when present, vs "No live re-capture — purging this is
+  permanent." Local formatShortAge (just-now/Nm/Nh/Nd/N weeks)
+  kept private to module so it stays leaf-pure. renderTrash
+  pre-loads the live clip list (single 5000-cap pull, shared
+  with daily render) so each row resolves its match without a
+  per-row IDB read. Row-level `title` attr surfaces the tooltip
+  on body hover; child buttons keep actionable titles. 25/25
+  sanity (5726170). tsc + chrome/firefox builds green (popup
+  308.1KB +11.6 vs last tick — new clip-note + bulk-export
+  helpers + trash-match + recently-locked modules + detail-note
+  CSS + bulk-export-tag input; background 47.4KB unchanged;
+  content 26.9KB unchanged). All 64 sanity suites pass — 152
+  new this tick (29 recently-locked + 38 clip-note + 31 is-noted
+  + 29 bulk-export-tag + 25 trash-match). Pushed as 5 separate
+  revertible commits.
 
 - **2026-06-22 22:14 PT** — 5/5 shipped. (1) `is:unlocked` operator:
   strict-complement inverse of last tick's `is:locked` so the two
