@@ -131,6 +131,12 @@ import {
   matchedClipsForHost,
   formatPinFromHostLabel,
 } from "../lib/host-pin";
+import {
+  idsToLockForHost,
+  availableToLockHost,
+  matchedClipsForHostLock,
+  formatLockFromHostLabel,
+} from "../lib/host-lock";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -376,6 +382,13 @@ let archivedCount = 0;
 let activeTabHost = "";
 let activeHostMatched = 0;
 let activeHostPinnable = 0;
+// Lock counterpart to the pin cache above. Shares activeTabHost (one
+// host lookup per render) so the refresh path stays single-IDB-read.
+// `activeHostLockMatched` is intentionally separate from
+// `activeHostMatched` only for naming clarity — both compute the same
+// host-match count; in practice the rollup is shared (see
+// refreshActiveHostPin).
+let activeHostLockable = 0;
 /**
  * When non-null, the saved-search chip with this id renders as a
  * text input instead of a button so the user can rename it inline.
@@ -885,10 +898,15 @@ async function refreshActiveHostPin(wide: ClipItem[]): Promise<void> {
   if (!activeTabHost) {
     activeHostMatched = 0;
     activeHostPinnable = 0;
+    activeHostLockable = 0;
     return;
   }
   activeHostMatched = matchedClipsForHost(activeTabHost, wide);
   activeHostPinnable = availableToPin(activeTabHost, wide);
+  // Lock-from-host cache. Same host, same matched count contract; we
+  // only need the "how many would the action lock?" rollup. Cheap
+  // single pass over `wide` (the same array the pin counts use).
+  activeHostLockable = availableToLockHost(activeTabHost, wide);
 }
 
 /**
@@ -938,6 +956,45 @@ async function pinAllFromActiveHost(): Promise<void> {
   );
   // Render refreshes the cache + repaints the list with the new pin
   // dots.
+  await render();
+}
+
+/**
+ * Cmd+K companion to `pinAllFromActiveHost`: lock every clip from the
+ * popup's owning tab's host with the "ask before deleting" gate.
+ *
+ * Non-toggle semantics (mirror pin variant): only locks the unlocked.
+ * Already-locked clips skip — the command's intent is "lock everything
+ * from this site", and toggling locked → unlocked would silently undo
+ * a user's earlier explicit lock.
+ *
+ * Re-reads the live store at click time so a clip captured between
+ * render and click joins the batch. Uses setLocked (not toggleLock)
+ * for the same idempotent reason bulk-lock does — explicit final
+ * state, not a flip.
+ */
+async function lockAllFromActiveHost(): Promise<void> {
+  if (!activeTabHost) {
+    toast("No site context — open this on a normal http(s) tab", "error");
+    return;
+  }
+  const all = await listClips({ limit: 5000 });
+  const ids = idsToLockForHost(activeTabHost, all);
+  if (ids.length === 0) {
+    const matched = matchedClipsForHostLock(activeTabHost, all);
+    toast(
+      matched === 0
+        ? `No clips from ${activeTabHost}`
+        : `All ${matched} from ${activeTabHost} already locked`,
+    );
+    return;
+  }
+  for (const id of ids) await setLocked(id, true);
+  toast(
+    ids.length === 1
+      ? `Locked 1 from ${activeTabHost}`
+      : `Locked ${ids.length} from ${activeTabHost}`,
+  );
   await render();
 }
 
@@ -5386,6 +5443,32 @@ function buildPaletteActions(): PaletteAction[] {
         run: async () => {
           closePalette();
           await pinAllFromActiveHost();
+        },
+      };
+    })(),
+    // Companion to pin-from-active-host: lock every clip from the
+    // popup's owning tab's host with the "ask before deleting" gate.
+    // Same shape, same matching rules, same active/greyed logic — just
+    // the lock bit instead of pin. Surfaces orthogonally so a user
+    // working on a sensitive site can both pin AND lock the captures
+    // in two keystrokes.
+    ((): PaletteAction => {
+      const bits = formatLockFromHostLabel({
+        host: activeTabHost,
+        matched: activeHostMatched,
+        lockable: activeHostLockable,
+      });
+      return {
+        id: "lock-from-active-host",
+        label: bits.label,
+        hint: bits.hint,
+        group: "Bulk",
+        keywords:
+          "lock host site padlock ask delete confirm protect irreplaceable triage active tab current page batch",
+        available: bits.available,
+        run: async () => {
+          closePalette();
+          await lockAllFromActiveHost();
         },
       };
     })(),
