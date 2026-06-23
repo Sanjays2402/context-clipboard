@@ -2,6 +2,7 @@
 import {
   listClips,
   togglePin,
+  setPinned,
   getClip,
   updateTags,
   getSettings,
@@ -125,6 +126,12 @@ import {
   formatBulkLockToast,
   formatBulkLockButtonTitle,
 } from "../lib/bulk-lock";
+import {
+  planBulkLockPin,
+  isBulkLockPinActionable,
+  formatBulkLockPinToast,
+  formatBulkLockPinButtonTitle,
+} from "../lib/bulk-lockpin";
 import { formatLockedSince } from "../lib/locked-since";
 import {
   bulkExportJson,
@@ -300,6 +307,7 @@ const bulkStorageDelta = $("bulk-storage-delta");
 const bulkSelectAll = $<HTMLButtonElement>("bulk-select-all");
 const bulkPin = $<HTMLButtonElement>("bulk-pin");
 const bulkLock = $<HTMLButtonElement>("bulk-lock");
+const bulkLockPin = $<HTMLButtonElement>("bulk-lockpin");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
@@ -5437,6 +5445,42 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Bulk lock+pin combo — additive ("get them up top AND mark
+      // irreplaceable"). Label shows the live projection so the user
+      // sees the action's scope before pressing Enter. Available
+      // gate matches the bulk-bar button's hidden state so the
+      // palette + click routes agree about when the action is
+      // meaningful (some-clip-needs-at-least-one-bit).
+      id: "lockpin-selection",
+      label: (() => {
+        const visibleSelected = currentClips.filter((c) => selectedIds.has(c.id));
+        if (visibleSelected.length === 0) return "Lock + pin selection";
+        const plan = planBulkLockPin(visibleSelected);
+        const changed = plan.total - plan.alreadyBoth;
+        if (changed === 0) {
+          return plan.total === 1
+            ? "Lock + pin (already both)"
+            : `Lock + pin (all ${plan.total} already both)`;
+        }
+        if (plan.alreadyBoth === 0) {
+          return `Lock + pin ${changed} selected`;
+        }
+        return `Lock + pin ${changed} of ${plan.total} selected`;
+      })(),
+      hint: "Pin to top AND require ask-before-delete confirm — additive (won't unpin/unlock anything)",
+      group: "Bulk",
+      keywords: "lock pin selection batch combo irreplaceable both protect keep",
+      available: (() => {
+        if (!hasSelection) return false;
+        const visibleSelected = currentClips.filter((c) => selectedIds.has(c.id));
+        return isBulkLockPinActionable(visibleSelected);
+      })(),
+      run: () => {
+        closePalette();
+        bulkLockPin.click();
+      },
+    },
+    {
       id: "tag-selection",
       label: "Tag selection…",
       group: "Bulk",
@@ -7572,6 +7616,18 @@ function updateBulkBar(): void {
   // string so there's no race with the icon-init pass.
   bulkLock.innerHTML = lockIntent === "unlock" ? icons.lockOpen() : icons.lock();
   bulkLock.classList.toggle("active", lockIntent === "unlock");
+  // Lock+pin combo button: visible only when at least one selected
+  // clip needs at least one of the bits flipped (planBulkLockPin
+  // → pinWrites>0 OR lockWrites>0). When every selected clip is
+  // ALREADY both, the action would no-op so we hide the button
+  // rather than show a dead chord. Title adapts to the live
+  // projection so a hover shows the upcoming write count BEFORE
+  // commit.
+  const lockPinActionable = isBulkLockPinActionable(selectedClipsForLock);
+  bulkLockPin.hidden = !lockPinActionable;
+  if (lockPinActionable) {
+    bulkLockPin.title = formatBulkLockPinButtonTitle(selectedClipsForLock);
+  }
   const label = buildStorageDeltaLabel(visibleSelected);
   if (!label) {
     bulkStorageDelta.hidden = true;
@@ -7731,6 +7787,46 @@ bulkLock.addEventListener("click", async () => {
     await setLocked(c.id, want);
   }
   toast(formatBulkLockToast({ intent, total: present.length, writes }));
+  await render();
+});
+
+// Lock + pin combo — additive only (never UN-locks or UN-pins).
+// Authoritative read of the selection so the action stays truthful
+// even when selection extends past the visible filter. setPinned +
+// setLocked both have no-op fast paths for clips already in the
+// requested state, so an "already both" clip costs zero IDB writes.
+// Strict gate on `c.locked === true` (matches the lock stack) and
+// loose truthy for `c.pinned` (pinned is required boolean — no
+// stray truthy non-booleans in the wild).
+bulkLockPin.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  const items = await Promise.all(ids.map((id) => getClip(id)));
+  const present = items.filter((c): c is NonNullable<typeof c> => !!c);
+  if (present.length === 0) {
+    toast("Selection vanished", "error");
+    return;
+  }
+  const plan = planBulkLockPin(present);
+  // No-op selection: every selected clip already has both bits. We
+  // don't surface this as an error — the user clicked, they get a
+  // truthful "Already locked+pinned" message. The button SHOULD have
+  // been hidden by updateBulkBar in this state; this branch is a
+  // safety net for fire-after-render-stale.
+  if (plan.pinWrites === 0 && plan.lockWrites === 0) {
+    toast(formatBulkLockPinToast(plan));
+    return;
+  }
+  // Apply pin first then lock — order doesn't matter functionally
+  // (both bits are independent) but pin-first reads as the simpler
+  // intent ("get them up top, then mark irreplaceable").
+  for (const c of present) {
+    if (!c.pinned) await setPinned(c.id, true);
+  }
+  for (const c of present) {
+    if (c.locked !== true) await setLocked(c.id, true);
+  }
+  toast(formatBulkLockPinToast(plan));
   await render();
 });
 

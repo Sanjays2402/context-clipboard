@@ -359,6 +359,28 @@ export async function togglePin(id: string): Promise<boolean> {
 }
 
 /**
+ * Idempotent pin-state setter. Mirrors `setLocked` but for the pin
+ * bit: caller passes the desired final state instead of blindly
+ * flipping. Used by the bulk-bar "Lock + pin selection" combo so
+ * already-pinned entries are clean no-ops (avoids accidentally
+ * un-pinning when the combo button targets the lock-only subset).
+ *
+ * Returns the NEW state when the write happens, the existing state
+ * when nothing changed (already in the requested state), or `null`
+ * when the clip is gone. No `lastSeenAt` bump on the no-op path —
+ * pin is metadata, not a usage event (matches togglePin).
+ */
+export async function setPinned(id: string, pinned: boolean): Promise<boolean | null> {
+  const item = await getClip(id);
+  if (!item) return null;
+  const want = pinned === true;
+  if (item.pinned === want) return want; // no-op fast path
+  item.pinned = want;
+  await putClip(item);
+  return want;
+}
+
+/**
  * Flip the archive bit on a clip. Archived clips stay in IDB and stay
  * pinned if they were pinned (archive is orthogonal to pin) but get
  * filtered out of the default popup list. The user surfaces them by
