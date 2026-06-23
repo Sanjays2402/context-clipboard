@@ -16,6 +16,7 @@ import { detectCodeLang } from "./util";
 import { tableRowForClip } from "./table-row";
 import { jsonLineEnvelopeForClip } from "./json-line";
 import { curlCommandForClip } from "./curl-command";
+import { noteAsMarkdownBlockquote } from "./note-markdown";
 
 export interface SendableClip {
   id: string;
@@ -23,6 +24,15 @@ export interface SendableClip {
   content: string;
   preview?: string;
   source: ClipItem["source"];
+  /**
+   * Optional per-clip free-form note. When present + non-empty,
+   * the "Copy note as Markdown" send-to row surfaces a `> note`
+   * blockquote for paste-into-docs workflows where the user wants
+   * the caveat to ride along with the content. Hidden otherwise.
+   * Mirrors ClipItem.note shape; pure module note-markdown.ts
+   * owns the gate + formatting via hasClipNote.
+   */
+  note?: string;
 }
 
 /**
@@ -360,6 +370,12 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const json = jsonEnvelopeForClip(c);
   const jsonLine = jsonLineEnvelopeForClip(c);
   const curl = curlCommandForClip(c);
+  // Per-clip note → Markdown blockquote. Hidden when the clip has
+  // no note (no row to dim out — keeps the menu tight when there's
+  // nothing to send). Pure pipeline: hasClipNote gate + line-by-
+  // line `> ` prefix; multi-line notes survive intact so paragraph
+  // breaks reach the recipient's doc.
+  const noteMd = noteAsMarkdownBlockquote(c);
   return [
     {
       id: "open-source",
@@ -492,6 +508,22 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: jsonLine,
       available: !!jsonLine,
+    },
+    {
+      // "Copy note as Markdown" — wraps the clip's free-form note as
+      // a `> ` blockquote so the user pasting a clip into a doc /
+      // chat / PR can include the caveat ("staging only", "needs
+      // login", etc) alongside the content. Hidden for un-noted
+      // clips so the menu stays tight (no dimmed dead row). Multi-
+      // line notes preserve paragraph breaks; each line gets its
+      // own `> ` so CommonMark / GFM renderers paint the whole
+      // block as a single continuous quote.
+      id: "note-md",
+      label: "Copy note as Markdown",
+      hint: "> blockquote of the per-clip note",
+      kind: "copy",
+      payload: noteMd,
+      available: !!noteMd,
     },
   ];
 }

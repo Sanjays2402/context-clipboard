@@ -7794,6 +7794,11 @@ async function openSendMenu(): Promise<void> {
     content: c.content,
     preview: c.preview,
     source: c.source,
+    // Pass the per-clip note so the "Copy note as Markdown" row
+    // gates correctly. Pure pipeline: hasClipNote → blockquote
+    // formatter; the row stays hidden when note is undefined /
+    // empty / whitespace-only.
+    note: c.note,
     full: c,
   });
   // Promote the user's most-recently-picked action to the top so
@@ -7911,6 +7916,10 @@ detailSendMenu.addEventListener("click", async (e) => {
     content: c.content,
     preview: c.preview,
     source: c.source,
+    // Same note pass-through as the menu-open buildSendActions
+    // call — keeps the "note-md" row's gate consistent between
+    // render-time and dispatch-time.
+    note: c.note,
     full: c,
   });
   const action: SendAction | undefined = actions.find((a) => a.id === id);
