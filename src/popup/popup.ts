@@ -126,6 +126,11 @@ import {
   formatBulkLockButtonTitle,
 } from "../lib/bulk-lock";
 import {
+  bulkExportJson,
+  bulkExportFilename,
+  formatBulkExportToast,
+} from "../lib/bulk-export";
+import {
   idsToPinForHost,
   availableToPin,
   matchedClipsForHost,
@@ -292,6 +297,7 @@ const bulkSelectAll = $<HTMLButtonElement>("bulk-select-all");
 const bulkPin = $<HTMLButtonElement>("bulk-pin");
 const bulkLock = $<HTMLButtonElement>("bulk-lock");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
+const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
 const bulkClear = $<HTMLButtonElement>("bulk-clear");
 const selectAllFilteredBtn = $<HTMLButtonElement>("select-all-filtered");
@@ -5398,6 +5404,26 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Cherry-pick JSON export from the bulk selection. Proxies the
+      // bulk-bar button so the palette + click routes share one code
+      // path. Different from "Export with current filter" (which uses
+      // the Settings panel's format dropdown + filter UI + audit/
+      // history fields) — this is the lightweight "send my 3 picks
+      // to a friend" path.
+      id: "export-selection",
+      label: hasSelection
+        ? `Export ${selectedIds.size} selected as JSON`
+        : "Export selection as JSON",
+      hint: "Cherry-pick JSON · pastes back through Settings → Import",
+      group: "Bulk",
+      keywords: "export selection json bundle cherry pick share backup partial",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        bulkExport.click();
+      },
+    },
+    {
       id: "pin-all-filtered",
       label: `Pin all ${visible} filtered`,
       hint: "Pins every clip in the current view",
@@ -7665,6 +7691,53 @@ bulkTag.addEventListener("click", async () => {
   }
   toast(`Tagged ${ids.length}`);
   await render();
+});
+
+// Bulk export — cherry-pick JSON download. Different from the Settings
+// → Export path:
+//   - source = selected ids only, not the whole store
+//   - format = JSON only (no Markdown/CSV/encryption ceremony for a
+//     transient cherry-pick)
+//   - shape = importAll-compatible envelope so the recipient can
+//     paste it into Settings → Import and get the same clips
+//
+// Fetches the FULL ClipItem records (not the SendableClip-shaped
+// rows from currentClips) so pinned/tags/hitCount/hash/locked all
+// round-trip. Selection can extend past the visible filter — we
+// honour every id in selectedIds.
+bulkExport.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  // Pull live records — selection survives filter changes and stale
+  // entries in selectedIds (clips trashed since selection) are
+  // silently dropped by bulkExport's defensive filter.
+  const items = await Promise.all(ids.map((id) => getClip(id)));
+  const present = items.filter((c): c is NonNullable<typeof c> => !!c);
+  if (present.length === 0) {
+    toast("Selection vanished — nothing to export", "error");
+    return;
+  }
+  // bulkExportJson + bulkExportFilename + formatBulkExportToast all
+  // share the same defensive filtering, so the toast count, filename
+  // count, and JSON clip count are guaranteed to agree.
+  const json = bulkExportJson(present, { version: 4 });
+  if (!json) {
+    toast("Nothing to export", "error");
+    return;
+  }
+  try {
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = bulkExportFilename({ count: present.length });
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(formatBulkExportToast({ exported: present.length, selected: ids.length }));
+  } catch (e) {
+    console.error(e);
+    toast(e instanceof Error ? e.message : "Export failed", "error");
+  }
 });
 
 // Init ------------------------------------------------------------------
