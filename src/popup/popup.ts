@@ -71,6 +71,7 @@ import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFi
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
 import { rankActions, boldedLabel, type PaletteAction } from "../lib/palette";
 import { contextTagsForTab } from "../lib/context-tags";
+import { buildNotePrefill, shouldApplyNotePrefill } from "../lib/note-prefill";
 import { buildSendActions, reorderSendActionsByLast, type SendAction } from "../lib/send-to";
 import { buildBulkPreviewMessage } from "../lib/bulk-preview";
 import { groupAuditByDay } from "../lib/audit-rollup";
@@ -4747,6 +4748,33 @@ async function openNoteComposer(): Promise<void> {
   // of related notes" workflow doesn't require re-checking the box
   // on every open. First open of the session = default false.
   notePinInput.checked = notePinSticky;
+  // Pre-fill the textarea with a "Captured from <title>" stem when
+  // we can read the active tab. This gives the user a starting frame
+  // instead of a blank textarea — they edit / append / blow it away
+  // (Cmd+A → type) rather than face the "what was I going to say?"
+  // void. We DON'T auto-select-all on focus (documented anti-pattern;
+  // loses the user's draft if they extend with a single keystroke).
+  // Silent fallback to an empty textarea when:
+  //   - api.tabs throws (chrome:// / about: / extension page)
+  //   - the prefill resolves to "" (chrome:// has no title or host)
+  //   - the user re-opened the composer mid-edit (textarea isn't
+  //     empty) — shouldApplyNotePrefill guards against clobbering
+  try {
+    const [activeTab] = await api.tabs.query({ active: true, currentWindow: true });
+    if (activeTab) {
+      const prefill = buildNotePrefill({
+        title: activeTab.title,
+        url: activeTab.url,
+      });
+      if (shouldApplyNotePrefill(noteText.value, prefill)) {
+        noteText.value = prefill;
+      }
+    }
+  } catch {
+    // chrome://, about:, file:// scope: no tab access. Empty textarea
+    // is the correct fallback — better than throwing inside
+    // openNoteComposer and leaving the modal half-open.
+  }
   await renderNoteTagSuggestions();
   refreshTemplateTokenPill();
   noteComposer.hidden = false;
