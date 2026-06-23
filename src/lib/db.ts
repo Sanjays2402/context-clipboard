@@ -1414,6 +1414,7 @@ export async function upsertSiteRule(
     hostPattern: pattern,
     autoTags: rule.autoTags?.map((t) => t.trim()).filter(Boolean),
     autoPin: !!rule.autoPin,
+    autoLock: !!rule.autoLock,
     autoRedact: !!rule.autoRedact,
     skipCapture: !!rule.skipCapture,
     autoScrubOrigin: !!rule.autoScrubOrigin,

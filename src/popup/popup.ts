@@ -281,6 +281,7 @@ const ruleHostSuggest = $("rule-host-suggest");
 const ruleTagsInput = $<HTMLInputElement>("rule-tags");
 const rulePatternsInput = $<HTMLTextAreaElement>("rule-patterns");
 const rulePinInput = $<HTMLInputElement>("rule-pin");
+const ruleLockInput = $<HTMLInputElement>("rule-lock");
 const ruleRedactInput = $<HTMLInputElement>("rule-redact");
 const ruleScrubInput = $<HTMLInputElement>("rule-scrub");
 const ruleSkipInput = $<HTMLInputElement>("rule-skip");
@@ -2919,6 +2920,7 @@ function ruleBadges(r: SiteRule): string {
   const bits: string[] = [];
   if (r.skipCapture) bits.push(`<span class="rule-badge danger-tone">skip</span>`);
   if (r.autoPin) bits.push(`<span class="rule-badge">pin</span>`);
+  if (r.autoLock) bits.push(`<span class="rule-badge" title="Every capture from this host auto-locks (ask before delete)">lock</span>`);
   if (r.autoRedact) bits.push(`<span class="rule-badge">redact</span>`);
   if (r.autoScrubOrigin) bits.push(`<span class="rule-badge">scrub</span>`);
   const npatterns = r.customPatterns?.length || 0;
@@ -3021,6 +3023,7 @@ function loadRuleIntoForm(rule: SiteRule): void {
   ruleTagsInput.value = (rule.autoTags || []).join(", ");
   rulePatternsInput.value = (rule.customPatterns || []).join("\n");
   rulePinInput.checked = !!rule.autoPin;
+  ruleLockInput.checked = !!rule.autoLock;
   ruleRedactInput.checked = !!rule.autoRedact;
   ruleScrubInput.checked = !!rule.autoScrubOrigin;
   ruleSkipInput.checked = !!rule.skipCapture;
@@ -3046,6 +3049,7 @@ function resetRuleForm(): void {
   ruleTagsInput.value = "";
   rulePatternsInput.value = "";
   rulePinInput.checked = false;
+  ruleLockInput.checked = false;
   ruleRedactInput.checked = false;
   ruleScrubInput.checked = false;
   ruleSkipInput.checked = false;
@@ -3078,6 +3082,7 @@ async function addSiteRuleFromForm(): Promise<void> {
     .filter(Boolean);
   const skip = ruleSkipInput.checked;
   const pin = rulePinInput.checked;
+  const lock = ruleLockInput.checked;
   const redact = ruleRedactInput.checked;
   const scrub = ruleScrubInput.checked;
   // Custom redaction patterns: one per line. We validate per-line so we
@@ -3101,7 +3106,7 @@ async function addSiteRuleFromForm(): Promise<void> {
     return;
   }
   // A rule with zero behavior is just visual noise.
-  if (!skip && !pin && !redact && !scrub && tags.length === 0 && patterns.length === 0) {
+  if (!skip && !pin && !lock && !redact && !scrub && tags.length === 0 && patterns.length === 0) {
     toast("Pick at least one effect", "error");
     return;
   }
@@ -3110,6 +3115,7 @@ async function addSiteRuleFromForm(): Promise<void> {
     hostPattern: host,
     autoTags: tags,
     autoPin: pin,
+    autoLock: lock,
     autoRedact: redact,
     skipCapture: skip,
     autoScrubOrigin: scrub,

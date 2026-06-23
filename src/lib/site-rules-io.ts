@@ -48,6 +48,7 @@ export interface SerializedRule {
   hostPattern: string;
   autoTags?: string[];
   autoPin?: boolean;
+  autoLock?: boolean;
   autoRedact?: boolean;
   skipCapture?: boolean;
   autoScrubOrigin?: boolean;
@@ -101,6 +102,7 @@ function normaliseForExport(r: SiteRule): SerializedRule {
     if (out.autoTags.length === 0) delete out.autoTags;
   }
   if (r.autoPin) out.autoPin = true;
+  if (r.autoLock) out.autoLock = true;
   if (r.autoRedact) out.autoRedact = true;
   if (r.skipCapture) out.skipCapture = true;
   if (r.autoScrubOrigin) out.autoScrubOrigin = true;
@@ -215,6 +217,7 @@ function validateRule(raw: unknown): SerializedRule | null {
     if (tags.length) out.autoTags = tags.slice(0, MAX_TAGS_PER_RULE);
   }
   if (r.autoPin === true) out.autoPin = true;
+  if (r.autoLock === true) out.autoLock = true;
   if (r.autoRedact === true) out.autoRedact = true;
   if (r.skipCapture === true) out.skipCapture = true;
   if (r.autoScrubOrigin === true) out.autoScrubOrigin = true;
@@ -321,6 +324,7 @@ function liveRuleFrom(r: SerializedRule, createdAt: number): SiteRule {
     hostPattern: r.hostPattern,
     autoTags: r.autoTags,
     autoPin: !!r.autoPin,
+    autoLock: !!r.autoLock,
     autoRedact: !!r.autoRedact,
     skipCapture: !!r.skipCapture,
     autoScrubOrigin: !!r.autoScrubOrigin,

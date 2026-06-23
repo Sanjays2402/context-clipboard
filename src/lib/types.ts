@@ -240,6 +240,29 @@ export interface SiteRule {
   autoTags?: string[];
   /** Pin the clip on capture. */
   autoPin?: boolean;
+  /**
+   * Lock the clip on capture — flips the per-clip "ask before
+   * deleting" bit (`locked: true`) before the clip lands in IDB.
+   * Layered the same way `autoPin` is: sticky on the dedup path
+   * (we never unlock a clip the user has explicitly locked, even
+   * if the rule is later changed), and applied alongside the
+   * existing redact/scrub/tag pipeline.
+   *
+   * Use case: sites where every capture is irreplaceable by
+   * default — a partner portal with one-time tokens, a draft URL
+   * with secrets, a private snippet hub. The user wants the
+   * confirm-on-delete gate up front, without having to remember
+   * to lock each clip manually after capture.
+   *
+   * Orthogonal to `autoPin` (the typical "lock + pin for safety"
+   * setup needs both checked) and orthogonal to `autoRedact` (lock
+   * is about delete-intent, redact is about content). When all
+   * three pile on, the ingested clip carries `pinned:true`,
+   * `locked:true`, `redacted:true`, and any `customPatterns` are
+   * applied on top — matching how the runtime composes the rule
+   * effects.
+   */
+  autoLock?: boolean;
   /** Force PII auto-redact for this site regardless of the global toggle. */
   autoRedact?: boolean;
   /** Don't capture anything from this site at all. */
