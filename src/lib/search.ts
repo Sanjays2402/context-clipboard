@@ -68,6 +68,17 @@ export interface ParsedQuery {
    * logic).
    */
   linkOnly: boolean;
+  /**
+   * Surface clips carrying the "ask before deleting" lock bit.
+   * Joins the `is:` family alongside pinned/redacted/template/
+   * expiring/archived/link so users with the new per-clip lock
+   * affordance (shipped last tick) can audit "what have I marked
+   * irreplaceable?" in one keystroke. Pure predicate filter —
+   * `c.locked === true` is the gate (strict, mirrors db.toggleLock
+   * + clip-lock.partitionLocked so a truthy non-boolean never
+   * accidentally surfaces here).
+   */
+  lockedOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -107,6 +118,7 @@ export function parseQuery(raw: string): ParsedQuery {
     expiringOnly: false,
     archivedOnly: false,
     linkOnly: false,
+    lockedOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -140,6 +152,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "expiring") out.expiringOnly = true;
       else if (v === "archived") out.archivedOnly = true;
       else if (v === "link") out.linkOnly = true;
+      else if (v === "locked") out.lockedOnly = true;
       else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
@@ -185,6 +198,12 @@ export function applyQuery(
     if (pinnedOnly && !c.pinned) return false;
     if (kind && c.kind !== kind) return false;
     if (q.linkOnly && c.kind !== "link") return false;
+    // `is:locked` — strict `=== true` so a truthy non-boolean
+    // (e.g. a stray `locked: 1` from an older import) doesn't
+    // accidentally surface here. Matches the gate clip-lock.ts and
+    // db.toggleLock both apply on the write side, so user-facing
+    // semantics stay consistent end-to-end.
+    if (q.lockedOnly && c.locked !== true) return false;
     if (q.host && hostFrom(c.source.url) !== q.host) return false;
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
@@ -235,6 +254,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.expiringOnly) bits.push("expiring");
   if (q.archivedOnly) bits.push("archived");
   if (q.linkOnly) bits.push("link");
+  if (q.lockedOnly) bits.push("locked");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");

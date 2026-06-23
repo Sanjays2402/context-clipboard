@@ -1081,7 +1081,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -5191,6 +5191,21 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:notemplate");
+      },
+    },
+    {
+      // `is:locked` — surface every clip with the "ask before deleting"
+      // bit set. Parity with the other is:* operators so users can audit
+      // "what have I marked irreplaceable?" in one keystroke without
+      // hunting through the list for the inline padlock badge.
+      id: "filter-locked",
+      label: "Show locked clips",
+      hint: "is:locked — ask-before-deleting clips only",
+      group: "Filter",
+      keywords: "is:locked lock padlock irreplaceable ask delete protected",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:locked");
       },
     },
     {
