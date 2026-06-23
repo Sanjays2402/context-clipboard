@@ -83,6 +83,14 @@ export const icons = {
     svg(
       `<path d="M20.6 13.4 12 22 2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/>`,
     ),
+  // Hash glyph - used by the bulk-bar "Tag from notes" button to
+  // telegraph "extract #hashtags from notes". Two horizontal +
+  // two vertical strokes; minimal silhouette so it sits cleanly
+  // next to `tag` without visual collision.
+  hash: () =>
+    svg(
+      `<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>`,
+    ),
   check: () => svg(`<path d="M20 6 9 17l-5-5"/>`),
   bookmark: () =>
     svg(

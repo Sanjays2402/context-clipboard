@@ -189,6 +189,13 @@ import {
   formatBulkNoteButtonTitle,
 } from "../lib/bulk-note";
 import {
+  planTagFromNotes,
+  mergedTagsForClip,
+  isTagFromNotesActionable,
+  formatTagFromNotesToast,
+  formatTagFromNotesButtonTitle,
+} from "../lib/tag-from-notes";
+import {
   sanitizeClipNote,
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
@@ -361,6 +368,7 @@ const bulkLock = $<HTMLButtonElement>("bulk-lock");
 const bulkLockPin = $<HTMLButtonElement>("bulk-lockpin");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
 const bulkNote = $<HTMLButtonElement>("bulk-note");
+const bulkTagFromNotes = $<HTMLButtonElement>("bulk-tag-from-notes");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkExportTag = $<HTMLInputElement>("bulk-export-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
@@ -6366,6 +6374,32 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Palette mirror for the bulk-bar "Tag from notes" button.
+      // Same handler; the palette gives the action a keyboard path
+      // in addition to the bulk-bar button (which is hidden when
+      // the action would no-op so the user might not see it).
+      // Available gate matches the button's visibility gate exactly:
+      // at least one selected clip has at least one extractable
+      // hashtag NOT already in its tag list.
+      id: "tag-from-notes-selection",
+      label: "Tag selection from #hashtags in notes",
+      hint: "Promote inline #tags in notes into structured tags",
+      keywords:
+        "tag from notes hashtag inline promote extract bulk selection convert structure annotate",
+      group: "Bulk",
+      available:
+        hasSelection &&
+        isTagFromNotesActionable(
+          [...selectedIds]
+            .map((id) => currentClips.find((c) => c.id === id))
+            .filter((c): c is NonNullable<typeof c> => !!c),
+        ),
+      run: () => {
+        closePalette();
+        bulkTagFromNotes.click();
+      },
+    },
+    {
       id: "delete-selection",
       label: "Delete selection",
       group: "Bulk",
@@ -8572,6 +8606,18 @@ function updateBulkBar(): void {
   // itself prompts for the note text and shows the post-action
   // toast; this label is selection-shape only.
   bulkNote.title = formatBulkNoteButtonTitle(selectedClipsForLock);
+  // Tag-from-notes button: hidden when no clip in the selection has
+  // ANY extractable hashtags (no point in offering an action that
+  // would no-op). Title adapts to the live projection so a hover
+  // shows the upcoming write shape ("Add #x to 4 clips" / "Add 6
+  // tags across 3 clips" / "All already tagged"). Same scan
+  // (planTagFromNotes) drives both gate + tooltip so they can't
+  // disagree.
+  const tagFromNotesActionable = isTagFromNotesActionable(selectedClipsForLock);
+  bulkTagFromNotes.hidden = !tagFromNotesActionable;
+  if (tagFromNotesActionable) {
+    bulkTagFromNotes.title = formatTagFromNotesButtonTitle(selectedClipsForLock);
+  }
   const label = buildStorageDeltaLabel(visibleSelected);
   if (!label) {
     bulkStorageDelta.hidden = true;
@@ -8846,6 +8892,56 @@ bulkNote.addEventListener("click", async () => {
     await setClipNote(c.id, plan.finalValue);
   }
   toast(formatBulkNoteToast(plan));
+  await render();
+});
+
+// Bulk-bar "Tag from notes" - scan each selected clip's note for
+// #hashtag tokens (e.g. "be careful — #staging #deprecated") and
+// merge them into the clip's structured tag list. Lets the user
+// promote inline note-style tagging into the structured tag schema
+// that powers `tag:` search + the top-host pills + bulk-tag column.
+//
+// No prompt: the source of the new tags is the note text itself,
+// not user input. The pre-action button title (live-projected via
+// formatTagFromNotesButtonTitle) shows what's about to happen; the
+// post-action toast confirms what actually shipped. Hidden entirely
+// when no clip in the selection has any extractable hashtags (the
+// gate in updateBulkBar handles visibility).
+//
+// Merge semantics: union with existing tags, case-insensitive
+// matching, first-appearance-in-note order preserved for newly-
+// added tags. Identical to the bulk-tag chain (db.updateTags
+// dedups + trims) so no surprises.
+bulkTagFromNotes.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  // Pull fresh records so the plan reflects current state (a
+  // selection can sit across multiple renders; notes may have
+  // changed in between).
+  const items = await Promise.all(ids.map((id) => getClip(id)));
+  const present = items.filter((c): c is NonNullable<typeof c> => !!c);
+  if (present.length === 0) {
+    toast("Selection vanished", "error");
+    return;
+  }
+  const plan = planTagFromNotes(present);
+  if (plan.changed === 0) {
+    // Honest toast with the right shape (selection-has-no-notes vs
+    // no-hashtags-found vs already-tagged) - the formatter handles
+    // the disambiguation.
+    toast(formatTagFromNotesToast(plan));
+    return;
+  }
+  // Apply via db.updateTags so the existing trim+dedup contract +
+  // any future tag-side-effects (e.g. tag-count cache invalidation)
+  // run uniformly. mergedTagsForClip returns undefined for unchanged
+  // clips so we skip those without an IDB write.
+  for (const c of present) {
+    const merged = mergedTagsForClip(c);
+    if (!merged) continue;
+    await updateTags(c.id, merged);
+  }
+  toast(formatTagFromNotesToast(plan));
   await render();
 });
 
