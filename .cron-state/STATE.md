@@ -214,17 +214,42 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Site-rule form: per-rule "test against active tab" — auto-fill host + tags from the focused tab's URL — recurring
 - [ ] In-page palette: pinned-bias slider in settings (default 1.5×; user can tune the boost) — recurring
 - [ ] In-page palette: live `{{token}}` counter pill when typing a template body in the palette search input (mirrors note composer)
-- [ ] Bulk-bar: lock/unlock selected — flip the `locked` bit on a batch in one click (companion to per-clip lock that just shipped)
-- [ ] Cmd+K: "Lock all from active host" — companion to pin-from-host for "this site has irreplaceable snippets, mark them all"
-- [ ] Detail send-to: "Open in new background tab" (chrome.tabs.create with active:false) — for triaging many link clips
+- [x] Bulk-bar: lock/unlock selected — flip the `locked` bit on a batch in one click (companion to per-clip lock that just shipped) — `7a75ad8`
+- [x] Cmd+K: "Lock all from active host" — companion to pin-from-host for "this site has irreplaceable snippets, mark them all" — `864fd69`
+- [x] Detail send-to: "Open in new background tab" (chrome.tabs.create with active:false) — for triaging many link clips — `fb2020d`
 - [ ] Quick-capture: paste an image directly (system clipboard image → new image clip) — companion to URL composer
 - [ ] Site rules: "Suggest from top hosts" — popup proposes rules for hosts with 10+ captures but no rule yet
 - [ ] Audit panel: hover-preview the clip on each row (mini-thumb tooltip) — see WHAT the action was about without jumping
-- [ ] Bulk-bar: "Export selected" → JSON with just the visible/selected clips (vs the global export-with-filter)
+- [x] Bulk-bar: "Export selected" → JSON with just the visible/selected clips (vs the global export-with-filter) — `1cacba4`
 - [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier (Tab → Enter sequence)
 - [ ] Detail-view: "Add note" button — append a free-form note that survives copy/re-capture (clip-attached commentary)
-- [ ] Search: `is:locked` operator — surface every clip carrying the new lock bit
+- [x] Search: `is:locked` operator — surface every clip carrying the new lock bit — `19c38fc`
 - [ ] Trash row: hover-preview matching clip from the live store if a re-capture exists (so the user knows it's safe to purge)
+
+### New (added this tick — 2026-06-22 19:00 PT refill)
+- [ ] Audit log: "Mark as resolved" pill — recurring
+- [ ] Settings: per-kind retention split — recurring
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring
+- [ ] Note composer: paste an image directly — recurring
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — recurring
+- [ ] Detail: "Re-capture from URL" — recurring
+- [ ] Site-rule form: per-rule "test against active tab" — recurring
+- [ ] In-page palette: pinned-bias slider in settings — recurring
+- [ ] In-page palette: live token-counter in palette search input — recurring
+- [ ] Quick-capture: paste an image directly (system clipboard image → new image clip) — recurring
+- [ ] Site rules: "Suggest from top hosts" — recurring
+- [ ] Audit panel: hover-preview the clip on each row — recurring
+- [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier (Tab → Enter sequence) — recurring
+- [ ] Detail-view: "Add note" button — recurring
+- [ ] Trash row: hover-preview matching clip from the live store if a re-capture exists — recurring
+- [ ] Cmd+K: "Lock selected" hotkey when bulk-bar is open (companion to the new bulk-lock button — needs a one-key binding so power users don't hover)
+- [ ] Detail send-to: "Open all background tabs from similar clips" — bulk variant of the new bg-tab action; opens every kind=link similar match in background tabs
+- [ ] Bulk-bar: "Lock + pin selected" combo button — one click for clips you want to both keep at top AND require confirm-on-delete
+- [ ] Search: `is:unlocked` operator (parity twin of `is:locked`) — useful for "what should I lock?" review pass after a is:locked audit
+- [ ] Bulk export: tag-filter dropdown — "Export selected, only clips tagged X" so the user can cherry-pick by category from a wider selection
+- [ ] Per-host rule: "lock by default" bit — every capture from this host auto-locks (parity with `autoPin` + `autoRedact`)
+- [ ] Audit log row: "Restore last lock" — for unlocked-via-bulk entries, one-click undo to re-lock just that clip
+- [ ] Detail-view: lock-state breadcrumb in the meta row ("Locked since YYYY-MM-DD" — first time you set the bit, so audit-trail is visible)
 
 ### Shipped (autoship)
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
@@ -336,12 +361,104 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] In-page palette: "Open in side panel" Chrome-only affordance — feature-detect probe + cc-rpc openSidePanel handler, hidden on Firefox — `2d75a6f`
 - [x] Per-clip lock: "ask before deleting" confirm gate orthogonal to pin — toggleLock + detail icon button + row badge + intercept in all 5 delete paths — `fe54bb9`
 - [x] Cmd+K palette: "Pin every clip from active tab's host" — one-shot triage with live label ("Pin 4 clips from github.com" / "All 12 already pinned" / greyed) — `9a13dd4`
+- [x] Search: `is:locked` operator — strict ===true gate joins is:pinned/redacted/template/expiring/archived/link family with palette command + empty-state hint — `19c38fc`
+- [x] Bulk-bar: lock/unlock selected with intent-adapting button (lock vs lockOpen icon, .active class, hover-title with skip count) + Cmd+K command — `7a75ad8`
+- [x] Cmd+K palette: "Lock N clips from <host>" — companion to pin-from-host, shares activeTabHost cache, new host-lock pure module + 4-shape label matrix — `864fd69`
+- [x] Detail send-to: "Open in background tab" — chrome.tabs.create({active:false}) row between incognito and site-search, fallback path with toast — `fb2020d`
+- [x] Bulk-bar: "Export selected as JSON" — importAll-compatible envelope from selectedIds, separate from Settings → Export, send/arrow icon + Cmd+K + filename includes count — `1cacba4`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-22 19:00 PT** — 5/5 shipped. (1) `is:locked` search
+  operator: parity twin joining the is:pinned/redacted/template/
+  expiring/archived/link family so users with last tick's per-clip
+  lock can audit "what have I marked irreplaceable?" in one
+  keystroke. New `lockedOnly: boolean` on ParsedQuery, parser
+  branch (`is:locked` only — `is:lock`/`is:locks` fall through to
+  freeText so muscle-memory misses don't silently mis-filter),
+  strict `=== true` applyQuery gate mirroring db.toggleLock +
+  clip-lock.partitionLocked (truthy non-boolean stays out — same
+  end-to-end semantic). describeQuery emits "locked", empty-state
+  hint updated, new Cmd+K command "Show locked clips" in Filter
+  group. 25/25 sanity covers parser/applyQuery/describeQuery +
+  archived-default interaction + strict gate (19c38fc). (2)
+  Bulk-bar lock/unlock selected: new padlock button between pin
+  and tag with bulkPin-style "if-all-then-undo" UX so the same
+  mental model carries across pin/lock/archive bulk verbs. When
+  entirely locked → unlocks; otherwise → locks (forces every
+  entry into the chosen state — per-id toggle would flip mixed
+  selections the wrong way). New `db.setLocked(id, bool)`
+  idempotent setter alongside toggleLock with fast-path no-op.
+  New pure `lib/bulk-lock.ts` with 4 helpers: decideBulkLockIntent
+  ("lock"/"unlock"/null), countBulkLockWrites (projected actual
+  changes — already-in-state entries skipped), formatBulkLockToast
+  (singular/plural + mixed-selection "Locked 3 of 7 clips · 4
+  already locked"), formatBulkLockButtonTitle (hover-preview with
+  skip count). Button title + icon (lock→lockOpen) + .active class
+  refresh every updateBulkBar so hover reveals intent before
+  commit. Click handler does its own authoritative read so it
+  stays truthful when selection extends past visible filter. New
+  Cmd+K "Lock N selected" / "Unlock N selected" command. 42/42
+  sanity (7a75ad8). (3) Cmd+K "Lock all from active host":
+  companion to last tick's pin-from-host (9a13dd4) with identical
+  shape — same active-tab anchoring, www-strip, case-insensitive
+  matching, 4-shape label matrix. Use case: "this site has
+  irreplaceable snippets, apply ask-before-delete to every
+  capture." New pure `lib/host-lock.ts` (idsToLockForHost,
+  availableToLockHost, matchedClipsForHostLock,
+  formatLockFromHostLabel — all parallel to host-pin). Strict
+  ===true skip for already-locked so the command never silently
+  unlocks the user's earlier explicit locks. Shared activeTabHost
+  cache extended with `activeHostLockable` (single tabs.query +
+  shared `wide` ClipItem array per render — no extra IDB read).
+  47/47 sanity (864fd69). (4) Send-to "Open in background tab":
+  new row between incognito and site-search, routes through
+  chrome.tabs.create({active:false}) so the new tab loads without
+  stealing focus from the popup — useful for triaging multiple
+  link clips in a row (similar-clips panel, citations). New
+  `urlForBackgroundTabOpen` builder delegates to urlForOpenSource
+  (same http(s) availability rules in one place). New SendAction
+  kind discriminator "bg-tab" joins nav/copy/incognito. Popup
+  handler covers happy path + api.tabs absent fallback + create
+  throw fallback (window.open with informative toast). Bumped
+  send-to action count assertion 13→14 in both sanity-send-to
+  (+13 new bg-tab checks: URL math across text/scrubbed/chrome/
+  data/file/image/note + row availability + row order vs
+  incognito + first-three cluster) and sanity-json-line
+  (fb2020d). (5) Bulk-bar "Export selected as JSON":
+  cherry-pick JSON download, importAll-compatible envelope shape
+  ({clips, version, exportedAt, source:"bulk-export",
+  selectionSize}). Different from Settings → Export: source =
+  selectedIds, JSON-only (no encryption ceremony), no settings/
+  audit/searchHistory fields. New pure `lib/bulk-export.ts` with
+  4 generic-over-T helpers so both test fixtures and real
+  ClipItem pass cleanly: buildBulkExportEnvelope (defensive
+  filter, version coerce, exportedAt fallback), bulkExportJson
+  (2-space pretty-print), bulkExportFilename
+  (`context-clipboard-YYYY-MM-DD-Nclips-bulk.json` so users
+  can distinguish from Settings export), formatBulkExportToast
+  (clean/partial shapes). Send/arrow icon button in bulk-bar
+  between tag and trash. Handler fetches FULL ClipItem records
+  via getClip so pinned/locked/tags/hash/hitCount round-trip,
+  passes through bulkExportJson with DB_VERSION 4. New Cmd+K
+  "Export N selected as JSON" with adaptive label. 63/63
+  sanity covers envelope shape + version/exportedAt overrides +
+  defensive guards + JSON round-trip (locked/pinned/tags/hash
+  preservation) + filename shape + toast shapes + realistic
+  5-clip mixed-kinds end-to-end (1cacba4). tsc + chrome/firefox
+  builds green (popup 287.0KB +14.2 vs last tick — bulk-export
+  module + bulk-lock module + host-lock module + search.ts
+  lockedOnly bit + send-to bg-tab row + popup-side click handlers
+  + 2 new bulk-bar buttons + 4 new Cmd+K commands; background
+  47.2KB unchanged; content 26.9KB unchanged). All 56 sanity
+  suites pass — 1732 total checks (added: 25 is-locked + 42
+  bulk-lock + 47 host-lock + 13 bg-tab additions + 63 bulk-export
+  = 190 new this tick; existing send-to bumped 124→140 includes
+  the bg-tab additions). Pushed as 5 separate revertible commits.
 
 - **2026-06-22 15:22 PT** — 5/5 shipped. (1) `is:link` operator: parity
   twin of `kind:link` so users who reach for it out of muscle memory
