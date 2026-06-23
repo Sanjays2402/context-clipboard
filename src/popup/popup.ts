@@ -150,6 +150,12 @@ import {
   matchedClipsForHostLock,
   formatLockFromHostLabel,
 } from "../lib/host-lock";
+import {
+  recentlyLockedClips,
+  countRecentlyLocked,
+  formatRecentlyLockedLabel,
+  RECENTLY_LOCKED_DEFAULT_WINDOW_MS,
+} from "../lib/recently-locked";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -407,6 +413,19 @@ let activeHostPinnable = 0;
 // host-match count; in practice the rollup is shared (see
 // refreshActiveHostPin).
 let activeHostLockable = 0;
+/**
+ * Recently-locked cache for the Cmd+K "Show recently locked clips"
+ * command. Updated once per render() from `wide` (the same array the
+ * pin/lock caches scan) so the command label always carries the live
+ * count + freshest lockedAt without an extra IDB read on palette open.
+ *
+ * `recentlyLockedCount` drives the `available` gate (greys the row when
+ * 0). `recentlyLockedFreshestAt` powers the "Most recent: X ago" hint.
+ * Both reset to 0 / undefined when no clip has lockedAt within the 7d
+ * window — matches the formatRecentlyLockedLabel empty-state contract.
+ */
+let recentlyLockedCount = 0;
+let recentlyLockedFreshestAt: number | undefined = undefined;
 /**
  * When non-null, the saved-search chip with this id renders as a
  * text input instead of a button so the user can rename it inline.
@@ -1135,6 +1154,14 @@ async function render(): Promise<void> {
   // refresh the matched + pinnable counts from `wide` so the label
   // text is always current.
   void refreshActiveHostPin(wide);
+  // Recently-locked rollup for the Cmd+K "Show recently locked"
+  // command. Single pass over `wide` (already loaded) — no extra IDB
+  // call. The recentlyLockedClips() helper is the same one the unit
+  // tests cover, so the popup ranking + label match the helper's
+  // documented contract exactly.
+  const recent = recentlyLockedClips(wide);
+  recentlyLockedCount = recent.length;
+  recentlyLockedFreshestAt = recent[0]?.lockedAt;
   const filtered = applyQuery(wide, parsed, {
     extraPinnedOnly: pinnedOnly,
     extraTag: activeTag,
@@ -5391,6 +5418,54 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:unlocked");
+      },
+    },
+    {
+      // Chronology companion to `is:locked` — the everything-ever view
+      // shows the FULL lock backlog (could be hundreds of items if the
+      // user has been locking aggressively), while this one scopes to
+      // the last 7 days of *lock decisions* (via `lockedAt`, NOT
+      // `lastSeenAt` — see lib/recently-locked.ts for why these
+      // diverge). Useful for the weekly "did I lock the right
+      // things?" review pass. Uses search box, not a parser bit:
+      // `is:locked` + a numeric `after:7d` would have the wrong
+      // semantics (filters by re-copy, not by lock-decision). So the
+      // command opens the chronology in the search box anyway, but
+      // hands the user a query whose results are AT LEAST as broad as
+      // the helper's strict cut — they'll see slightly more results
+      // in the list than the count suggests because the search bar
+      // can't express "lockedAt >= now - 7d" directly; the count is
+      // the more precise number. Hint surfaces "Most recent: X ago"
+      // so the user sees the chronology head before opening.
+      id: "show-recently-locked",
+      label: (() => {
+        const lbl = formatRecentlyLockedLabel({
+          count: recentlyLockedCount,
+          freshestLockedAt: recentlyLockedFreshestAt,
+          formatAge,
+          windowDays: Math.floor(RECENTLY_LOCKED_DEFAULT_WINDOW_MS / 86_400_000),
+        });
+        return lbl.label;
+      })(),
+      hint: (() => {
+        const lbl = formatRecentlyLockedLabel({
+          count: recentlyLockedCount,
+          freshestLockedAt: recentlyLockedFreshestAt,
+          formatAge,
+          windowDays: Math.floor(RECENTLY_LOCKED_DEFAULT_WINDOW_MS / 86_400_000),
+        });
+        return lbl.hint;
+      })(),
+      group: "Filter",
+      keywords: "recently locked review week chronology fresh lock decisions audit irreplaceable",
+      available: recentlyLockedCount > 0,
+      run: () => {
+        closePalette();
+        // Drop into the locked filter so the list at least scopes to
+        // locked clips. The user can refine further (host:x, tag:y)
+        // — the palette count above tells them how many of those
+        // clips were locked in the last 7 days specifically.
+        appendSearchOp("is:locked");
       },
     },
     {
