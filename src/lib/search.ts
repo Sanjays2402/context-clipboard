@@ -131,6 +131,31 @@ export interface ParsedQuery {
    * `is:noted` / `is:nonoted`, and the AND of both is always empty.
    */
   nonotedOnly: boolean;
+  /**
+   * Surface clips whose HOST is governed by a site rule with
+   * `autoLock: true` under first-match-wins ingest semantics.
+   * Distinct from `is:locked` (per-clip bit) — answers "will this
+   * be locked on next re-capture?" / "is this from a site I've
+   * configured for auto-lock?".
+   *
+   * The actual predicate is built outside the parser (in
+   * lib/host-locked.ts) because it needs the live `SiteRule[]`
+   * list from IDB. The parser just flips the flag; applyQuery's
+   * caller passes a `hostLockedPredicate` via opts when the flag
+   * is set. When the predicate isn't supplied at apply-time
+   * (e.g. a test calling applyQuery with stub data and no rules),
+   * the gate falls open — the flag becomes a no-op rather than
+   * silently empty-ing the result set, which would be misleading.
+   *
+   * Mutually-orthogonal with `is:locked` and `is:unlocked` — they
+   * gate on different things (rule presence vs current clip bit),
+   * so combining them is meaningful: `is:hostlocked is:unlocked`
+   * surfaces drift ("hosts I've configured for auto-lock but
+   * which somehow have unlocked clips"), and `is:hostlocked
+   * is:locked` surfaces alignment ("locked clips from configured
+   * hosts").
+   */
+  hostLockedOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -174,6 +199,7 @@ export function parseQuery(raw: string): ParsedQuery {
     unlockedOnly: false,
     notedOnly: false,
     nonotedOnly: false,
+    hostLockedOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -211,6 +237,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "unlocked") out.unlockedOnly = true;
       else if (v === "noted") out.notedOnly = true;
       else if (v === "nonoted") out.nonotedOnly = true;
+      else if (v === "hostlocked") out.hostLockedOnly = true;
       else leftover.push(tok);
     } else if (key === "before") {
       const d = parseDuration(val);
@@ -239,7 +266,23 @@ export function parseQuery(raw: string): ParsedQuery {
 export function applyQuery(
   clips: ClipItem[],
   q: ParsedQuery,
-  opts: { extraPinnedOnly?: boolean; extraTag?: string | null; extraKind?: ClipKind | "all" } = {},
+  opts: {
+    extraPinnedOnly?: boolean;
+    extraTag?: string | null;
+    extraKind?: ClipKind | "all";
+    /**
+     * Predicate returning true when the clip's host is governed
+     * by a site-rule whose first-match-wins outcome carries
+     * `autoLock: true`. Used by `is:hostlocked`. When the flag is
+     * set on the parsed query but the caller didn't supply a
+     * predicate (no rules loaded yet / a test calling applyQuery
+     * with stub data and no site-rules access), the gate falls
+     * open — the flag becomes a no-op rather than silently
+     * empty-ing the result set, which would be misleading. The
+     * popup always passes one when the flag is set.
+     */
+    hostLockedPredicate?: (c: ClipItem) => boolean;
+  } = {},
 ): ClipItem[] {
   const needle = q.freeText.toLowerCase();
   const pinnedOnly = q.pinnedOnly || !!opts.extraPinnedOnly;
@@ -284,6 +327,15 @@ export function applyQuery(
     // construction — same intent contract as `is:template
     // is:notemplate` / `is:locked is:unlocked`.
     if (q.nonotedOnly && hasClipNote(c)) return false;
+    // `is:hostlocked` — cross-store join via the supplied
+    // predicate. Gate falls open when the predicate wasn't
+    // supplied so a test calling applyQuery without rules access
+    // doesn't silently empty the result set (a misleading
+    // failure mode). The popup always supplies one when the flag
+    // is set, so the user-facing behaviour stays correct.
+    if (q.hostLockedOnly && opts.hostLockedPredicate) {
+      if (!opts.hostLockedPredicate(c)) return false;
+    }
     if (q.host && hostFrom(c.source.url) !== q.host) return false;
     if (q.redactedOnly && !c.redacted) return false;
     if (q.ocrOnly && !c.ocrText) return false;
@@ -338,6 +390,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.unlockedOnly) bits.push("unlocked");
   if (q.notedOnly) bits.push("noted");
   if (q.nonotedOnly) bits.push("not-noted");
+  if (q.hostLockedOnly) bits.push("hostlocked");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");

@@ -155,6 +155,11 @@ import {
   formatLockFromHostLabel,
 } from "../lib/host-lock";
 import {
+  buildHostLockedPredicate,
+  countHostLockedClips,
+  autoLockedHostsForClips,
+} from "../lib/host-locked";
+import {
   recentlyLockedClips,
   countRecentlyLocked,
   formatRecentlyLockedLabel,
@@ -442,6 +447,27 @@ let activeHostPinnable = 0;
 // host-match count; in practice the rollup is shared (see
 // refreshActiveHostPin).
 let activeHostLockable = 0;
+/**
+ * Site-rules cache + the derived `is:hostlocked` count + predicate.
+ * Refreshed on every render() via refreshSiteRulesCache (single RPC
+ * call) so the search filter, the empty-state hint, and the Cmd+K
+ * "Show hostlocked" command all see the same in-scope set without
+ * each having to fetch independently.
+ *
+ * `hostLockedPredicate` is rebuilt on every render via
+ * buildHostLockedPredicate, so its internal cache is fresh per
+ * render — no stale rule decisions persist across config changes.
+ * The predicate is closure-scoped (no global Map) so two renders
+ * in quick succession after a rule edit can't see each other's
+ * stale verdicts.
+ *
+ * `hostLockedCount` is the live count of clips matched by the
+ * predicate over `wide`. Drives the palette command's `available`
+ * gate (greys when 0) and the count label ("N clips · hostlocked").
+ */
+let currentSiteRules: SiteRule[] = [];
+let hostLockedPredicate: ((c: ClipItem) => boolean) = () => false;
+let hostLockedCount = 0;
 /**
  * Recently-locked cache for the Cmd+K "Show recently locked clips"
  * command. Updated once per render() from `wide` (the same array the
@@ -1212,10 +1238,35 @@ async function render(): Promise<void> {
   const recentNoted = recentlyNotedClips(wide);
   recentlyNotedCount = recentNoted.length;
   recentlyNotedFreshestAt = recentNoted[0]?.noteUpdatedAt;
+  // Site-rules refresh — single RPC, drives the `is:hostlocked`
+  // operator AND the Cmd+K "Show hostlocked" command. We do it on
+  // every render so a rule the user just edited / added / deleted
+  // gets reflected immediately in the filter and the palette. The
+  // RPC is cheap (rules are stored as a single meta row); we await
+  // it before the applyQuery so the predicate is fresh in case the
+  // user types `is:hostlocked` mid-render. The catch swallows
+  // transient RPC misses without empty-ing the filter — the
+  // predicate falls back to "no match" naturally.
+  try {
+    const r = await rpcSiteRules("listSiteRules");
+    if (r?.ok && Array.isArray(r.rules)) {
+      currentSiteRules = r.rules;
+    }
+  } catch {
+    // Keep last-known rules on transient RPC failure — better than
+    // wiping the cache and silently emptying every is:hostlocked
+    // filter for the duration of the network blip.
+  }
+  hostLockedPredicate = buildHostLockedPredicate(currentSiteRules);
+  hostLockedCount = countHostLockedClips(currentSiteRules, wide);
   const filtered = applyQuery(wide, parsed, {
     extraPinnedOnly: pinnedOnly,
     extraTag: activeTag,
     extraKind: currentKind,
+    // Pass the live predicate so `is:hostlocked` works. When the
+    // user hasn't typed the operator (parsed.hostLockedOnly ===
+    // false) applyQuery skips it — no extra cost per clip.
+    hostLockedPredicate,
   });
   // Sort happens AFTER the filter so the sort comparator only sees the
   // visible window — much smaller, and stable across renders. The
@@ -1241,7 +1292,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>after:24h</code>.</small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -5643,6 +5694,51 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:nonoted");
+      },
+    },
+    {
+      // `is:hostlocked` — cross-store join (site_rules × clips) that
+      // surfaces clips whose HOST has a configured autoLock rule,
+      // regardless of whether the per-clip `locked` bit is set yet.
+      // Different lens than `is:locked`: this one asks "is this from
+      // a site I've protected by RULE?" rather than "did I lock THIS
+      // clip?". Pair with `is:unlocked` to surface drift (rule-
+      // governed hosts whose clips somehow ended up unlocked, e.g.
+      // a manual unlock after the rule shipped). Greys out when no
+      // rules carry autoLock OR no clips fall under such a rule, so
+      // the row never lies about an empty result. Label carries the
+      // live count via the cached hostLockedCount for honest UX.
+      id: "filter-hostlocked",
+      label:
+        hostLockedCount > 0
+          ? `Show hostlocked clips (${hostLockedCount})`
+          : "Show hostlocked clips",
+      hint: (() => {
+        if (hostLockedCount === 0) {
+          return "is:hostlocked — no host site-rules with autoLock yet";
+        }
+        // autoLockedHostsForClips reads from the LIVE clip cache
+        // (`currentClips` may be filtered; we want the unfiltered
+        // set so the hint stays truthful across filter changes).
+        // currentSiteRules is the live rules array. Cheap: same
+        // single-pass predicate the count uses.
+        const hostsList = autoLockedHostsForClips(
+          currentSiteRules,
+          currentClips,
+        );
+        const n = hostsList.length;
+        const suffix = n === 1 ? "" : "s";
+        return n > 0
+          ? `is:hostlocked — clips from ${n} autoLock'd host${suffix} (rule-governed)`
+          : "is:hostlocked — clips from autoLock'd hosts (rule-governed)";
+      })(),
+      group: "Filter",
+      keywords:
+        "is:hostlocked host site rule auto-lock autolock governed configured protected cross-store join drift",
+      available: hostLockedCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:hostlocked");
       },
     },
     {
