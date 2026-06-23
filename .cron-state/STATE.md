@@ -304,18 +304,50 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Site rules: "Suggest from top hosts" — recurring (popup proposes rules for hosts with 10+ captures but no rule yet)
 - [ ] Audit panel: hover-preview the clip on each row — recurring (mini-thumb tooltip)
 - [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier — recurring (Tab → Enter sequence)
-- [ ] `is:hostlocked` search operator — surface clips whose host has an autoLock site rule (cross-store join site_rules × clips)
-- [ ] Note composer pre-fill from active tab `title` — "Captured from <title>" boilerplate the user can edit/clear before save
+- [x] `is:hostlocked` search operator — cross-store join surfacing clips whose host has an autoLock site rule, first-match-wins, with Cmd+K command + empty-state hint — `def8a6c`
+- [x] Note composer pre-fill from active tab `title` — "Captured from <title>" boilerplate the user can edit/clear before save, with site-suffix stripping + host fallback + no-clobber guard — `28a02fc`
 - [ ] Detail-view: "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars under the Locked breadcrumb (roadmap-recurring; worth flagging)
 - [ ] Bulk-bar: "Note to selection" tag-extract — after note is set, offer a chip to auto-extract `#hashtag`s from the note text into the clip's tag list
-- [ ] Detail send-to: "Copy note as Markdown" — single-line `> note text` blockquote for users who paste clips into docs and want the caveat to ride along
+- [x] Detail send-to: "Copy note as Markdown" — single-line `> note text` blockquote for users who paste clips into docs and want the caveat to ride along — `056cbd8`
 - [ ] Trash row: hover-preview note tail for the LIVE re-capture too — current tick only surfaces the trashed clip's note; the live twin's note (if any) could surface as "Live note: ..." so the user knows the recovery story has its own commentary
 - [ ] Note composer keyboard shortcut: `n` on an active row in the daily list opens detail at the note textarea (focus jumps directly to the textarea — matches `?` cheatsheet for "n = note this clip")
-- [ ] Cmd+K: "Note all from active host" — companion to pin-from-host / lock-from-host for the workflow "every clip from staging.example.com deserves the same caveat"
+- [x] Cmd+K: "Note all from active host" — companion to pin-from-host / lock-from-host for the workflow "every clip from staging.example.com deserves the same caveat" — `53b42cf`
 - [ ] Settings: per-kind note auto-capture — when copying from a configured host, prompt for note inline at capture time (gated behind a per-host site rule + global enable toggle)
 - [ ] Audit log: track note-set + note-clear actions in the privacy ring — same rationale as redact-track but for the note family (lets users see "I cleared this note on Tuesday" without scrolling the audit panel manually)
-- [ ] `is:noteshorter:N` / `is:notelonger:N` — surface clips with notes shorter/longer than N chars (useful for "show me the one-word reminders" vs "show me the essays I left")
+- [x] `is:noteshorter:N` / `is:notelonger:N` — surface clips with notes shorter/longer than N chars (useful for "show me the one-word reminders" vs "show me the essays I left") — `02fe975`
 - [ ] Bulk-bar: "Tag from notes" — for each selected clip with a note, extract `#hashtag` tokens from the note text and merge into the clip's tag list (one-click conversion of inline tags to structured)
+
+
+### New (added this tick — 2026-06-23 10:05 PT refill)
+- [ ] Audit log: "Mark as resolved" pill — recurring
+- [ ] Settings: per-kind retention split — recurring (`maxUnpinnedText` + `maxUnpinnedImage`)
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring (last 30 days of hitCount as ASCII bars)
+- [ ] Note composer: paste an image directly — recurring (drop on textarea creates image clip)
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — recurring (chip-grid of user's top tags for one-click bulk-tagging)
+- [ ] Detail: "Re-capture from URL" — recurring (for link/text clips with http(s) source, refresh title + nearbyText)
+- [ ] Site-rule form: per-rule "test against active tab" — recurring (auto-fill host + tags from focused tab's URL)
+- [ ] In-page palette: pinned-bias slider in settings — recurring (default 1.5×; user can tune)
+- [ ] In-page palette: live token-counter in palette search input — recurring (mirror of note composer counter)
+- [ ] Quick-capture: paste an image directly — recurring (system clipboard image → new image clip)
+- [ ] Site rules: "Suggest from top hosts" — recurring (popup proposes rules for hosts with 10+ captures but no rule yet)
+- [ ] Audit panel: hover-preview the clip on each row — recurring (mini-thumb tooltip)
+- [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier — recurring (Tab → Enter sequence)
+- [ ] Trash row: hover-preview note tail for the LIVE re-capture too — recurring (current tick only surfaces the trashed clip's note)
+- [ ] Note composer keyboard shortcut: `n` on an active row jumps to detail-view note textarea
+- [ ] Settings: per-kind note auto-capture — when copying from a configured host, prompt for note inline at capture time (gated behind a per-host site rule + global enable toggle)
+- [ ] Audit log: track note-set + note-clear actions in the privacy ring — same rationale as redact-track but for the note family
+- [ ] Bulk-bar: "Tag from notes" — for each selected clip with a note, extract `#hashtag` tokens from the note text and merge into the clip's tag list
+- [ ] `is:hostlocked` parity: `is:hostredacted` (autoRedact rule), `is:hostpinned` (autoPin rule), `is:hostscrubbed` (autoScrubOrigin rule) — same cross-store join family, surfaces hosts with each rule type for at-a-glance review
+- [ ] Cmd+K: "Note all from active host" — pre-fill the prompt with the active tab's title via buildNotePrefill (already imported) so "Captured from <title>" is one keystroke away across N clips
+- [ ] Detail send-to: "Copy clip + note as Markdown" — combined paste of fenced-code + blockquote so users sharing a snippet WITH commentary get both in one copy
+- [ ] Search: `is:notenewer:N` / `is:noteolder:N` — gate on `noteUpdatedAt` chronology (companion to noteshorter/notelonger which gate on length); useful for "what notes did I write in the last week?" without dropping into Cmd+K recently-noted
+- [ ] In-page palette: surface clip notes inline as a 2nd-line preview when expanded (hover or kbd-active row); today the in-page palette doesn't show note context
+- [ ] Saved searches: a saved search that uses `is:hostlocked` should refresh its chip count when site-rules change (currently the chip is static — count drifts when the user adds/removes an autoLock rule)
+- [ ] Audit panel: filter chip "Note" — bucket the note-set/note-clear actions once that audit-tracking ships (paired with the note-tracking roadmap item above)
+- [ ] Detail-view: note's last-edit history — surface the previous N note values (capped, no IDB schema bump; lives in a parallel meta entry) so a user who overwrote a note can recover the old text
+- [ ] Bulk-bar: "Append to existing notes" toggle — opt-in to APPEND vs OVERWRITE semantics for the bulk-bar add-note (some users want "and also: production needs review" appended rather than replacing the staging caveat)
+- [ ] Note composer: hashtag autocomplete — typing `#` triggers a dropdown of existing tags so users can promote notes-with-hashtags into structured-tagged clips inline
+- [ ] Site-rule form: paste-from-clipboard URL → auto-fill hostPattern (extends the existing paste-URL helper to detect URLs in the system clipboard at form-open time)
 
 
 
@@ -449,12 +481,88 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Cmd+K palette: "Show recently noted" — 7d chronology over `noteUpdatedAt` companion to recently-locked, pure recently-noted module (newest-first sort, defensive non-array/missing/NaN/Infinity, clock-skew tolerant, custom-window override), label grammar 0/1/many with freshest-age hint, available:false greys row when 0, run handler appends `is:noted` since search bar can't express `noteUpdatedAt >= now - 7d` directly — `634a3b1`
 - [x] Trash row hover-preview: clip's own note tails the tooltip — closes the loop between last-tick's trash-match + last-tick's note features, formatTrashRecaptureTooltip extended with optional `trashed` arg (back-compat: omit = original 2-shape tooltip), 80-char default cap with word-boundary truncation, newlines collapse to single spaces, defensive bad-input drops tail silently, note tail follows preview tail in join order — `a52fe7f`
 - [x] Bulk-bar: "Add note to selection" — overwrite-and-warn semantics (notes are prose so merge would create franken-text), pure bulk-note module (planBulkNote projects created/replaced/cleared/unchanged + finalValue, isBulkNoteActionable gates, formatBulkNoteToast 6-shape grammar, formatBulkNoteButtonTitle 4-shape hover), same sanitiseClipNote pipeline as detail editor so bulk + single paths produce identical stored values, pre-prompt warning + post-action toast both surface replace-count, empty input clears existing notes (mirrors detail save-empty contract), prompt-null cancel cleanly distinguished from prompt-empty clear, Cmd+K mirror in Bulk group, idempotent re-run yields all-unchanged — `ea1b1e4`
+- [x] Search: `is:hostlocked` — cross-store join (site_rules × clips) surfacing clips whose host has an autoLock=true rule under first-match-wins ingest semantics, distinct from `is:locked` (per-clip bit), pure host-locked module (buildHostLockedPredicate with closure-scoped cache, countHostLockedClips, autoLockedHostsForClips), popup wires site-rules RPC into render() so the predicate is fresh every paint, applyQuery gains hostLockedPredicate opt that falls open when unsupplied (test-friendly), Cmd+K Filter command with live count + distinct-host hint, empty-state hint includes the operator — `def8a6c`
+- [x] Search: `is:notelonger:N` / `is:noteshorter:N` — note-length filters with strict comparison (>N / <N), implicit `is:noted` requirement on both sides (no-note clips never match), strict-integer parser (rejects decimals/signs/empty tail to leftover), AND-semantics composition with itself for band-pass, contradictory bounds empty by design, describeQuery surfaces "note>N" / "note<N", Cmd+K commands with default thresholds (120 / 30) + greyed when no current-view clip satisfies — `02fe975`
+- [x] Note composer: pre-fill from active tab title — "Captured from <title>" stem gives the user a starting frame instead of a blank textarea, pure note-prefill module (normaliseTabTitle with one-pass site-suffix strip + 30-char cap + terminal-punctuation guard, fallbackHostLabel rejects non-http(s), buildNotePrefill 3-shape output, shouldApplyNotePrefill no-clobber guard for re-opened drafts), api.tabs.query wrapped in try/catch for chrome:// scope, no auto-select-on-focus (documented anti-pattern) — `28a02fc`
+- [x] Cmd+K: "Note every clip from active host" — third leg of the host-triage trio (pin/lock/note), pure host-note module mirroring host-lock shape (idsToNoteForHost, matchedClipsForHostNote, planHostNote projecting created/replaced/cleared/unchanged/finalValue, formatNoteFromHostLabel 3-shape matrix, formatHostNoteToast 7-shape grammar with "from <host>" tail), overwrite contract mirrors bulk-bar, pre-prompt label warns "(N will be replaced)" when relevant, empty input clears (mirrors detail save-empty + bulk-bar contract), planning gates the IDB loop so idempotent re-runs no-op cleanly, same setClipNote RPC as detail + bulk so noteUpdatedAt stamping is identical across all three entry points — `53b42cf`
+- [x] Detail send-to: "Copy note as Markdown" — wraps the per-clip note as a `> ` blockquote so paste-into-docs workflows can include the caveat alongside the content, pure note-markdown module (noteAsMarkdownBlockquote handles CRLF normalisation + outer-blank-strip + internal-blank-as-`>`-placeholder + per-line `> ` prefix + nested-quote pass-through + no length cap, noteAsMarkdownAvailable predicate matches hasClipNote), SendableClip type extended with optional `note?: string`, popup passes c.note in both buildSendActions call sites so menu-render + click-dispatch gates stay consistent, row hides when un-noted (no dimmed dead row) — `056cbd8`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-23 10:05 PT** — 5/5 shipped. Theme: post-note-suite
+  expansion in 5 orthogonal directions. (1) `is:hostlocked` search
+  operator — cross-store join (site_rules × clips) under first-
+  match-wins semantics, distinct lens from `is:locked` (per-clip
+  bit) — answers "is this from a site I've protected by RULE?"
+  vs "did I lock THIS clip?". Pure host-locked module with
+  closure-scoped per-host verdict cache, refreshed per render
+  (no stale rule decisions). Pairs orthogonally with is:locked
+  (alignment view) and is:unlocked (drift view). Empty-state
+  hint + Cmd+K Filter command with live count + distinct-host
+  hint. 24/24 sanity. (def8a6c). (2) `is:notelonger:N` /
+  `is:noteshorter:N` — note-length filters with strict comparison
+  (>N / <N — boundary belongs to neither). Both implicitly
+  require is:noted (no-note clips never match — the operators are
+  about note LENGTH, not absence; use is:nonoted for absence).
+  Strict-integer parser rejects decimals/signs/empty-tail to
+  leftover (typos surface as plain text). AND-semantics
+  composition yields a band-pass filter
+  (is:notelonger:10 is:noteshorter:50 → notes in [11..49]).
+  describeQuery summary gains "note>N"/"note<N" pills. Cmd+K
+  defaults: 120 (essays) / 30 (sticky-note style triage
+  candidates). 22/22 sanity. (02fe975). (3) Note composer
+  pre-fill from active tab title — replaces blank-textarea with
+  "Captured from <title>" stem, giving the user a frame to
+  edit/append/blow-away instead of facing the "what was I going
+  to say?" void. Pure note-prefill module with one-pass site-
+  suffix strip ("Article | GitHub" → "Article"; preserves
+  legitimate subtitles via 30-char cap + terminal-punctuation
+  guard), 80-char cap with word-boundary ellipsis, host fallback
+  for chrome:// / file:// rejection. shouldApplyNotePrefill
+  no-clobber guard keeps re-opened mid-edit composer drafts
+  intact. api.tabs.query wrapped in try/catch (chrome:// scope
+  has no tab access). No auto-select-on-focus (documented
+  anti-pattern that wipes drafts on first keystroke). 35/35
+  sanity. (28a02fc). (4) Cmd+K "Note every clip from active
+  host" — third leg of the host-triage trio (pin/lock/note),
+  same active-tab anchoring + 4-shape label matrix as the
+  pin/lock variants. New pure host-note module mirrors
+  host-lock shape exactly: idsToNoteForHost (order-preserving
+  host filter, no note-state pre-filter since overwrite =
+  every match participates), matchedClipsForHostNote (cheap
+  O(N) count for the label), planHostNote (full projection of
+  created/replaced/cleared/unchanged/finalValue using SAME
+  sanitizeClipNote pipeline as detail + bulk-bar — single
+  source of truth across all three entry points),
+  formatNoteFromHostLabel (3-shape matrix), formatHostNoteToast
+  (7-shape grammar with "from <host>" tail). Apply path
+  re-reads live store at click time + counts currently-noted
+  matches so prompt label warns "(N will be replaced)" up
+  front; planning gates the IDB loop so idempotent re-runs
+  no-op cleanly; same setClipNote RPC + noteUpdatedAt stamping
+  as the other two paths. 28/28 sanity. (53b42cf). (5) Detail
+  send-to "Copy note as Markdown" — wraps clip's free-form note
+  as a `> ` blockquote so paste-into-docs workflows can
+  include the caveat. New pure note-markdown module:
+  noteAsMarkdownBlockquote normalises CRLF/bare-CR to LF,
+  strips outer blanks, prefixes each line with `> ` (empty
+  inner lines become `>` placeholders so paragraph breaks
+  survive Markdown round-trip), passes nested quotes through
+  (`> > existing` is legitimate CommonMark nesting), no length
+  cap (caller controls — source note is already capped to 2k).
+  Row HIDES (not greys) when un-noted so menu stays tight.
+  SendableClip type extended with optional note field;
+  popup passes c.note in BOTH buildSendActions call sites so
+  menu-render + click-dispatch gates stay consistent. Bumped
+  sanity-send-to count 14→15. 28/28 new sanity. (056cbd8).
+  Quality gates: tsc --noEmit clean, chrome+firefox builds
+  green (popup 338.0kb vs 320.9kb baseline, +17kb for 5
+  features + sanity-friendly module split). 137 new sanity
+  tests this tick; 0 regressions across 68 existing files.
 
 - **2026-06-23 05:24 PT** — 5/5 shipped. (1) `is:nonoted` search
   operator — strict-complement parity twin of `is:noted` (the two
