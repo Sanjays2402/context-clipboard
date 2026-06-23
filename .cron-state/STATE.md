@@ -244,12 +244,12 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Cmd+K: "Lock selected" hotkey when bulk-bar is open — recurring
 - [ ] Detail send-to: "Open all background tabs from similar clips" — recurring
 - [ ] Bulk export: tag-filter dropdown (autocompleter for the input, current ships free-text only)
-- [ ] Detail-view: per-clip note — show on hover-preview in trash too (closes the loop with this tick's trash-match feature)
+- [x] Detail-view: per-clip note — show on hover-preview in trash too (closes the loop with this tick's trash-match feature) — `a52fe7f`
 - [ ] `is:hostlocked` search operator — surface clips whose host has an autoLock site rule (cross-store join)
-- [ ] Cmd+K: "Show recently noted" — chronology of last-edited notes (companion to recently-locked)
-- [ ] Bulk-bar: "Add note to selection" — apply a note to N clips in one shot
+- [x] Cmd+K: "Show recently noted" — chronology of last-edited notes (companion to recently-locked) — `634a3b1`
+- [x] Bulk-bar: "Add note to selection" — apply a note to N clips in one shot — `ea1b1e4`
 - [ ] Note composer pre-fill from active tab `title` — "Captured from <title>" boilerplate that the user can edit/clear
-- [ ] Search: `is:nonoted` inverse operator — parity twin of `is:noted` for the "what should I annotate?" review pass
+- [x] Search: `is:nonoted` inverse operator — parity twin of `is:noted` for the "what should I annotate?" review pass — `0cd3b12`
 - [x] Cmd+K palette: "Show recently locked" — 7d chronology of lock decisions via `lockedAt` (not `lastSeenAt`), live count + freshest-age in label, gates on `is:locked` not lockedAt directly because the search bar can't express that — `5c4ed2e`
 - [x] Detail-view: per-clip "Add note" field — free-form user commentary, schema-additive `note?: string`, sanitize+cap+control-strip pure module, auto-save on blur + Cmd/Ctrl+Enter, char-counter with over-cap red flag — `2134bfc`
 - [x] Search: `is:noted` operator — joins is: family via hasClipNote() predicate (same gate as detail-view Clear-button visibility), parser branch + applyQuery + describeQuery + Cmd+K + empty-state hint — `72835ca`
@@ -288,6 +288,34 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring (worth flagging again)
 - [ ] Bulk-bar: visible "Lock + pin" hover should preview projected count even when partially actionable — already done via formatBulkLockPinButtonTitle
 - [ ] Cmd+K palette: "Show recently locked" — surface clips with lockedAt within last 7 days as a chronology view
+
+
+### New (added this tick — 2026-06-23 05:24 PT refill)
+- [ ] Audit log: "Mark as resolved" pill — recurring
+- [ ] Settings: per-kind retention split — recurring (`maxUnpinnedText` + `maxUnpinnedImage`)
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring (last 30 days of hitCount as ASCII bars)
+- [ ] Note composer: paste an image directly — recurring (drop on textarea creates image clip)
+- [ ] Bulk-bar: "Tag selected → palette tag picker" — recurring (chip-grid of user's top tags for one-click bulk-tagging)
+- [ ] Detail: "Re-capture from URL" — recurring (for link/text clips with http(s) source, refresh title + nearbyText)
+- [ ] Site-rule form: per-rule "test against active tab" — recurring (auto-fill host + tags from focused tab's URL)
+- [ ] In-page palette: pinned-bias slider in settings — recurring (default 1.5×; user can tune)
+- [ ] In-page palette: live token-counter in palette search input — recurring (mirror of note composer counter)
+- [ ] Quick-capture: paste an image directly — recurring (system clipboard image → new image clip)
+- [ ] Site rules: "Suggest from top hosts" — recurring (popup proposes rules for hosts with 10+ captures but no rule yet)
+- [ ] Audit panel: hover-preview the clip on each row — recurring (mini-thumb tooltip)
+- [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier — recurring (Tab → Enter sequence)
+- [ ] `is:hostlocked` search operator — surface clips whose host has an autoLock site rule (cross-store join site_rules × clips)
+- [ ] Note composer pre-fill from active tab `title` — "Captured from <title>" boilerplate the user can edit/clear before save
+- [ ] Detail-view: "Pinned hits" sparkline — last 30 days of hitCount as ASCII bars under the Locked breadcrumb (roadmap-recurring; worth flagging)
+- [ ] Bulk-bar: "Note to selection" tag-extract — after note is set, offer a chip to auto-extract `#hashtag`s from the note text into the clip's tag list
+- [ ] Detail send-to: "Copy note as Markdown" — single-line `> note text` blockquote for users who paste clips into docs and want the caveat to ride along
+- [ ] Trash row: hover-preview note tail for the LIVE re-capture too — current tick only surfaces the trashed clip's note; the live twin's note (if any) could surface as "Live note: ..." so the user knows the recovery story has its own commentary
+- [ ] Note composer keyboard shortcut: `n` on an active row in the daily list opens detail at the note textarea (focus jumps directly to the textarea — matches `?` cheatsheet for "n = note this clip")
+- [ ] Cmd+K: "Note all from active host" — companion to pin-from-host / lock-from-host for the workflow "every clip from staging.example.com deserves the same caveat"
+- [ ] Settings: per-kind note auto-capture — when copying from a configured host, prompt for note inline at capture time (gated behind a per-host site rule + global enable toggle)
+- [ ] Audit log: track note-set + note-clear actions in the privacy ring — same rationale as redact-track but for the note family (lets users see "I cleared this note on Tuesday" without scrolling the audit panel manually)
+- [ ] `is:noteshorter:N` / `is:notelonger:N` — surface clips with notes shorter/longer than N chars (useful for "show me the one-word reminders" vs "show me the essays I left")
+- [ ] Bulk-bar: "Tag from notes" — for each selected clip with a note, extract `#hashtag` tokens from the note text and merge into the clip's tag list (one-click conversion of inline tags to structured)
 
 
 
@@ -416,12 +444,133 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Search: `is:noted` operator — joins the is: family (pinned/redacted/template/expiring/archived/link/locked/unlocked), strict predicate via hasClipNote() so the search filter + detail-view Clear-button visibility can't disagree, parser/applyQuery/describeQuery/Cmd+K command + empty-state hint — `72835ca`
 - [x] Bulk-bar: "Export selected with tag X" — optional tag filter input between bulk-tag and bulk-export buttons, pure filterClipsByTag helper (case-insensitive + trimmed match, defensive against non-array clips + bad tag arrays), formatBulkExportTagToast grammar (zero-match honest no-write, partial-selected, all-selected, singular noun), 84px → 130px focus-expand input — `87a8e7d`
 - [x] Trash row: hover-preview live re-capture — pure trash-match module finds latest live clip by content hash (newest-lastSeenAt wins, stamped beats unstamped), formats two-shape tooltip ("Live re-capture exists — Xm/h/d ago. Safe to purge." with optional preview snippet vs "No live re-capture — purging this is permanent."), surfaced via row `title` attr — `5726170`
+- [x] Search: `is:nonoted` operator — exact strict-complement of `is:noted` (the two partition the clip space; AND is empty), shares hasClipNote() gate with detail-view + filter so three surfaces never disagree, parser/applyQuery/describeQuery + Cmd+K "Hide noted clips" with synonyms (no/un-annotated/missing/commentary/review/candidates/without) + empty-state legend — `0cd3b12`
+- [x] Detail-view: `noteUpdatedAt` breadcrumb — schema-additive stamp written by setClipNote on every value-changing write (no-op fast path doesn't bump), cleared on note-delete so re-noted starts fresh, pure note-updated-since module (5-tier formatter: just now / Nm / Nh / N days / ISO date, calendar-day boundary math, clock-skew clamp), "Noted X ago" pill between count + Clear in note-row foot, hidden for legacy clips noted before the stamp shipped — `721a67a`
+- [x] Cmd+K palette: "Show recently noted" — 7d chronology over `noteUpdatedAt` companion to recently-locked, pure recently-noted module (newest-first sort, defensive non-array/missing/NaN/Infinity, clock-skew tolerant, custom-window override), label grammar 0/1/many with freshest-age hint, available:false greys row when 0, run handler appends `is:noted` since search bar can't express `noteUpdatedAt >= now - 7d` directly — `634a3b1`
+- [x] Trash row hover-preview: clip's own note tails the tooltip — closes the loop between last-tick's trash-match + last-tick's note features, formatTrashRecaptureTooltip extended with optional `trashed` arg (back-compat: omit = original 2-shape tooltip), 80-char default cap with word-boundary truncation, newlines collapse to single spaces, defensive bad-input drops tail silently, note tail follows preview tail in join order — `a52fe7f`
+- [x] Bulk-bar: "Add note to selection" — overwrite-and-warn semantics (notes are prose so merge would create franken-text), pure bulk-note module (planBulkNote projects created/replaced/cleared/unchanged + finalValue, isBulkNoteActionable gates, formatBulkNoteToast 6-shape grammar, formatBulkNoteButtonTitle 4-shape hover), same sanitiseClipNote pipeline as detail editor so bulk + single paths produce identical stored values, pre-prompt warning + post-action toast both surface replace-count, empty input clears existing notes (mirrors detail save-empty contract), prompt-null cancel cleanly distinguished from prompt-empty clear, Cmd+K mirror in Bulk group, idempotent re-run yields all-unchanged — `ea1b1e4`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-23 05:24 PT** — 5/5 shipped. (1) `is:nonoted` search
+  operator — strict-complement parity twin of `is:noted` (the two
+  partition the clip space; AND is empty by construction, matching
+  `is:template is:notemplate` and `is:locked is:unlocked` contracts).
+  Uses the SAME hasClipNote() predicate as the is:noted filter,
+  the detail-view Clear-button visibility, and the future
+  recently-noted helper — single source of truth means three
+  surfaces can never disagree on what counts as "noted". Use case:
+  the "what should I annotate?" review pass, especially paired with
+  `is:locked` for the high-leverage "irreplaceable but uncommented"
+  set. Parser typo-rejection contract preserved (`is:nonoted2` /
+  `is:nonot` fall through to free text). Cmd+K Filter command +
+  empty-state legend gain the new op. 18/18 sanity covering parser,
+  applyQuery, describeQuery, complement-partition law, intersection
+  composition (0cd3b12). (2) Detail-view `noteUpdatedAt`
+  breadcrumb — schema-additive stamp on ClipItem written by
+  db.setClipNote on every value-changing write. No-op fast path
+  doesn't bump (re-saving the same text shouldn't refresh "noted
+  recency"). Cleared back to undefined on note-delete so a future
+  re-noted starts the clock fresh — same lifecycle contract as
+  lockedAt around lock/unlock. New pure lib/note-updated-since.ts:
+  formatNoteUpdatedSince(at, now) → {label, tooltip}, 5-tier age
+  formatter (just now / Nm / Nh / N days / ISO date) with
+  calendar-day boundary math so a note written 23:55 yesterday
+  reads as "1 day ago" at 01:00 today (not "12h ago"); clock-skew
+  defensive (future stamps clamp to just now). Bad-input safe —
+  undefined/null/NaN/string → minimal "Noted" label with empty
+  tooltip (caller hides row in that case). Detail-view: new
+  <span id="detail-note-stamp"> pill in note-row foot, flex:1
+  between count and Clear with opacity 0.75 (secondary to the
+  count which is the primary live indicator during typing).
+  paintNoteStamp hides for legacy clips noted before this shipped
+  — no misleading "Noted" with no age. saveDetailNote() repaints
+  with Date.now() on save / undefined on clear so breadcrumb
+  appears immediately without re-opening detail. title attr carries
+  full YYYY-MM-DD HH:MM tooltip. 25/25 sanity (tier boundaries,
+  bad inputs, clock skew, calendar-day math, ISO padding) (721a67a).
+  (3) Cmd+K "Show recently noted" — chronology companion to the
+  recently-locked command for the per-clip note family. Pure
+  lib/recently-noted.ts mirrors recently-locked exactly: 7d window
+  over noteUpdatedAt, newest-noted-first sort, label grammar
+  (singular/plural/zero) with freshest-age hint, available:false
+  greys row when 0. Strict gate via hasClipNote() so the chronology
+  + the is:noted filter + the detail-view paint all share one
+  predicate. Why a dedicated helper instead of `is:noted after:7d`?
+  Same rationale as recently-locked: `after:` filters on
+  lastSeenAt (re-copy recency), NOT on noteUpdatedAt (annotation-
+  decision recency). A clip noted last week then re-copied today
+  would surface in `is:noted after:1d` but isn't a *recent
+  annotation*. Run handler appends `is:noted` to the search box
+  since the parsed query can't express `noteUpdatedAt >= now - 7d`
+  directly — count + hint above tells the precise chronology scope.
+  Module-level cache (recentlyNotedCount + freshestAt) refreshed
+  once per render() from `wide` snapshot, no extra IDB read on
+  palette open. 24/24 sanity (recency at window edge, strict
+  gates, clock-skew tolerance, sort order, label grammar at all
+  count shapes, custom-window override, mirror-symmetry with
+  recently-locked) (634a3b1). (4) Trash row hover-preview surfaces
+  the trashed clip's OWN note — closes the loop between
+  last-tick's two big shipments (trash-row hover-match-detection +
+  per-clip note feature). When a trashed clip carries a note, the
+  tooltip's tail surfaces it as "Note: <summary>" — the single
+  highest-signal context the user has at trash-housekeeping time.
+  If they wrote "deprecated as of June" on a clip, that text
+  reaches them BEFORE they purge, not after a restore-and-open
+  detail dance. Notes already ride trash + restore round-trips
+  for free (db.trashClip spreads the full ClipItem), so this is
+  pure surface work — no new write path. formatTrashRecaptureTooltip
+  extended with optional `trashed` arg (back-compat: omitting it
+  gives the original 2-shape tooltip). 80-char default cap with
+  word-boundary truncation, newlines collapse to single spaces.
+  Note tail composes with either head shape (live-re-capture
+  exists OR no-match-permanent), so a noted clip always shows its
+  caveat regardless of recovery story. Note tail follows preview
+  tail in the join order so "live preview" + "your note" reads as
+  a natural pair. 32/32 sanity (22 existing + 10 new note-tail
+  cases: present/absent, both head shapes, defensive bad inputs,
+  custom notePeek, word-boundary truncation, composition with
+  preview tail) (a52fe7f). (5) Bulk-bar "Add note to selection"
+  — overwrite-and-warn semantics. Notes are PROSE so the natural
+  bulk action overwrites rather than merges; the planner counts
+  how many EXISTING notes the action will replace, and both the
+  pre-prompt warning + the post-action toast surface that count
+  so consequences are visible BEFORE commit. Empty input clears
+  existing notes on the selection (mirrors detail-view's "save
+  empty → clear" contract). New pure lib/bulk-note.ts: planBulkNote
+  projects {total, created, replaced, cleared, unchanged,
+  finalValue} using the SAME sanitizeClipNote() the detail-view
+  editor uses — single source of truth means the bulk and editor
+  paths produce identical stored values (2k cap, control-strip,
+  empty→undefined). isBulkNoteActionable gates the click handler
+  (short-circuits no-op selections). formatBulkNoteToast 6-shape
+  grammar: total=0 / all unchanged / pure create / pure replace /
+  mixed create+replace (surfaces both counts) / clearing.
+  formatBulkNoteButtonTitle 4-shape hover (empty / all-unannotated
+  / all-already-noted / mixed-with-existing-count). Popup: new
+  bulk-note button in bulk-bar between bulk-tag and bulk-export-tag,
+  noteText icon. Click handler pulls fresh records (selection
+  survives filter changes + may have stale ids), pre-prompt label
+  adapts to alreadyNoted count, applies via setClipNote so the
+  noteUpdatedAt stamp + IDB shape stay consistent with single-clip
+  path. Prompt-cancel (null) cleanly distinguished from
+  prompt-empty ("") — cancel aborts, empty clears. updateBulkBar
+  refreshes title every paint. Cmd+K mirror in Bulk group with
+  synonyms. Idempotent re-run yields all-unchanged → no IDB writes.
+  34/34 sanity (planner shape, defensive bad-input, no-op
+  idempotence, all 6 toast shapes, all 4 button title shapes,
+  control-char strip + 2k cap + empty contract) (ea1b1e4). Gates
+  passed: tsc --noEmit clean + chrome+firefox build green (320.9kb
+  popup, 47.4kb background, 26.9kb content per platform).
+  Theme: full per-clip note-family completion — 5 features
+  forming a coherent suite (operator inverse + breadcrumb stamp +
+  chronology palette command + trash visibility + bulk apply),
+  every piece sharing the hasClipNote()/sanitizeClipNote()
+  primitives shipped last tick.
 
 - **2026-06-23 01:46 PT** — 5/5 shipped. (1) Cmd+K palette
   "Show recently locked" — 7d chronology of lock decisions via
