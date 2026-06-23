@@ -166,6 +166,11 @@ import {
   RECENTLY_NOTED_DEFAULT_WINDOW_MS,
 } from "../lib/recently-noted";
 import {
+  planBulkNote,
+  formatBulkNoteToast,
+  formatBulkNoteButtonTitle,
+} from "../lib/bulk-note";
+import {
   sanitizeClipNote,
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
@@ -337,6 +342,7 @@ const bulkPin = $<HTMLButtonElement>("bulk-pin");
 const bulkLock = $<HTMLButtonElement>("bulk-lock");
 const bulkLockPin = $<HTMLButtonElement>("bulk-lockpin");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
+const bulkNote = $<HTMLButtonElement>("bulk-note");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkExportTag = $<HTMLInputElement>("bulk-export-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
@@ -5885,6 +5891,22 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Palette mirror for the bulk-bar note button. Same handler;
+      // the palette is just a keyboard-only path. Overwrite + clear
+      // contract is documented on the click handler — the prompt
+      // surfaces the replace-count warning before commit.
+      id: "note-selection",
+      label: "Add note to selection…",
+      hint: "Apply one note to every selected clip — empty input clears existing notes",
+      keywords: "note annotate caveat bulk commentary memo selection apply",
+      group: "Bulk",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        bulkNote.click();
+      },
+    },
+    {
       id: "delete-selection",
       label: "Delete selection",
       group: "Bulk",
@@ -8048,6 +8070,12 @@ function updateBulkBar(): void {
   if (lockPinActionable) {
     bulkLockPin.title = formatBulkLockPinButtonTitle(selectedClipsForLock);
   }
+  // Bulk-note button title: adapts to the selection's note-state mix
+  // so the hover reveals what the click will do BEFORE the user
+  // commits — same pattern as the lock-pin combo. The handler
+  // itself prompts for the note text and shows the post-action
+  // toast; this label is selection-shape only.
+  bulkNote.title = formatBulkNoteButtonTitle(selectedClipsForLock);
   const label = buildStorageDeltaLabel(visibleSelected);
   if (!label) {
     bulkStorageDelta.hidden = true;
@@ -8264,6 +8292,64 @@ bulkTag.addEventListener("click", async () => {
     await updateTags(id, merged);
   }
   toast(`Tagged ${ids.length}`);
+  await render();
+});
+
+// Bulk-bar "Add note to selection" — overwrite semantics, not merge.
+// Notes are prose so a merge would create unreadable franken-text;
+// the planner counts how many EXISTING notes will be replaced so
+// the consequences are visible in the toast.
+//
+// Empty input clears existing notes on the selection (mirrors
+// detail-view's "save empty → clear" contract). When replacing 2+
+// notes, the prompt warning + the post-action toast both surface
+// the replaced count so a thumb-fumble doesn't silently nuke
+// hand-written caveats.
+//
+// Same sanitisation pipeline as the single-clip path (sanitizeClipNote
+// from lib/clip-note) — single source of truth means the bulk path
+// and the editor produce identical stored values for the same input.
+bulkNote.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  // Pull fresh records so the plan reflects current state (a
+  // selection can sit across multiple renders; notes may have
+  // changed via detail-view in between).
+  const items = await Promise.all(ids.map((id) => getClip(id)));
+  const present = items.filter((c): c is NonNullable<typeof c> => !!c);
+  if (present.length === 0) {
+    toast("Selection vanished", "error");
+    return;
+  }
+  // Pre-prompt warning when the action would replace any existing
+  // notes. We can compute "how many already have notes" without the
+  // raw input — that count is the WORST-CASE replace number (any
+  // text the user types lands on those clips). If they leave the
+  // input empty, the same count becomes the cleared count.
+  const alreadyNoted = present.filter((c) => hasClipNote(c)).length;
+  const promptLabel =
+    alreadyNoted > 0
+      ? `Note for ${present.length} clip${present.length === 1 ? "" : "s"} (will REPLACE ${alreadyNoted} existing note${alreadyNoted === 1 ? "" : "s"} — empty to clear):`
+      : `Note for ${present.length} clip${present.length === 1 ? "" : "s"} (empty to skip):`;
+  const raw = prompt(promptLabel);
+  // Cancel = null; we DO honour explicit empty (= clear notes on
+  // selection that have them). Distinguish by null-check.
+  if (raw === null) return;
+  const plan = planBulkNote(present, raw);
+  if (plan.total === 0 || plan.created + plan.replaced + plan.cleared === 0) {
+    toast(formatBulkNoteToast(plan));
+    return;
+  }
+  // Apply via the existing single-clip setClipNote so the
+  // noteUpdatedAt stamp + IDB shape stay consistent. Sequential —
+  // matches the bulk-tag / bulk-lock patterns; modest cost at
+  // typical selection sizes (~5-50 clips).
+  for (const c of present) {
+    const currentSan = sanitizeClipNote(c.note);
+    if (currentSan === plan.finalValue) continue; // no-op skip
+    await setClipNote(c.id, plan.finalValue);
+  }
+  toast(formatBulkNoteToast(plan));
   await render();
 });
 
