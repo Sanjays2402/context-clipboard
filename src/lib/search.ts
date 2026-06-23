@@ -235,6 +235,50 @@ export interface ParsedQuery {
    * 10000` bound.
    */
   noteShorterThan?: number;
+  /**
+   * Unix ms — only clips whose `noteUpdatedAt` stamp is NEWER
+   * than this threshold. Triggered by `is:notenewer:<duration>`
+   * (e.g. `is:notenewer:7d` -> notes written/updated in the last
+   * 7 days). Duration grammar is the same `Nd`/`Nh`/`Nw`/`Nm`/`Ns`
+   * shape `before:` and `after:` already accept.
+   *
+   * Why a dedicated operator (vs `is:noted after:7d`)?
+   *   - `after:` gates on `lastSeenAt` (re-copy recency), NOT on
+   *     `noteUpdatedAt` (annotation-decision recency). A clip
+   *     noted last month then re-copied today would surface in
+   *     `is:noted after:1d` but isn't a recently-noted clip.
+   *   - The Cmd+K "Show recently noted" command already uses this
+   *     chronology axis internally; surfacing it as a parsable
+   *     operator lets the user write `is:notenewer:30d` directly
+   *     in the search box instead of being limited to the 7-day
+   *     default the palette command picks.
+   *
+   * Implies `is:noted` AND that `noteUpdatedAt` is a finite number
+   * — clips noted before the breadcrumb shipped have a note but
+   * no stamp, so they correctly fall out of "newer than Nd" by
+   * definition (we can't tell WHEN they were noted).
+   */
+  noteNewerThan?: number;
+  /**
+   * Unix ms — only clips whose `noteUpdatedAt` stamp is OLDER
+   * than this threshold. Triggered by `is:noteolder:<duration>`.
+   * Companion to `noteNewerThan` — same chronology axis, opposite
+   * direction. Useful for the "what stale caveats might be wrong
+   * now?" review pass: `is:noteolder:90d` surfaces notes that
+   * haven't been touched in 3 months and might describe a state
+   * the codebase has since moved past.
+   *
+   * Combined with `noteNewerThan`: a band-pass filter. e.g.
+   * `is:noteolder:7d is:notenewer:30d` -> notes touched between
+   * 7 and 30 days ago (last month's annotation decisions, not
+   * this week's). Contradictory bounds (older=10d AND newer=5d)
+   * yield an empty set by AND-semantics — same intent contract as
+   * `is:notelonger:100 is:noteshorter:10`.
+   *
+   * Implies `is:noted` AND a finite noteUpdatedAt — legacy unstamped
+   * notes can't satisfy "older than Nd" because we can't tell WHEN.
+   */
+  noteOlderThan?: number;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -346,6 +390,28 @@ export function parseQuery(raw: string): ParsedQuery {
           } else {
             out.noteShorterThan = n;
           }
+        }
+      } else if (v.startsWith("notenewer:") || v.startsWith("noteolder:")) {
+        // `is:notenewer:<duration>` / `is:noteolder:<duration>` —
+        // duration grammar (`7d`, `2h`, `30m`, `1w`, `45s`) parsed
+        // by the existing parseDuration helper for consistency with
+        // `before:` and `after:`. Invalid duration string (typo,
+        // empty, missing unit) falls through to leftover so the
+        // user sees their mistake.
+        //
+        // Stored as absolute Unix-ms threshold (now - duration) so
+        // applyQuery does a straight comparison without re-doing
+        // arithmetic per clip.
+        const colonInVal = v.indexOf(":");
+        const op = v.slice(0, colonInVal);
+        const rawDur = v.slice(colonInVal + 1);
+        const d = parseDuration(rawDur);
+        if (d == null) {
+          leftover.push(tok);
+        } else if (op === "notenewer") {
+          out.noteNewerThan = now - d;
+        } else {
+          out.noteOlderThan = now - d;
         }
       } else leftover.push(tok);
     } else if (key === "before") {
@@ -477,6 +543,34 @@ export function applyQuery(
       const len = typeof c.note === "string" ? c.note.trim().length : 0;
       if (len >= q.noteShorterThan) return false;
     }
+    // `is:notenewer:<duration>` / `is:noteolder:<duration>` —
+    // chronology gates over `noteUpdatedAt`. Both require the clip
+    // to (a) have a usable note via hasClipNote, AND (b) carry a
+    // finite noteUpdatedAt stamp. Clips noted before the breadcrumb
+    // shipped (legacy: still noted, no stamp) correctly fall out of
+    // both filters by definition — we can't tell WHEN, so they
+    // can't satisfy "newer/older than Nd".
+    //
+    // notenewer: pass iff stamp >= threshold (recent notes)
+    // noteolder: pass iff stamp <= threshold (stale notes)
+    //
+    // Combining the two with non-overlapping thresholds yields an
+    // empty set by AND-semantics (same intent contract as
+    // `is:notelonger:100 is:noteshorter:10`). Overlapping thresholds
+    // (older=30d, newer=7d) yield the intersection band — notes
+    // touched between 7 and 30 days ago.
+    if (q.noteNewerThan != null) {
+      if (!hasClipNote(c)) return false;
+      if (typeof c.noteUpdatedAt !== "number" || !Number.isFinite(c.noteUpdatedAt))
+        return false;
+      if (c.noteUpdatedAt < q.noteNewerThan) return false;
+    }
+    if (q.noteOlderThan != null) {
+      if (!hasClipNote(c)) return false;
+      if (typeof c.noteUpdatedAt !== "number" || !Number.isFinite(c.noteUpdatedAt))
+        return false;
+      if (c.noteUpdatedAt > q.noteOlderThan) return false;
+    }
     // `is:hostlocked` — cross-store join via the supplied
     // predicate. Gate falls open when the predicate wasn't
     // supplied so a test calling applyQuery without rules access
@@ -562,6 +656,8 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.hostScrubbedOnly) bits.push("hostscrubbed");
   if (q.noteLongerThan != null) bits.push(`note>${q.noteLongerThan}`);
   if (q.noteShorterThan != null) bits.push(`note<${q.noteShorterThan}`);
+  if (q.noteNewerThan != null) bits.push("note-recent");
+  if (q.noteOlderThan != null) bits.push("note-stale");
   if (q.before) bits.push("older");
   if (q.after) bits.push("recent");
   return bits.join(" · ");

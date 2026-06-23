@@ -1408,7 +1408,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -6040,6 +6040,68 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:noteshorter:30");
+      },
+    },
+    {
+      // `is:notenewer:Nd` — chronology filter over `noteUpdatedAt`
+      // (NOT `lastSeenAt`, which gates re-copy recency not annotation
+      // recency). Default 7d window matches the recently-noted Cmd+K
+      // command's window. The user can edit the duration in the
+      // search bar (e.g. `is:notenewer:1d`, `is:notenewer:30d`)
+      // for any timeframe — same `Nd`/`Nh`/`Nw` grammar that
+      // `before:`/`after:` accept. Greys when no clip in the current
+      // view has been noted within 7 days so the row never lies
+      // about an empty result.
+      id: "filter-notenewer",
+      label: "Show recently noted (last 7d)",
+      hint: "is:notenewer:7d — notes written/updated in the last week",
+      group: "Filter",
+      keywords:
+        "is:notenewer recent fresh note annotation week chronology review live current modified updated",
+      available: (() => {
+        const cutoff = Date.now() - 7 * 86_400_000;
+        return currentClips.some(
+          (c) =>
+            typeof c.note === "string" &&
+            c.note.trim().length > 0 &&
+            typeof c.noteUpdatedAt === "number" &&
+            Number.isFinite(c.noteUpdatedAt) &&
+            c.noteUpdatedAt >= cutoff,
+        );
+      })(),
+      run: () => {
+        closePalette();
+        appendSearchOp("is:notenewer:7d");
+      },
+    },
+    {
+      // `is:noteolder:Nd` — companion to is:notenewer. Default 30d
+      // picks the "stale caveat" review pass: notes the user hasn't
+      // touched in a month that might describe a state the codebase
+      // has since moved past. Combine with `is:locked` to find
+      // "locked clips with stale annotations" — the
+      // highest-leverage review queue. Greys when no clip has a
+      // note older than 30d (typical early-adopter case).
+      id: "filter-noteolder",
+      label: "Show stale notes (older than 30d)",
+      hint: "is:noteolder:30d — notes that may describe a past state",
+      group: "Filter",
+      keywords:
+        "is:noteolder stale old note annotation review past out-of-date deprecated forgotten",
+      available: (() => {
+        const cutoff = Date.now() - 30 * 86_400_000;
+        return currentClips.some(
+          (c) =>
+            typeof c.note === "string" &&
+            c.note.trim().length > 0 &&
+            typeof c.noteUpdatedAt === "number" &&
+            Number.isFinite(c.noteUpdatedAt) &&
+            c.noteUpdatedAt <= cutoff,
+        );
+      })(),
+      run: () => {
+        closePalette();
+        appendSearchOp("is:noteolder:30d");
       },
     },
     {
