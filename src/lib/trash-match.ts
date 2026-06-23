@@ -28,6 +28,17 @@ export interface TrashMatchableClip {
   /** Preview text — surface in the tooltip so the user recognises the match. */
   preview?: string;
   content?: string;
+  /**
+   * Optional per-clip free-form note. When present on the TRASHED
+   * clip, formatTrashRecaptureTooltip appends a "Note: ..." tail to
+   * either tooltip shape — the note is the user's commentary on
+   * *this specific clip*, which is high-signal context for "do I
+   * actually want to lose this?" decisions at trash-housekeeping
+   * time. Notes ride trash via the existing TrashedClip extends
+   * ClipItem path (db.ts:trashClip spreads the whole item), so the
+   * field is already preserved through trash + restore round-trips.
+   */
+  note?: string;
 }
 
 /**
@@ -69,57 +80,116 @@ export function findLiveRecaptureForTrash<T extends TrashMatchableClip>(
 }
 
 /**
- * Format the hover-tooltip text for a trash row. Two shapes:
+ * Format the hover-tooltip text for a trash row. Three shapes:
  *
  *   - match found: "Live re-capture exists — N{m,h,d} ago. Safe to purge."
  *     Optionally tails with a short preview snippet when the live
  *     clip carries one.
  *   - no match: "No live re-capture — purging this is permanent."
+ *   - either case + the TRASHED clip carries a non-empty note: the
+ *     tooltip gets an extra "Note: <summary>" line appended. The
+ *     note is the highest-signal context the user has about THIS
+ *     specific clip — if they wrote "be careful, staging only" on
+ *     it, that text should reach them at the moment they're about
+ *     to permanently lose the clip. The note rides via the
+ *     `trashed` argument; the optional liveNote tail isn't surfaced
+ *     because the live clip's note (if any) belongs to the live
+ *     clip's future, not the trashed clip's history.
  *
  * Defensive against bad inputs — non-finite lastSeenAt falls back
- * to "exists" without an age tail.
+ * to "exists" without an age tail; non-string note silently
+ * dropped.
  *
  * Pure: no clock fixation. Caller passes `now` for tests.
  */
 export function formatTrashRecaptureTooltip(opts: {
   match: TrashMatchableClip | null;
+  /**
+   * The trashed clip itself, used to surface its note (if any) in
+   * the tooltip tail. Optional for back-compat — callers that
+   * don't pass it get the original 2-shape (match/no-match)
+   * tooltip without any note context.
+   */
+  trashed?: TrashMatchableClip | null;
   now?: number;
   previewPeek?: number;
+  /** Cap on the note summary length in the tooltip tail. */
+  notePeek?: number;
 }): string {
   const match = opts.match;
-  if (!match) {
-    return "No live re-capture — purging this is permanent.";
-  }
-  const now =
-    typeof opts.now === "number" && Number.isFinite(opts.now)
-      ? opts.now
-      : Date.now();
-  const previewPeek =
-    typeof opts.previewPeek === "number" &&
-    Number.isFinite(opts.previewPeek) &&
-    opts.previewPeek > 0
-      ? Math.floor(opts.previewPeek)
-      : 60;
-  const at =
-    typeof match.lastSeenAt === "number" && Number.isFinite(match.lastSeenAt)
-      ? match.lastSeenAt
-      : NaN;
+  const trashed = opts.trashed ?? null;
+  const noteTail = formatNoteTail(trashed, opts.notePeek);
   let head: string;
-  if (Number.isFinite(at)) {
-    head = `Live re-capture exists — ${formatShortAge(now - at)}. Safe to purge.`;
+  if (!match) {
+    head = "No live re-capture — purging this is permanent.";
   } else {
-    head = "Live re-capture exists — safe to purge.";
+    const now =
+      typeof opts.now === "number" && Number.isFinite(opts.now)
+        ? opts.now
+        : Date.now();
+    const previewPeek =
+      typeof opts.previewPeek === "number" &&
+      Number.isFinite(opts.previewPeek) &&
+      opts.previewPeek > 0
+        ? Math.floor(opts.previewPeek)
+        : 60;
+    const at =
+      typeof match.lastSeenAt === "number" && Number.isFinite(match.lastSeenAt)
+        ? match.lastSeenAt
+        : NaN;
+    if (Number.isFinite(at)) {
+      head = `Live re-capture exists — ${formatShortAge(now - at)}. Safe to purge.`;
+    } else {
+      head = "Live re-capture exists — safe to purge.";
+    }
+    const peekSource = match.preview || match.content || "";
+    if (typeof peekSource === "string" && peekSource.trim().length > 0) {
+      const flat = peekSource.trim().replace(/\s+/g, " ");
+      const cut =
+        flat.length <= previewPeek
+          ? flat
+          : flat.slice(0, previewPeek).replace(/\s+\S*$/, "") + "…";
+      head = `${head}\n"${cut}"`;
+    }
   }
-  const peekSource = match.preview || match.content || "";
-  if (typeof peekSource === "string" && peekSource.trim().length > 0) {
-    const flat = peekSource.trim().replace(/\s+/g, " ");
-    const cut =
-      flat.length <= previewPeek
-        ? flat
-        : flat.slice(0, previewPeek).replace(/\s+\S*$/, "") + "…";
-    return `${head}\n"${cut}"`;
-  }
-  return head;
+  return noteTail ? `${head}\n${noteTail}` : head;
+}
+
+/**
+ * Build the "Note: <summary>" tail for a trashed clip's tooltip.
+ * Returns empty string when the clip has no usable note — caller
+ * should test the result and skip the join.
+ *
+ * Cap defaults to 80 chars (short enough to keep the tooltip from
+ * spilling off-screen on small popups). Newlines in the note
+ * collapse to single spaces so the tail stays single-line.
+ *
+ * Defensive against bad inputs — non-string / missing / empty
+ * notes → "".
+ */
+function formatNoteTail(
+  trashed: TrashMatchableClip | null,
+  notePeek?: number,
+): string {
+  if (!trashed) return "";
+  const raw = trashed.note;
+  if (typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return "";
+  const peek =
+    typeof notePeek === "number" && Number.isFinite(notePeek) && notePeek > 0
+      ? Math.floor(notePeek)
+      : 80;
+  const flat = trimmed.replace(/\s+/g, " ");
+  if (flat.length <= peek) return `Note: ${flat}`;
+  // Word-boundary trim inside the peek window so we don't chop
+  // mid-word. Falls back to hard slice when no whitespace exists
+  // (one giant word).
+  const cut = flat.slice(0, peek);
+  const lastSpace = cut.lastIndexOf(" ");
+  const truncated =
+    lastSpace > peek * 0.6 ? cut.slice(0, lastSpace) + "…" : cut + "…";
+  return `Note: ${truncated}`;
 }
 
 /**

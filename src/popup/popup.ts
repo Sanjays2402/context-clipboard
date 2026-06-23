@@ -2793,7 +2793,16 @@ function trashRow(t: TrashedClip, liveClips: ClipItem[] = []): string {
   // → "purging this is permanent"). Cheap: single pass over the
   // already-loaded live array via findLiveRecaptureForTrash.
   const match = findLiveRecaptureForTrash(t.hash, liveClips);
-  const recaptureTooltip = formatTrashRecaptureTooltip({ match, now: Date.now() });
+  const recaptureTooltip = formatTrashRecaptureTooltip({
+    match,
+    // Pass the trashed clip so its note (if any) tails the tooltip.
+    // The note is the user's commentary on THIS specific clip — the
+    // single highest-signal context at trash-housekeeping time.
+    // Notes ride trash via db.trashClip spreading the full ClipItem
+    // into the trash store, so the field is already on `t` here.
+    trashed: t,
+    now: Date.now(),
+  });
   // Row-level title attr surfaces on hover anywhere outside the
   // child buttons (the buttons keep their own actionable titles).
   return `
