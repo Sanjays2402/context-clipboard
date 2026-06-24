@@ -206,6 +206,7 @@ import {
   discoverHashtagsInNotes,
   formatHashtagDiscoveryToast,
   formatHashtagDiscoveryHint,
+  hashtagFilterActionFor,
 } from "../lib/hashtag-discovery";
 import {
   planNoteHashtagPromote,
@@ -7072,6 +7073,45 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
   ];
+
+  // Dynamic per-hashtag filter rows. Scans the visible clip set's
+  // notes for inline `#hashtag` tokens and surfaces a palette row
+  // per top-N hashtag, letting the user keyboard-pick one to filter
+  // the list down. This is the "Hashtag report panel" follow-up
+  // for the discovery command (which today is toast-only): instead
+  // of opening a separate UI surface, we let each top hashtag have
+  // its own discoverable palette row.
+  //
+  // Top-N cap: 8. The palette already has dozens of static rows;
+  // surfacing 50 hashtag rows would bury everything else. 8 is the
+  // sweet spot — covers most users' active hashtag set without
+  // crowding the static commands. The "Find hashtags in notes"
+  // command still exists for the FULL list (it scans with topN=12).
+  const hashtagReport = discoverHashtagsInNotes(currentClips, { topN: 8 });
+  for (const entry of hashtagReport.entries) {
+    const filter = hashtagFilterActionFor(entry);
+    if (!filter) continue;
+    actions.push({
+      // Per-tag id namespace keeps the palette's command-uniqueness
+      // contract (each id must be distinct across the dynamic + static
+      // sets). Hashtag bodies are lowercase + capped at 32 chars +
+      // limited to [a-z0-9_-], so the id stays under control.
+      id: `filter-hashtag-${entry.tag}`,
+      label: filter.label,
+      hint: filter.hint,
+      group: "Filter",
+      keywords: filter.keywords,
+      // Always available when the entry exists — even an
+      // already-tagged tag is worth filtering by (the user might
+      // want to see the inline duplicates before running a strip).
+      run: () => {
+        closePalette();
+        appendSearchOp(filter.searchOp);
+      },
+    });
+  }
+  // (Sort row tail intentionally moved above; everything after is
+  // appended dynamically.)
   return actions;
 }
 

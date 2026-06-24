@@ -217,3 +217,86 @@ export function formatHashtagDiscoveryHint(
   const clipNoun = report.clipsWithHashtags === 1 ? "clip" : "clips";
   return `${report.distinctTags} ${tagNoun} across ${report.clipsWithHashtags} ${clipNoun}`;
 }
+
+/**
+ * Build the per-tag filter palette action: when the user picks a
+ * specific hashtag from the discovery result, the palette runs a
+ * search-query injection so the list filters to clips whose note
+ * carries that hashtag.
+ *
+ * Why a dedicated palette action per hashtag (vs one "Pick from
+ * report" command)?
+ *   - The user already knows which hashtags they're interested in
+ *     after seeing the discovery toast. Surfacing each top-N
+ *     hashtag as its own palette row lets them keyboard-pick the
+ *     one they want in two chords (Cmd+K, type tag, Enter).
+ *   - The alternative — a modal picker — adds a screen surface for
+ *     what's fundamentally a one-decision action. Palette rows
+ *     are the same UX shape as every other filter command so the
+ *     pattern is consistent.
+ *
+ * The action filters by searching for the literal `#<tag>` text
+ * in the note body. We DO NOT auto-promote — the discovery action
+ * is for SEEING what's there, not for committing to a promotion
+ * decision. The user can run Tag-from-notes after filtering if
+ * that's what they want.
+ *
+ * Result shape: `{ searchOp, label, hint }` so the popup wiring
+ * can plug into the existing PaletteAction shape without dragging
+ * UI concerns into the pure module.
+ *
+ * Pure: deterministic for the same entry.
+ */
+export interface HashtagFilterAction {
+  /** Operator string to inject into the search box. */
+  searchOp: string;
+  /** Palette row label (single-line, no overflow). */
+  label: string;
+  /** Palette row hint (subtitle line, optional but recommended). */
+  hint: string;
+  /** Keywords for fuzzy-matching in the palette. */
+  keywords: string;
+}
+
+/**
+ * Generate a per-hashtag palette action from a discovery entry.
+ *
+ * Search operator: `is:hashtags note:#<tag>` would be more
+ * specific, but the parser doesn't have a `note:<text>` operator.
+ * Instead we use the free-text search needle, which already
+ * matches note content (preview/title/url/nearbyText/tags/ocrText
+ * all join into the haystack). The literal `#<tag>` substring is
+ * unique enough that the false-positive rate is acceptable —
+ * matches the same affordance as the `tag:<name>` operator for
+ * structured tags.
+ *
+ * Defensive: empty / non-entry input returns undefined so the
+ * caller can skip the row cleanly.
+ *
+ * Pure: deterministic.
+ */
+export function hashtagFilterActionFor(
+  entry: HashtagDiscoveryEntry | null | undefined,
+): HashtagFilterAction | undefined {
+  if (!entry || typeof entry.tag !== "string" || entry.tag.length === 0) {
+    return undefined;
+  }
+  const tag = entry.tag;
+  const clipCount = Math.max(0, Math.floor(Number(entry.clipCount) || 0));
+  const noun = clipCount === 1 ? "clip" : "clips";
+  // The search operator combines:
+  //   - `is:hashtags` to scope the result to clips with inline tags
+  //     (filters out prose-only noted clips + the no-note set)
+  //   - free-text `#<tag>` so the haystack join matches the literal
+  //     token. The hashtag grammar guarantees a unique substring
+  //     (no foo#bar conflation because the leader set excludes
+  //     mid-token punctuation), so this scan is precise.
+  const searchOp = `is:hashtags #${tag}`;
+  const alreadyTaggedFlag = entry.alreadyTagged ? " (already structured)" : "";
+  const label = `Filter to clips with #${tag} in notes (${clipCount} ${noun})${alreadyTaggedFlag}`;
+  const hint = entry.alreadyTagged
+    ? `#${tag} is already a structured tag in every clip — running this filter shows the inline duplicates`
+    : `Show only clips whose note contains #${tag} — promotion candidate via Tag-from-notes`;
+  const keywords = `hashtag #${tag} ${tag} filter find note inline ${entry.alreadyTagged ? "structured already" : "promote candidate ready"}`;
+  return { searchOp, label, hint, keywords };
+}
