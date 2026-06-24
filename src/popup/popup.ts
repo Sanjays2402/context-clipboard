@@ -196,6 +196,13 @@ import {
   formatTagFromNotesButtonTitle,
 } from "../lib/tag-from-notes";
 import {
+  perClipActionForCombo,
+  planTagFromNotesAndClear,
+  isTagFromNotesAndClearActionable,
+  formatTagFromNotesAndClearToast,
+  formatTagFromNotesAndClearButtonTitle,
+} from "../lib/tag-from-notes-clear";
+import {
   discoverHashtagsInNotes,
   formatHashtagDiscoveryToast,
   formatHashtagDiscoveryHint,
@@ -382,6 +389,7 @@ const bulkLockPin = $<HTMLButtonElement>("bulk-lockpin");
 const bulkTag = $<HTMLButtonElement>("bulk-tag");
 const bulkNote = $<HTMLButtonElement>("bulk-note");
 const bulkTagFromNotes = $<HTMLButtonElement>("bulk-tag-from-notes");
+const bulkTagFromNotesClear = $<HTMLButtonElement>("bulk-tag-from-notes-clear");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkExportTag = $<HTMLInputElement>("bulk-export-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
@@ -6489,6 +6497,30 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Palette mirror for the combo button. Distinct palette row
+      // (not just a hidden mode on tag-from-notes) so the keyboard
+      // user can discover the destructive variant separately. Same
+      // confirm dialog as the button click, so accidental palette
+      // fire is still gated.
+      id: "tag-from-notes-and-clear-selection",
+      label: "Tag selection from #hashtags + clear notes",
+      hint: "Promote then wipe the source notes - destructive",
+      keywords:
+        "tag from notes hashtag clear erase clean promote combo destructive cleanup housekeeping",
+      group: "Bulk",
+      available:
+        hasSelection &&
+        isTagFromNotesAndClearActionable(
+          [...selectedIds]
+            .map((id) => currentClips.find((c) => c.id === id))
+            .filter((c): c is NonNullable<typeof c> => !!c),
+        ),
+      run: () => {
+        closePalette();
+        bulkTagFromNotesClear.click();
+      },
+    },
+    {
       // "Find hashtags in notes" - discovery / triage command. Scans
       // the currently-visible clip set's notes for #hashtag tokens
       // and surfaces a sorted distribution via toast: "Found
@@ -8817,6 +8849,22 @@ function updateBulkBar(): void {
   if (tagFromNotesActionable) {
     bulkTagFromNotes.title = formatTagFromNotesButtonTitle(selectedClipsForLock);
   }
+  // Tag-from-notes-AND-clear combo button: same visibility gate as
+  // the standalone Tag-from-notes (both need at least one new
+  // hashtag to promote). When visible, the title surfaces the
+  // additional destructive bit ("then clear N notes") so the user
+  // sees the cost up front - the COMBO is more aggressive than the
+  // standalone, and hover-preview matters more here than with the
+  // additive-only standalone.
+  const tagFromNotesClearActionable = isTagFromNotesAndClearActionable(
+    selectedClipsForLock,
+  );
+  bulkTagFromNotesClear.hidden = !tagFromNotesClearActionable;
+  if (tagFromNotesClearActionable) {
+    bulkTagFromNotesClear.title = formatTagFromNotesAndClearButtonTitle(
+      selectedClipsForLock,
+    );
+  }
   const label = buildStorageDeltaLabel(visibleSelected);
   if (!label) {
     bulkStorageDelta.hidden = true;
@@ -9141,6 +9189,67 @@ bulkTagFromNotes.addEventListener("click", async () => {
     await updateTags(c.id, merged);
   }
   toast(formatTagFromNotesToast(plan));
+  await render();
+});
+
+// Bulk-bar "Tag from notes + clear notes" combo - additive PLUS
+// destructive in one click. Promotes #hashtag tokens into structured
+// tags (same merge contract as standalone Tag-from-notes) AND wipes
+// the source note text on every clip where promotion happened. The
+// standalone Tag-from-notes button still exists for the keep-the-
+// prose workflow; this combo is for users whose notes are
+// hashtag-only ("#staging #wip" with no other context) where the
+// note becomes redundant once the tags are structured.
+//
+// Pre-prompt confirm: we surface the count of notes that'll be
+// cleared so the user can back out before commit. The standalone
+// Tag-from-notes button has no confirm because it's additive-only -
+// nothing to undo. This combo crosses into destructive territory,
+// so the confirm gate exists even though Undo isn't on the
+// roadmap.
+bulkTagFromNotesClear.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  const items = await Promise.all(ids.map((id) => getClip(id)));
+  const present = items.filter((c): c is NonNullable<typeof c> => !!c);
+  if (present.length === 0) {
+    toast("Selection vanished", "error");
+    return;
+  }
+  const plan = planTagFromNotesAndClear(present);
+  if (plan.promoteAndClear === 0) {
+    // Same shape as standalone tag-from-notes when nothing to do -
+    // honest toast, no destructive side-effects.
+    toast(formatTagFromNotesAndClearToast(plan));
+    return;
+  }
+  // Destructive confirm - the user is about to LOSE note text. The
+  // promote half is additive (no loss), but the clear half wipes
+  // prose context. Pre-confirm so a misclick on the combo button
+  // (vs the standalone tag-from-notes one row over) doesn't
+  // surprise-wipe notes.
+  const noteNoun = plan.cleared === 1 ? "note" : "notes";
+  const clipNoun = plan.promoteAndClear === 1 ? "clip" : "clips";
+  const confirmMsg =
+    plan.distinctNewTags.length === 1
+      ? `Add #${plan.distinctNewTags[0]} to ${plan.promoteAndClear} ${clipNoun} AND clear ${plan.cleared} ${noteNoun}?`
+      : `Add ${plan.totalAdded} tags across ${plan.promoteAndClear} ${clipNoun} AND clear ${plan.cleared} ${noteNoun}?`;
+  if (!confirm(confirmMsg)) return;
+  // Apply per-clip: tag merge first, then note clear. Order
+  // doesn't matter functionally (independent writes) but
+  // tag-first reads as the simpler intent ("promote, then clean
+  // up the source").
+  for (const c of present) {
+    const action = perClipActionForCombo(c);
+    if (!action || !action.mergedTags) continue;
+    await updateTags(c.id, action.mergedTags);
+    if (action.clearNote) {
+      // setClipNote(undefined) → empty contract clears the field
+      // entirely from IDB (same as detail-view Clear button).
+      await setClipNote(c.id, undefined);
+    }
+  }
+  toast(formatTagFromNotesAndClearToast(plan));
   await render();
 });
 
