@@ -170,11 +170,11 @@ try {
   // --- 12. send-to: action row presence ---------------------------------
   const acts = mod.buildSendActions(textClip);
   // table-row + json + json-line + curl + bg-tab + note-md +
-  // clip-note-md = 16 total. Each row is gated by its own
-  // availability check; only the total count matters here.
+  // clip-note-md + curl-note = 17 total. Each row is gated by its
+  // own availability check; only the total count matters here.
   total++;
-  if (acts.length === 16) pass++;
-  else console.error("FAIL acts.length got", acts.length, "want 16");
+  if (acts.length === 17) pass++;
+  else console.error("FAIL acts.length got", acts.length, "want 17");
 
   const jsonLineRow = acts.find((a) => a.id === "json-line");
   checkTruthy("actions: json-line row exists", jsonLineRow);

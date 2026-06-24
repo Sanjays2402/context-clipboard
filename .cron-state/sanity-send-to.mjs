@@ -153,9 +153,11 @@ try {
   const textActs = mod.buildSendActions(textClip);
   // json-line was added after json → curl added after url-only →
   // bg-tab added between incognito and site-search → 14 total.
+  // Then `note-md` added (15) → `clip-note-md` added (16) →
+  // `curl-note` added between `curl` and `fenced-code` (17).
   // Each row is gated by its own availability check so adding new rows
   // here only matters for the total-count assertion.
-  total++; if (textActs.length === 16) pass++;
+  total++; if (textActs.length === 17) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
@@ -516,8 +518,13 @@ try {
   check('actions: curl follows url-only',
     textActs.findIndex((a) => a.id === 'curl') - textActs.findIndex((a) => a.id === 'url-only'),
     1);
-  check('actions: fenced-code follows curl',
-    textActs.findIndex((a) => a.id === 'fenced-code') - textActs.findIndex((a) => a.id === 'curl'),
+  // `curl-note` now slots between curl and fenced-code; fenced-code
+  // is 2 rows past curl, 1 row past curl-note.
+  check('actions: curl-note follows curl',
+    textActs.findIndex((a) => a.id === 'curl-note') - textActs.findIndex((a) => a.id === 'curl'),
+    1);
+  check('actions: fenced-code follows curl-note',
+    textActs.findIndex((a) => a.id === 'fenced-code') - textActs.findIndex((a) => a.id === 'curl-note'),
     1);
 
   // --- curl row ----------------------------------------------------------

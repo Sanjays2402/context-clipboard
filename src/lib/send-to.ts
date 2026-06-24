@@ -18,6 +18,7 @@ import { jsonLineEnvelopeForClip } from "./json-line";
 import { curlCommandForClip } from "./curl-command";
 import { noteAsMarkdownBlockquote } from "./note-markdown";
 import { clipAndNoteAsMarkdown } from "./clip-note-markdown";
+import { curlWithNoteCommentForClip } from "./curl-note-comment";
 
 export interface SendableClip {
   id: string;
@@ -371,6 +372,12 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const json = jsonEnvelopeForClip(c);
   const jsonLine = jsonLineEnvelopeForClip(c);
   const curl = curlCommandForClip(c);
+  // Combined `curl '...' # note` for clips with BOTH a curlable URL
+  // AND a non-empty note. Distinct row from the standalone cURL so
+  // the menu surfaces the "with caveat" variant only when it's
+  // actually meaningful (note exists). Hides when either side is
+  // missing - no dimmed half-broken combo row.
+  const curlNote = curlWithNoteCommentForClip(c);
   // Per-clip note → Markdown blockquote. Hidden when the clip has
   // no note (no row to dim out — keeps the menu tight when there's
   // nothing to send). Pure pipeline: hasClipNote gate + line-by-
@@ -467,6 +474,24 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: curl,
       available: !!curl,
+    },
+    {
+      // Composite cURL + per-clip note as shell comment. Same URL
+      // math as the standalone cURL row (byte-identical first half),
+      // with the note appended as ` # <note>` so the caveat rides
+      // with the request when the user pastes into a runbook / PR
+      // comment / chat. Multi-line notes collapsed to single line
+      // (shell `#` comments are line-scoped; a newline would
+      // TERMINATE the comment and turn note text into an executable
+      // shell command). Hidden when EITHER the URL is unshareable
+      // OR the note is missing/empty - both single-purpose rows
+      // (curl, note-md) still cover those cases.
+      id: "curl-note",
+      label: "Copy as cURL with note comment",
+      hint: "curl '...' # note",
+      kind: "copy",
+      payload: curlNote,
+      available: !!curlNote,
     },
     {
       id: "fenced-code",
