@@ -383,10 +383,50 @@ Status: ` ` open / `~` in-progress / `x` shipped
 
 ### Open follow-ups from this tick
 - [ ] Note-warning keyword list editable per-site (user can extend with workspace-specific terms like "internal", "beta", company name etc) — extends b0000a9 with a per-host site-rule field
-- [ ] Cmd+K hashtag-discovery: open a panel listing every tag with click-to-filter (today's toast surfaces top-3 inline + top-12 in toast; a full panel UI is the next step for users with many distinct hashtags)
+- [x] Cmd+K hashtag-discovery: open a panel listing every tag with click-to-filter — `8d30c7c` shipped the dynamic per-tag palette rows (top-8); full UI panel deferred behind that since palette rows cover the keyboard-pick path
 - [ ] Detail promote-chip: surface inline-tag-only mode (`#hashtag` extraction respects an "exclude already-tagged" toggle so users with verbose notes don't see noise)
-- [ ] Combo tag-from-notes-clear: split into "promote + tag-clear" vs "promote + note-clear" — current combo always clears the WHOLE note; some users want to keep prose while only stripping the hashtags from it
+- [x] Combo tag-from-notes-clear: split into "promote + tag-clear" vs "promote + note-clear" — `2b4eedc` shipped the per-clip promote+strip combo (preserves prose); bulk strip-hashtags `598f678` covers the strip-only side
 - [ ] cURL-with-note: settings option for `# note` vs `\\n# note` form (some users prefer leading comment for grep-ability)
+
+### New (added this tick — 2026-06-23 21:38 PT refill)
+- [ ] Audit log: "Mark as resolved" pill — recurring
+- [ ] Settings: per-kind retention split — `maxUnpinnedText` + `maxUnpinnedImage` — recurring
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring (last 30 days of hitCount as ASCII bars)
+- [ ] Note composer: paste an image directly — recurring (drop on textarea creates image clip)
+- [ ] Detail: "Re-capture from URL" — recurring (for link/text clips with http(s) source, refresh title + nearbyText)
+- [ ] Site-rule form: per-rule "test against active tab" — recurring (auto-fill host + tags from focused tab's URL)
+- [ ] In-page palette: pinned-bias slider in settings — recurring
+- [ ] In-page palette: live token-counter in palette search input — recurring
+- [ ] Quick-capture: paste an image directly — recurring
+- [ ] Site rules: "Suggest from top hosts" — recurring
+- [ ] Audit panel: hover-preview the clip on each row — recurring
+- [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier — recurring
+- [ ] Note composer keyboard shortcut: `n` on an active row jumps to detail-view note textarea — recurring
+- [ ] Settings: per-kind note auto-capture — recurring
+- [ ] Audit log: track note-set + note-clear actions in the privacy ring — recurring
+- [ ] Audit panel: filter chip "Note" — bucket note-set/note-clear actions once tracking ships — recurring
+- [ ] Detail-view: note's last-edit history — surface previous N note values for recovery — recurring
+- [ ] Bulk-bar: "Append to existing notes" toggle — opt-in APPEND vs OVERWRITE semantics — recurring
+- [ ] Note composer: hashtag autocomplete — typing `#` triggers dropdown of existing tags — recurring
+- [ ] Site-rule form: paste-from-clipboard URL → auto-fill hostPattern at form-open time — recurring
+- [ ] In-page palette: note tail in HOVER tooltip too (not just inline) for long notes that get ellipsed — recurring
+- [x] `is:hashtags` / `is:nohashtags` search operators — surface clips whose notes contain (or DON'T contain) #hashtags ready to promote — `22737d9`
+- [x] Detail-view: per-clip "Strip N #tags" chip — non-destructive cleanup that REMOVES inline tokens, preserves prose — `6afdd19`
+- [x] Bulk-bar: "Strip hashtags from notes" — bulk non-destructive cleanup counterpart — `598f678`
+- [x] Detail-view: "Promote N #tags + strip" combo chip — per-clip one-click variant of the bulk Tag-from-notes-clear, preserves prose — `2b4eedc`
+- [x] Cmd+K: dynamic per-hashtag filter rows (top 8) — `8d30c7c` keyboard-pick path for discovery
+- [ ] Detail promote chip: "exclude already-tagged" toggle — for users with verbose notes that have a mix of promoted + unpromoted hashtags
+- [ ] In-page palette: note-tail tooltip should also show warning keyword when `note-warn` row tints — bridge the tint + tooltip
+- [ ] Bulk-bar: "Combine: promote + strip selected" — bulk version of the new per-clip promote+strip combo (currently bulk users get Tag-from-notes + Strip-hashtags as two separate buttons)
+- [ ] Hashtag panel: full modal UI (current palette-rows cover keyboard pick; a sortable grid panel would help users with 30+ distinct tags they want to scan + group)
+- [ ] Settings: keyword list for note-warning tint (currently a hardcoded 24-keyword list; per-user workspace terms like company name, "internal", "beta-only" would extend it)
+
+### Open follow-ups from this tick (2026-06-23 21:38 PT)
+- [ ] Promote+Strip combo: a "Promote N #tags + clear note" variant (destructive of prose, mirrors the bulk Tag-from-notes-clear combo exactly) for users who'd rather have the standalone destructive option alongside the new prose-preserving one
+- [ ] Bulk Strip-hashtags: storage-delta hint in the bulk-bar (currently the button has no count badge; selected-clip-count + "X tokens to strip" would echo the per-clip chip's grammar)
+- [ ] is:hashtags counter chip: live count of `is:hashtags` matches on the quick-filter chip row (alongside Pinned/Redacted/OCR/etc), so users see "Hashtags (12)" at a glance without typing
+- [ ] Cmd+K hashtag rows: alpha + count-descending sort toggle (currently fixed count-desc tiebroken alpha; some users want pure alpha for finding a specific tag)
+- [ ] hashtag-filter-action: keyword fuzzy-match enhancement so typing the BARE tag (no `#` prefix) surfaces the row (currently keywords carry both forms, but a `match-bare-tag` strict path would speed it up)
 
 ### New (added this tick — 2026-06-23 13:46 PT refill)
 - [ ] Audit log: "Mark as resolved" pill — recurring
@@ -575,6 +615,68 @@ Status: ` ` open / `~` in-progress / `x` shipped
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-23 21:38 PT** — 5/5 shipped. Theme: a complete
+  hashtag-cleanup affordance lattice for both individual clips
+  and bulk selections, plus search operators and a keyboard-pick
+  filter path. Each feature composes existing primitives
+  (extractHashtagsFromNote / mergedTagsForClip /
+  stripHashtagsFromNote / sanitizeClipNote) so the 5 new entry
+  points produce BYTE-IDENTICAL stored state to what the user
+  would get by clicking the constituent actions back-to-back —
+  composition law holds, no semantic drift across promote / strip
+  / combo / search / palette-filter. (1) `is:hashtags` /
+  `is:nohashtags` search operators — narrows is:noted to clips
+  whose note carries promotable inline tags (or DOESN'T, for
+  prose-only filtering). Shares extractHashtagsFromNote with
+  Tag-from-notes and discovery, so the filter, the promote, and
+  the report all agree on what counts. Parser + applyQuery +
+  describeQuery + 2 Cmd+K mirrors + empty-state hint string.
+  `is:hashtags` implies `is:noted`; `is:nohashtags` does NOT
+  imply `is:nonoted` (prose-only annotated clips pass both),
+  combining them = empty by AND-semantics. (2) Detail-view
+  "Strip N #tags" chip — sibling of the existing promote chip in
+  the note-row foot. Removes inline `#tag` tokens from the note
+  while preserving prose. Different gate from promote (no
+  structured-tag list interaction) — strip surfaces whenever the
+  note has ANY hashtags, even already-promoted ones. New pure
+  module note-hashtag-strip with stripHashtagsFromNote (regex
+  mirroring extractHashtags's leader+char-class+32-cap),
+  4-pass whitespace tidy (collapse, paragraph guard, per-line
+  trim, sanitize round-trip), per-occurrence count helper, 3
+  formatters. Warm-neutral chip styling alongside the accent
+  promote chip. (3) Bulk-bar "Strip hashtags from notes" — bulk
+  counterpart with scissors icon. Different gate from
+  Tag-from-notes (cares about PRESENCE, not promotion delta) so
+  the cleanup-after-promotion workflow surfaces the strip button
+  even when every hashtag is already structured. No confirm
+  (prose preservation contract), toast surfaces "(N notes
+  emptied)" tail honestly. Cmd+K mirror under "Bulk" group. (4)
+  Detail-view "Promote N #tags + strip" combo chip — single-clip
+  one-click that runs promote-then-strip. Same gate as standalone
+  promote (needs at least one NEW hashtag to promote) so the
+  chip hides when strip-alone is the right move. Result is
+  byte-identical to two-click promote→strip via mergedTagsForClip
+  + stripHashtagsFromNote composition. Visual: accent-soft body +
+  warm border ring telegraphs "two operations in one"; sits
+  between promote and strip in the note-row foot matching the
+  workflow order. All 5 paint anchors refresh the trio of chips
+  in lockstep (renderNoteRow + 4 click/input handlers). (5) Cmd+K
+  dynamic per-hashtag filter rows (top 8) — closes the discovery
+  command's open follow-up ("full panel UI"). Each top-N hashtag
+  in the visible clip set's notes gets its own palette row:
+  "Filter to clips with #staging in notes (8 clips)" — Enter
+  injects `is:hashtags #staging` into the search box. Composes
+  this tick's new is:hashtags operator + the existing hashtag
+  grammar's precision. New hashtagFilterActionFor helper in
+  hashtag-discovery; alreadyTagged flag shapes the label tail +
+  hint copy + keywords. All 5 builds clean (popup.js: 374.0kb →
+  391.7kb +17.7kb for 5 modules, content.js + background.js
+  unchanged). tsc clean. 173 new sanity checks (19 + 49 + 38 +
+  45 + 22) and zero regressions on adjacent suites (hashtag-
+  discovery, tag-from-notes, note-hashtag-promote, tag-from-
+  notes-clear, clip-note, note-warning all still green).
+  Commits: 22737d9, 6afdd19, 598f678, 2b4eedc, 8d30c7c.
 
 - **2026-06-23 17:57 PT** — 5/5 shipped. Theme: closing the
   note-hashtag loop in five orthogonal directions (paste-time
