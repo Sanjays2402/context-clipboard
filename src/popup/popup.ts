@@ -230,6 +230,13 @@ import {
   formatBulkStripHashtagsButtonTitle,
 } from "../lib/bulk-strip-hashtags";
 import {
+  planPromoteAndStrip,
+  isPromoteAndStripActionable,
+  formatPromoteAndStripChipLabel,
+  formatPromoteAndStripChipTooltip,
+  formatPromoteAndStripToast,
+} from "../lib/note-promote-strip";
+import {
   sanitizeClipNote,
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
@@ -302,6 +309,7 @@ const detailNote = $<HTMLTextAreaElement>("detail-note");
 const detailNoteCount = $("detail-note-count");
 const detailNoteStamp = $("detail-note-stamp");
 const detailNotePromote = $<HTMLButtonElement>("detail-note-promote");
+const detailNotePromoteStrip = $<HTMLButtonElement>("detail-note-promote-strip");
 const detailNoteStrip = $<HTMLButtonElement>("detail-note-strip");
 const detailNoteClear = $<HTMLButtonElement>("detail-note-clear");
 const detailExpiry = $<HTMLSelectElement>("detail-expiry");
@@ -2114,6 +2122,11 @@ function renderNoteRow(c: ClipItem): void {
   // tags, keep note), STRIP (remove inline tokens, keep prose), or
   // both back-to-back.
   paintNoteStripChip(current);
+  // Promote+Strip combo chip: single-click variant of the two-step
+  // promote-then-strip workflow. Same visibility gate as promote
+  // alone (needs at least one NEW hashtag) so the chip surfaces
+  // only when both halves would do real work.
+  paintNotePromoteStripChip(current, c.tags);
 }
 
 /**
@@ -2284,6 +2297,76 @@ function paintNoteStripChip(noteValue: string): void {
   // against a textarea-edit race between paint and click — the
   // handler defensively re-counts anyway).
   detailNoteStrip.dataset.count = String(count);
+}
+
+/**
+ * Repaint the per-clip "Promote N #tags + strip" combo chip.
+ *
+ * Single-clip mirror of the bulk-bar Tag-from-notes-and-clear
+ * combo, but with STRIP semantics (preserves prose) instead of
+ * the destructive whole-note clear. Closes the per-clip workflow:
+ *
+ *   - Promote alone:        ADDS tags, keeps inline text + prose
+ *   - Strip alone:          REMOVES inline text, keeps tag list
+ *   - Combo (THIS):         Does BOTH in one click
+ *
+ * Visibility gate (planPromoteAndStrip.pending.length > 0) is the
+ * same as the standalone promote chip's. When every hashtag is
+ * already structured, the standalone strip chip surfaces but this
+ * combo hides — clicking it would do the same thing as strip alone,
+ * just with extra noise on the toast. The user gets the cleanest
+ * affordance for what they're trying to do.
+ *
+ * The two-click "promote then strip" path still works (both chips
+ * remain visible side by side); the combo just trims the chord.
+ *
+ * Same five paint anchors as the other two chips (renderNoteRow,
+ * textarea input, save post-write, clear post-write, click
+ * post-action) so the trio repaints in lockstep.
+ *
+ * Defensive: textarea has no clipId set (rare race) → hide rather
+ * than crash.
+ */
+function paintNotePromoteStripChip(
+  noteValue: string,
+  currentTags: string[] | undefined,
+): void {
+  const clipId = detailNote.dataset.clipId;
+  if (!clipId) {
+    detailNotePromoteStrip.hidden = true;
+    return;
+  }
+  const plan = planPromoteAndStrip({
+    id: clipId,
+    note: noteValue,
+    tags: Array.isArray(currentTags) ? currentTags : [],
+  });
+  if (plan.pending.length === 0 || !plan.mergedTags) {
+    detailNotePromoteStrip.hidden = true;
+    detailNotePromoteStrip.textContent = "";
+    detailNotePromoteStrip.title = "";
+    delete detailNotePromoteStrip.dataset.merged;
+    delete detailNotePromoteStrip.dataset.newnote;
+    delete detailNotePromoteStrip.dataset.empties;
+    return;
+  }
+  detailNotePromoteStrip.hidden = false;
+  detailNotePromoteStrip.textContent = formatPromoteAndStripChipLabel(plan);
+  detailNotePromoteStrip.title = formatPromoteAndStripChipTooltip(plan);
+  // Stash plan state for the click handler. We always defensively
+  // re-plan at click time anyway (the textarea may have changed
+  // between paint and click) but stashing lets the toast carry
+  // the exact label the chip ADVERTISED.
+  detailNotePromoteStrip.dataset.merged = JSON.stringify(plan.mergedTags);
+  // newNote may be undefined (strip empties the note); the empty
+  // flag carries that signal so the click handler can decide
+  // between setClipNote(undefined) and setClipNote(string).
+  detailNotePromoteStrip.dataset.empties = plan.emptiesNote ? "1" : "0";
+  if (plan.newNote !== undefined) {
+    detailNotePromoteStrip.dataset.newnote = plan.newNote;
+  } else {
+    delete detailNotePromoteStrip.dataset.newnote;
+  }
 }
 
 /**
@@ -7919,6 +8002,9 @@ detailTags.addEventListener("change", async () => {
   // defensively (a textarea autocomplete could collapse with this
   // handler in flight).
   paintNoteStripChip(detailNote.value);
+  // Combo chip refreshes on tag edits since manually-added matching
+  // tags reduce pending → can hide the combo.
+  paintNotePromoteStripChip(detailNote.value, tags);
   toast("Tags saved");
 });
 // Live refresh on input too (not just commit on change) so a user
@@ -7934,6 +8020,8 @@ detailTags.addEventListener("input", () => {
   // symmetry — if the textarea value changed concurrently we want
   // the latest count surfaced.
   paintNoteStripChip(detailNote.value);
+  // Combo chip's promote gate moves when tag list changes — refresh.
+  paintNotePromoteStripChip(detailNote.value, tags);
 });
 
 // Per-clip note — auto-save on blur + Cmd/Ctrl+Enter. Input event
@@ -7955,6 +8043,8 @@ detailNote.addEventListener("input", () => {
   // Strip chip lives next to promote — same live-refresh contract,
   // appears the moment the user types `#tag`.
   paintNoteStripChip(detailNote.value);
+  // Combo chip live-updates on every keystroke too.
+  paintNotePromoteStripChip(detailNote.value, liveTags);
 });
 detailNote.addEventListener("blur", () => {
   void saveDetailNote();
@@ -7977,6 +8067,9 @@ detailNoteClear.addEventListener("click", async () => {
   paintNotePromoteChip("", []);
   // ...and the strip chip too — empty note has nothing to strip.
   paintNoteStripChip("");
+  // ...and the combo chip — no hashtags means no promotion AND no
+  // strip work.
+  paintNotePromoteStripChip("", []);
   await saveDetailNote();
 });
 
@@ -8029,6 +8122,9 @@ detailNotePromote.addEventListener("click", async () => {
   // the count defensively (textarea may have changed between the
   // promote click and now via a focus shift).
   paintNoteStripChip(noteValue);
+  // Combo chip post-promote: hides because pending is now empty
+  // (every hashtag is structured). Repaint reflects that.
+  paintNotePromoteStripChip(noteValue, plan.mergedTags);
   toast(formatNoteHashtagPromoteToast(plan));
 });
 
@@ -8090,11 +8186,75 @@ detailNoteStrip.addEventListener("click", async () => {
     .filter(Boolean);
   paintNotePromoteChip(newValue, liveTags);
   paintNoteStripChip(newValue);
+  // Combo chip refresh post-strip: hides because there are no
+  // hashtags left to promote OR strip.
+  paintNotePromoteStripChip(newValue, liveTags);
   // Persist via the same write path the auto-save uses — single
   // source of truth for the IDB write + the audit-log entry +
   // the noteUpdatedAt stamp.
   await saveDetailNote();
   toast(formatStripHashtagsToast(count));
+});
+
+/**
+ * Click handler for the per-clip "Promote N #tags + strip" combo
+ * chip.
+ *
+ * Runs the two-step "promote then strip" workflow in one click.
+ * Result is BYTE-IDENTICAL to clicking the standalone promote chip
+ * followed by the standalone strip chip (same merge contract via
+ * mergedTagsForClip + same strip via stripHashtagsFromNote).
+ *
+ * Defensive re-plan at click time: the textarea may have changed
+ * between paint and click (focus shifts, autocomplete). The stashed
+ * dataset values are for the TOAST grammar only; the actual writes
+ * always use the latest plan.
+ *
+ * Order: tag merge FIRST, note strip SECOND. Order is functionally
+ * independent (different IDB fields, both atomic), but tag-first
+ * matches the user's mental model ("promote, then clean up the
+ * source").
+ */
+detailNotePromoteStrip.addEventListener("click", async () => {
+  if (!detailId) return;
+  const noteValue = detailNote.value;
+  const liveTags = detailTags.value
+    .split(/,\s*/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const plan = planPromoteAndStrip({
+    id: detailId,
+    note: noteValue,
+    tags: liveTags,
+  });
+  if (plan.pending.length === 0 || !plan.mergedTags) {
+    // Stale chip click - no work to do. Repaint defensively + toast
+    // a gentle message so the user doesn't think the click missed.
+    paintNotePromoteStripChip(noteValue, liveTags);
+    toast(formatPromoteAndStripToast(plan));
+    return;
+  }
+  // Step 1: promote — same updateTags path the standalone promote
+  // chip uses.
+  await updateTags(detailId, plan.mergedTags);
+  detailTags.value = plan.mergedTags.join(", ");
+  // Step 2: strip — same setClipNote path the standalone strip
+  // chip uses. Refresh the textarea optimistically.
+  const newNoteValue = plan.newNote ?? "";
+  detailNote.value = newNoteValue;
+  updateNoteCount(newNoteValue);
+  detailNoteClear.hidden = newNoteValue.trim().length === 0;
+  // Refresh all three chips against the cleaned state. Promote
+  // hides (no pending), strip hides (no tokens), combo hides
+  // (subset of promote's gate).
+  paintNotePromoteChip(newNoteValue, plan.mergedTags);
+  paintNoteStripChip(newNoteValue);
+  paintNotePromoteStripChip(newNoteValue, plan.mergedTags);
+  // Persist the note write via the same path the auto-save uses —
+  // saveDetailNote sanitises + writes + appends the audit entry +
+  // refreshes noteUpdatedAt.
+  await saveDetailNote();
+  toast(formatPromoteAndStripToast(plan));
 });
 
 detailExpiry.addEventListener("change", async () => {

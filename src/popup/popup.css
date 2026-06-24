@@ -2794,6 +2794,34 @@ kbd {
   background: rgba(231, 156, 100, 0.18);
 }
 
+/* "Promote N #tags + strip" combo chip - single-click variant
+ * that runs the standalone promote AND strip chip's actions back
+ * to back. Bridges the accent (promote) and warm (strip) styling
+ * with an accent body + warm border ring so the visual telegraphs
+ * "two actions in one". Sits BETWEEN promote and strip in the
+ * note-row foot so the visual order matches the workflow order
+ * (additive → combo → destructive).
+ *
+ * Visibility: requires AT LEAST one new hashtag to promote — when
+ * every hashtag is already structured, the standalone strip chip
+ * is enough; the combo hides because there's nothing to PROMOTE
+ * (and the user should click strip alone, not the combo).
+ */
+.detail-note-promote-strip {
+  padding: 2px 8px;
+  font-size: 10px;
+  background: var(--accent-soft, rgba(99, 179, 237, 0.12));
+  border-color: rgba(231, 156, 100, 0.45);
+  color: var(--accent, #63b3ed);
+  white-space: nowrap;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detail-note-promote-strip:hover {
+  background: rgba(99, 179, 237, 0.2);
+}
+
 .detail-actions {
   padding: 12px;
   display: flex;
