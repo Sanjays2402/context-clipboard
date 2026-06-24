@@ -3,6 +3,7 @@
 // that the popup keyboard shortcut can summon via the background.
 
 import { paletteNoteTail, paletteNoteTailAvailable } from "./lib/palette-note-tail";
+import { hasNoteWarning, formatNoteWarningTooltip } from "./lib/note-warning";
 
 const api: typeof chrome =
   // @ts-expect-error firefox global
@@ -557,6 +558,17 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
        matches the preview's overflow handling. */
     .note-tail { margin-top:2px; font-size: 11px; color:#c4a86b; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity: 0.85; }
     .note-tail::before { content:'note: '; font-style:normal; opacity: 0.65; }
+    /* Warning tint for rows whose note contains a caution keyword
+       (prod, staging, do not, deprecated, secret, etc - full list in
+       lib/note-warning.ts). Soft warm-red background + slightly
+       brighter note-tail color so the caveat reads as a flag, not a
+       decoration. Sits at LOW priority - .row.active still wins via
+       its inset box-shadow so keyboard navigation visibility is
+       unaffected. The class only attaches when hasNoteWarning() fires;
+       a clip without a warning keyword stays the default neutral row. */
+    .row.note-warn { background: rgba(245, 80, 60, 0.06); }
+    .row.note-warn .note-tail { color: #e08a72; opacity: 0.95; }
+    .row.note-warn .note-tail::before { content:'⚠ '; font-style:normal; opacity: 0.85; color: #e08a72; }
     .empty { padding: 24px; text-align:center; color:#8a93a6; font-size: 13px; }
     .hint { font-size: 10px; padding: 6px 12px; background:#0f1115; color:#8a93a6; text-align:center; border-top:1px solid #232936; }
   `;
@@ -770,7 +782,20 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
         const noteTail = paletteNoteTailAvailable(c.note)
           ? `<div class="note-tail">${esc(paletteNoteTail(c.note))}</div>`
           : "";
-        return `<div class="row${i === active ? " active" : ""}${dim}${pinnedDivider}${hostDivider}" data-i="${i}">${thumb}<div class="body"><div class="preview">${esc(preview.slice(0, 140))}</div><div class="meta">${esc(metaText || "")}${hostBadge}</div>${noteTail}</div></div>`;
+        // Warning tint: when the note contains a caution keyword
+        // (prod, staging, do not, deprecated, secret, etc), tint the
+        // row + swap the note-tail prefix to a warning glyph so the
+        // user sees the row is FLAGGED before they read the tail
+        // text. hasNoteWarning short-circuits cheaply on empty notes
+        // so the per-row cost is O(M) only when a note exists.
+        // formatNoteWarningTooltip identifies WHICH keyword tripped
+        // it for the hover label.
+        const noteWarn = hasNoteWarning(c.note);
+        const noteWarnClass = noteWarn ? " note-warn" : "";
+        const noteWarnTitle = noteWarn
+          ? ` title="${esc(formatNoteWarningTooltip(c.note))}"`
+          : "";
+        return `<div class="row${i === active ? " active" : ""}${dim}${pinnedDivider}${hostDivider}${noteWarnClass}" data-i="${i}"${noteWarnTitle}>${thumb}<div class="body"><div class="preview">${esc(preview.slice(0, 140))}</div><div class="meta">${esc(metaText || "")}${hostBadge}</div>${noteTail}</div></div>`;
       })
       .join("");
   }
