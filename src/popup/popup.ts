@@ -215,6 +215,14 @@ import {
   formatNoteHashtagPromoteToast,
 } from "../lib/note-hashtag-promote";
 import {
+  stripHashtagsFromNote,
+  noteHasStrippableHashtags,
+  countStrippableHashtagsInNote,
+  formatStripHashtagsChipLabel,
+  formatStripHashtagsChipTooltip,
+  formatStripHashtagsToast,
+} from "../lib/note-hashtag-strip";
+import {
   sanitizeClipNote,
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
@@ -287,6 +295,7 @@ const detailNote = $<HTMLTextAreaElement>("detail-note");
 const detailNoteCount = $("detail-note-count");
 const detailNoteStamp = $("detail-note-stamp");
 const detailNotePromote = $<HTMLButtonElement>("detail-note-promote");
+const detailNoteStrip = $<HTMLButtonElement>("detail-note-strip");
 const detailNoteClear = $<HTMLButtonElement>("detail-note-clear");
 const detailExpiry = $<HTMLSelectElement>("detail-expiry");
 const detailExpiryHint = $("detail-expiry-hint");
@@ -2091,6 +2100,12 @@ function renderNoteRow(c: ClipItem): void {
   // clip's current tag list, so the chip is live against
   // unsaved edits too (no need to wait for blur/save).
   paintNotePromoteChip(current, c.tags);
+  // Strip-hashtags chip: surfaces when the note contains ANY
+  // `#hashtag` tokens (independent of structured-tag list). Lives
+  // alongside the promote chip so the user can pick: PROMOTE (add
+  // tags, keep note), STRIP (remove inline tokens, keep prose), or
+  // both back-to-back.
+  paintNoteStripChip(current);
 }
 
 /**
@@ -2204,6 +2219,63 @@ function paintNotePromoteChip(
   } else {
     delete detailNotePromote.dataset.merged;
   }
+}
+
+/**
+ * Repaint the per-clip "Strip N #tags" chip in the note-row foot.
+ *
+ * Sibling of paintNotePromoteChip — operates on the SAME note text
+ * but answers a different question: how many `#hashtag` tokens are
+ * present (= would be removed by a click), regardless of whether
+ * they're already in the structured tag list.
+ *
+ * Why two chips (promote + strip) instead of one combined one?
+ *   - Different semantics: promote ADDS structured tags, strip
+ *     REMOVES inline text. They can both be relevant at once
+ *     ("promote then strip" is a valid two-click workflow) but the
+ *     user shouldn't have to choose between them via a modal — both
+ *     chips visible side-by-side is the clearest affordance.
+ *   - Different visibility predicates: promote is hidden when every
+ *     hashtag is already structured (nothing new to promote); strip
+ *     is hidden ONLY when there are zero `#tag` tokens at all
+ *     (even already-promoted ones can be stripped — that's exactly
+ *     the post-promotion cleanup workflow). So the gates differ.
+ *
+ * The strip chip composes the same regex extraction as
+ * Tag-from-notes so the user can't see "Strip 3 #tags" then have
+ * the action fail to find any — single source of truth via the
+ * pure module.
+ *
+ * Called from the same five paint anchors paintNotePromoteChip
+ * uses (renderNoteRow, textarea input, save post-write, clear
+ * post-write, chip-click post-action) so the two chips repaint in
+ * lockstep — a textarea edit always refreshes BOTH chips.
+ *
+ * Defensive: when the textarea has no clipId set (rare race during
+ * navigation between paints) we hide rather than crash.
+ */
+function paintNoteStripChip(noteValue: string): void {
+  const clipId = detailNote.dataset.clipId;
+  if (!clipId) {
+    detailNoteStrip.hidden = true;
+    return;
+  }
+  if (!noteHasStrippableHashtags(noteValue)) {
+    detailNoteStrip.hidden = true;
+    detailNoteStrip.textContent = "";
+    detailNoteStrip.title = "";
+    delete detailNoteStrip.dataset.count;
+    return;
+  }
+  const count = countStrippableHashtagsInNote(noteValue);
+  detailNoteStrip.hidden = false;
+  detailNoteStrip.textContent = formatStripHashtagsChipLabel(count);
+  detailNoteStrip.title = formatStripHashtagsChipTooltip(count);
+  // Stash the count on the dataset so the click handler can show
+  // the toast with the exact number the chip ADVERTISED (defensive
+  // against a textarea-edit race between paint and click — the
+  // handler defensively re-counts anyway).
+  detailNoteStrip.dataset.count = String(count);
 }
 
 /**
@@ -7809,6 +7881,11 @@ detailTags.addEventListener("change", async () => {
   // Refresh the promote chip - if the user manually typed a tag
   // that matches a hashtag in the note, the chip should now hide.
   paintNotePromoteChip(detailNote.value, tags);
+  // Strip chip is independent of the structured tag list, so the
+  // tag edit doesn't change it — but pass through the live value
+  // defensively (a textarea autocomplete could collapse with this
+  // handler in flight).
+  paintNoteStripChip(detailNote.value);
   toast("Tags saved");
 });
 // Live refresh on input too (not just commit on change) so a user
@@ -7820,6 +7897,10 @@ detailTags.addEventListener("input", () => {
     .map((t) => t.trim())
     .filter(Boolean);
   paintNotePromoteChip(detailNote.value, tags);
+  // Strip chip unaffected by tag-list edits but repaint for
+  // symmetry — if the textarea value changed concurrently we want
+  // the latest count surfaced.
+  paintNoteStripChip(detailNote.value);
 });
 
 // Per-clip note — auto-save on blur + Cmd/Ctrl+Enter. Input event
@@ -7838,6 +7919,9 @@ detailNote.addEventListener("input", () => {
     .map((t) => t.trim())
     .filter(Boolean);
   paintNotePromoteChip(detailNote.value, liveTags);
+  // Strip chip lives next to promote — same live-refresh contract,
+  // appears the moment the user types `#tag`.
+  paintNoteStripChip(detailNote.value);
 });
 detailNote.addEventListener("blur", () => {
   void saveDetailNote();
@@ -7858,6 +7942,8 @@ detailNoteClear.addEventListener("click", async () => {
   // Clearing the note also kills the promote chip - no note text
   // means no hashtags to promote.
   paintNotePromoteChip("", []);
+  // ...and the strip chip too — empty note has nothing to strip.
+  paintNoteStripChip("");
   await saveDetailNote();
 });
 
@@ -7904,7 +7990,78 @@ detailNotePromote.addEventListener("click", async () => {
   // hashtag is now structured).
   detailTags.value = plan.mergedTags.join(", ");
   paintNotePromoteChip(noteValue, plan.mergedTags);
+  // The strip chip is UNCHANGED — `#tag` tokens are still in the
+  // note (promote doesn't touch the note text). User can click
+  // strip next to clean up the inline tokens. Repaint to refresh
+  // the count defensively (textarea may have changed between the
+  // promote click and now via a focus shift).
+  paintNoteStripChip(noteValue);
   toast(formatNoteHashtagPromoteToast(plan));
+});
+
+/**
+ * Click handler for the per-clip "Strip N #tags" chip.
+ *
+ * Removes every `#hashtag` token from the note text while
+ * preserving the surrounding prose. Independent of the promote
+ * chip — does NOT touch the structured tag list. Two valid
+ * workflows:
+ *
+ *   1. PROMOTE then STRIP (two clicks): get the structured tags
+ *      AND clean up the inline tokens. Equivalent to the bulk-bar
+ *      Tag-from-notes-clear combo, but per-clip + non-destructive
+ *      of prose ("be careful #staging - check with $person first"
+ *      becomes "be careful - check with $person first", tag list
+ *      gains `staging`).
+ *
+ *   2. STRIP only (one click): the user already promoted the
+ *      hashtags via the bulk-bar earlier, or they just want the
+ *      inline `#tag` tokens gone WITHOUT structured-tag
+ *      conversion (e.g. they used `#temp` as a writeup-time TODO
+ *      marker, never intended to promote).
+ *
+ * Implementation: reads the live textarea value (defensive against
+ * dataset drift — the chip's stashed count is for the toast, not
+ * the action; the strip itself always operates on the LATEST
+ * note text). Optimistic textarea update + saveDetailNote to
+ * persist via the same IDB write path the auto-save uses.
+ */
+detailNoteStrip.addEventListener("click", async () => {
+  if (!detailId) return;
+  const noteValue = detailNote.value;
+  const count = countStrippableHashtagsInNote(noteValue);
+  if (count === 0) {
+    // Stale chip click - nothing to strip. Hide the chip + toast
+    // a defensive message; shouldn't normally reach this branch
+    // because the chip hides when count is zero.
+    paintNoteStripChip(noteValue);
+    toast(formatStripHashtagsToast(0));
+    return;
+  }
+  const stripped = stripHashtagsFromNote(noteValue);
+  // Stripped result may be undefined (the note was JUST `#tag`
+  // tokens with no surrounding prose - the strip empties it out).
+  // setClipNote with undefined deletes the note field, same as
+  // the Clear button. We mirror that contract explicitly.
+  const newValue = stripped ?? "";
+  detailNote.value = newValue;
+  updateNoteCount(newValue);
+  // Hide the Clear button when the strip emptied the note (same
+  // visibility predicate the renderNoteRow + auto-save path use).
+  detailNoteClear.hidden = newValue.trim().length === 0;
+  // Refresh both chips against the cleaned note: promote should
+  // now hide (no hashtags left), strip should hide (count is 0).
+  const liveTags = detailTags.value
+    .split(/,\s*/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  paintNotePromoteChip(newValue, liveTags);
+  paintNoteStripChip(newValue);
+  // Persist via the same write path the auto-save uses — single
+  // source of truth for the IDB write + the audit-log entry +
+  // the noteUpdatedAt stamp.
+  await saveDetailNote();
+  toast(formatStripHashtagsToast(count));
 });
 
 detailExpiry.addEventListener("change", async () => {

@@ -2764,6 +2764,36 @@ kbd {
   background: rgba(99, 179, 237, 0.2);
 }
 
+/* "Strip N #tags" chip in the note-row foot. Sibling of the promote
+ * chip — surfaces when the current note contains #hashtag tokens.
+ * Click REMOVES the tokens from the note while preserving prose
+ * (does NOT promote them into structured tags — for that use the
+ * promote chip OR the bulk Tag-from-notes-clear combo).
+ *
+ * Visual: muted neutral tint so it reads as the "cleanup" sibling
+ * of the accent-tinted promote chip. The two chips can coexist for
+ * the same note — promote-then-strip is a valid two-click workflow,
+ * vs the all-in-one bulk Tag-from-notes-clear combo for batches.
+ *
+ * Subtle danger flag (slight warm undertone in the border) tells
+ * the user this is destructive of inline text, even though prose
+ * survives.
+ */
+.detail-note-strip {
+  padding: 2px 8px;
+  font-size: 10px;
+  background: rgba(231, 156, 100, 0.10);
+  border-color: rgba(231, 156, 100, 0.32);
+  color: rgba(231, 156, 100, 0.92);
+  white-space: nowrap;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detail-note-strip:hover {
+  background: rgba(231, 156, 100, 0.18);
+}
+
 .detail-actions {
   padding: 12px;
   display: flex;
