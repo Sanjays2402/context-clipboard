@@ -223,6 +223,13 @@ import {
   formatStripHashtagsToast,
 } from "../lib/note-hashtag-strip";
 import {
+  planBulkStripHashtags,
+  perClipActionForStrip,
+  isBulkStripHashtagsActionable,
+  formatBulkStripHashtagsToast,
+  formatBulkStripHashtagsButtonTitle,
+} from "../lib/bulk-strip-hashtags";
+import {
   sanitizeClipNote,
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
@@ -399,6 +406,7 @@ const bulkTag = $<HTMLButtonElement>("bulk-tag");
 const bulkNote = $<HTMLButtonElement>("bulk-note");
 const bulkTagFromNotes = $<HTMLButtonElement>("bulk-tag-from-notes");
 const bulkTagFromNotesClear = $<HTMLButtonElement>("bulk-tag-from-notes-clear");
+const bulkStripHashtags = $<HTMLButtonElement>("bulk-strip-hashtags");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkExportTag = $<HTMLInputElement>("bulk-export-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
@@ -6630,6 +6638,31 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Bulk Strip-hashtags palette mirror. Distinct from
+      // tag-from-notes (additive promote) and tag-from-notes-clear
+      // (promote + wipe whole note): this one REMOVES the inline
+      // `#tag` tokens while PRESERVING prose. Non-destructive of
+      // annotation context. Lives in Bulk for selection-shape
+      // discoverability alongside its destructive cousins.
+      id: "strip-hashtags-selection",
+      label: "Strip inline #tags from notes",
+      hint: "Remove `#tag` tokens, keep prose - non-destructive cleanup",
+      keywords:
+        "strip remove hashtag tag note inline clean prose preserve cleanup post-promote bulk",
+      group: "Bulk",
+      available:
+        hasSelection &&
+        isBulkStripHashtagsActionable(
+          [...selectedIds]
+            .map((id) => currentClips.find((c) => c.id === id))
+            .filter((c): c is NonNullable<typeof c> => !!c),
+        ),
+      run: () => {
+        closePalette();
+        bulkStripHashtags.click();
+      },
+    },
+    {
       // "Find hashtags in notes" - discovery / triage command. Scans
       // the currently-visible clip set's notes for #hashtag tokens
       // and surfaces a sorted distribution via toast: "Found
@@ -9059,6 +9092,20 @@ function updateBulkBar(): void {
       selectedClipsForLock,
     );
   }
+  // Bulk Strip-hashtags button: hidden when NO selected clip has
+  // any `#hashtag` token in its note. Different gate from
+  // Tag-from-notes (which needs at least one NEW hashtag to
+  // promote) — strip cares about presence, not promotion delta.
+  // So a selection where every hashtag is already promoted shows
+  // the strip button but hides Tag-from-notes: precisely the
+  // cleanup-after-promotion workflow.
+  const stripHashtagsActionable =
+    isBulkStripHashtagsActionable(selectedClipsForLock);
+  bulkStripHashtags.hidden = !stripHashtagsActionable;
+  if (stripHashtagsActionable) {
+    bulkStripHashtags.title =
+      formatBulkStripHashtagsButtonTitle(selectedClipsForLock);
+  }
   const label = buildStorageDeltaLabel(visibleSelected);
   if (!label) {
     bulkStorageDelta.hidden = true;
@@ -9444,6 +9491,47 @@ bulkTagFromNotesClear.addEventListener("click", async () => {
     }
   }
   toast(formatTagFromNotesAndClearToast(plan));
+  await render();
+});
+
+// Bulk Strip-hashtags click. Removes inline `#tag` tokens from notes
+// across the selection while preserving prose. Independent of
+// structured tag list (no promotion, no tag merge). Mirrors the
+// per-clip detail-view strip chip's behaviour but in batch shape.
+//
+// No confirm dialog: strip is destructive of INLINE tokens only,
+// but the prose preservation contract means a misclick doesn't
+// lose meaningful annotation. (Compare Tag-from-notes-clear combo
+// which DOES need the confirm — it wipes the whole note text.)
+// Edge case: notes that contain ONLY hashtags become empty after
+// strip, deleting the note field. Toast surfaces this honestly
+// via the "(N notes emptied)" tail so the user sees the
+// destructive bit AFTER the action lands.
+bulkStripHashtags.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  const items = await Promise.all(ids.map((id) => getClip(id)));
+  const present = items.filter((c): c is NonNullable<typeof c> => !!c);
+  if (present.length === 0) {
+    toast("Selection vanished", "error");
+    return;
+  }
+  const plan = planBulkStripHashtags(present);
+  if (plan.modified === 0) {
+    // Nothing to strip — honest toast, no IDB writes.
+    toast(formatBulkStripHashtagsToast(plan));
+    return;
+  }
+  // Apply per-clip via setClipNote. Each write is independent;
+  // an error on one shouldn't block the rest. The strip helper is
+  // deterministic so re-running over the same input produces the
+  // same output (idempotent).
+  for (const c of present) {
+    const action = perClipActionForStrip(c);
+    if (!action) continue;
+    await setClipNote(c.id, action.newNote);
+  }
+  toast(formatBulkStripHashtagsToast(plan));
   await render();
 });
 

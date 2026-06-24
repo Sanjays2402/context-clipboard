@@ -118,6 +118,16 @@ export const icons = {
     svg(
       `<path d="m3 21 9-9 9 9"/><path d="m7 17 10-10 5 5L12 22z"/><path d="M14 4 20 10"/>`,
     ),
+  // Scissors — used by the bulk-bar "Strip hashtags from notes"
+  // action and detail-view per-clip strip chip family to telegraph
+  // "cut OUT the inline `#tag` tokens, keep the surrounding prose".
+  // Two circular pivots + two crossing blades; distinct from
+  // `eraser` (whole-content destruction) and `trash` (whole-clip
+  // destruction) so the visual hierarchy reads as scope-of-effect.
+  scissors: () =>
+    svg(
+      `<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/>`,
+    ),
   // Globe — used by the "Forget host" right-click menu entry so the
   // intent is unambiguous (the action is about origin host, not content).
   globe: () =>
