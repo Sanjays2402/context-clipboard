@@ -2737,6 +2737,33 @@ kbd {
   font-size: 10px;
 }
 
+/* "Promote N #tags" chip in the note-row foot. Surfaces when the
+ * current note contains #hashtag tokens that aren't already in the
+ * structured tag list. Click promotes them inline (single-clip
+ * variant of the bulk-bar Tag-from-notes action). Hidden when
+ * pending list is empty.
+ *
+ * Sits next to the Clear button so the user sees "add structured
+ * tags from my note" and "remove the note entirely" as parallel
+ * note-row controls. Subtle accent tint so it reads as an
+ * affordance, not an alert - the chip is a SHORTCUT, not a
+ * caveat.
+ */
+.detail-note-promote {
+  padding: 2px 8px;
+  font-size: 10px;
+  background: var(--accent-soft, rgba(99, 179, 237, 0.12));
+  border-color: rgba(99, 179, 237, 0.35);
+  color: var(--accent, #63b3ed);
+  white-space: nowrap;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detail-note-promote:hover {
+  background: rgba(99, 179, 237, 0.2);
+}
+
 .detail-actions {
   padding: 12px;
   display: flex;

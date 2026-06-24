@@ -201,6 +201,13 @@ import {
   formatHashtagDiscoveryHint,
 } from "../lib/hashtag-discovery";
 import {
+  planNoteHashtagPromote,
+  isNoteHashtagPromoteActionable,
+  formatNoteHashtagPromoteLabel,
+  formatNoteHashtagPromoteTooltip,
+  formatNoteHashtagPromoteToast,
+} from "../lib/note-hashtag-promote";
+import {
   sanitizeClipNote,
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
@@ -272,6 +279,7 @@ const detailLockedInfo = $("detail-locked-info");
 const detailNote = $<HTMLTextAreaElement>("detail-note");
 const detailNoteCount = $("detail-note-count");
 const detailNoteStamp = $("detail-note-stamp");
+const detailNotePromote = $<HTMLButtonElement>("detail-note-promote");
 const detailNoteClear = $<HTMLButtonElement>("detail-note-clear");
 const detailExpiry = $<HTMLSelectElement>("detail-expiry");
 const detailExpiryHint = $("detail-expiry-hint");
@@ -2069,6 +2077,12 @@ function renderNoteRow(c: ClipItem): void {
   updateNoteCount(current);
   detailNoteClear.hidden = !hasClipNote(c);
   paintNoteStamp(c.noteUpdatedAt);
+  // Promote-hashtags chip: surfaces when the note contains
+  // #hashtag tokens not yet in the structured tag list.
+  // paintNotePromoteChip uses the current TEXTAREA value + the
+  // clip's current tag list, so the chip is live against
+  // unsaved edits too (no need to wait for blur/save).
+  paintNotePromoteChip(current, c.tags);
 }
 
 /**
@@ -2112,6 +2126,76 @@ function updateNoteCount(value: string): void {
     detailNoteCount.classList.remove("over-cap");
   }
   detailNoteClear.hidden = value.trim().length === 0;
+}
+
+/**
+ * Repaint the per-clip "Promote N #tags" chip in the note-row foot.
+ *
+ * Surfaces when the live note value contains `#hashtag` tokens that
+ * aren't already in the clip's structured tag list (case-insensitive
+ * match). Click handler reads the chip's dataset for the merged
+ * tag list and writes via the same db.updateTags path the bulk-bar
+ * uses - single source of truth means the chip + the bulk action
+ * produce byte-identical structured tag lists for the same input.
+ *
+ * Called from:
+ *   - renderNoteRow (initial paint when detail opens)
+ *   - the textarea input event (live as the user types - reach
+ *     for the chip the moment they finish typing `#staging`)
+ *   - saveDetailNote post-write (refresh once the new note is
+ *     canonicalised)
+ *   - the chip's own click handler (post-promotion the chip should
+ *     hide because every hashtag is now structured)
+ *
+ * The current `tags` arg is the LATEST tag list (pulled from the
+ * stored ClipItem at paint time + refreshed via detailTags.value
+ * on input event). Without that, a user who promotes then adds
+ * another `#newone` to the note would see the chip stale-include
+ * the just-promoted tags as "still pending".
+ *
+ * Defensive: detailNote.dataset.clipId mismatch (rare race when
+ * the detail navigates between paints) leaves the chip hidden -
+ * the click handler also re-checks at fire time.
+ */
+function paintNotePromoteChip(
+  noteValue: string,
+  currentTags: string[] | undefined,
+): void {
+  const clipId = detailNote.dataset.clipId;
+  if (!clipId) {
+    detailNotePromote.hidden = true;
+    return;
+  }
+  const plan = planNoteHashtagPromote({
+    id: clipId,
+    note: noteValue,
+    tags: Array.isArray(currentTags) ? currentTags : [],
+  });
+  if (plan.pending.length === 0) {
+    detailNotePromote.hidden = true;
+    detailNotePromote.textContent = "";
+    detailNotePromote.title = "";
+    // Clear the dataset so a stale click can't fire after the chip
+    // becomes inert mid-render.
+    delete detailNotePromote.dataset.merged;
+    delete detailNotePromote.dataset.pending;
+    return;
+  }
+  detailNotePromote.hidden = false;
+  detailNotePromote.textContent = formatNoteHashtagPromoteLabel(plan);
+  detailNotePromote.title = formatNoteHashtagPromoteTooltip(plan);
+  // Stash the merged tag list + pending list on the element so the
+  // click handler can write without re-running the plan (the
+  // textarea may have changed between paint and click — we want to
+  // act on the plan the USER saw, not a fresh one). The click
+  // handler defensively re-plans anyway as a tie-break, but stashing
+  // here lets the toast carry the exact list the chip advertised.
+  detailNotePromote.dataset.pending = plan.pending.join(",");
+  if (plan.mergedTags) {
+    detailNotePromote.dataset.merged = JSON.stringify(plan.mergedTags);
+  } else {
+    delete detailNotePromote.dataset.merged;
+  }
 }
 
 /**
@@ -7653,7 +7737,20 @@ detailTags.addEventListener("change", async () => {
     .filter(Boolean);
   await updateTags(detailId, tags);
   await render();
+  // Refresh the promote chip - if the user manually typed a tag
+  // that matches a hashtag in the note, the chip should now hide.
+  paintNotePromoteChip(detailNote.value, tags);
   toast("Tags saved");
+});
+// Live refresh on input too (not just commit on change) so a user
+// typing a new tag with autocomplete sees the chip update without
+// having to blur the input.
+detailTags.addEventListener("input", () => {
+  const tags = detailTags.value
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  paintNotePromoteChip(detailNote.value, tags);
 });
 
 // Per-clip note — auto-save on blur + Cmd/Ctrl+Enter. Input event
@@ -7662,6 +7759,16 @@ detailTags.addEventListener("change", async () => {
 // save shortcut for users who like keyboard-only flow.
 detailNote.addEventListener("input", () => {
   updateNoteCount(detailNote.value);
+  // Live-refresh the promote chip so it appears the moment the
+  // user finishes typing a `#hashtag` token. detailTags.value
+  // carries the latest comma-separated tag list, so even an
+  // un-saved tag edit during the same detail session matches the
+  // chip's case-insensitive check correctly.
+  const liveTags = detailTags.value
+    .split(/,\s*/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  paintNotePromoteChip(detailNote.value, liveTags);
 });
 detailNote.addEventListener("blur", () => {
   void saveDetailNote();
@@ -7679,7 +7786,56 @@ detailNoteClear.addEventListener("click", async () => {
   detailNote.value = "";
   updateNoteCount("");
   detailNoteClear.hidden = true;
+  // Clearing the note also kills the promote chip - no note text
+  // means no hashtags to promote.
+  paintNotePromoteChip("", []);
   await saveDetailNote();
+});
+
+/**
+ * Click handler for the per-clip "Promote N #tags" chip.
+ *
+ * Reads the merged tag list from the chip's dataset (stashed by
+ * paintNotePromoteChip so the click acts on the plan the user
+ * SAW, not a fresh re-scan that may have drifted). Defensive
+ * re-plan as a tie-break so a stale dataset can't promote
+ * something the user already typed away.
+ *
+ * Single-clip variant of the bulk-bar Tag-from-notes click - same
+ * db.updateTags path, same case-insensitive merge contract, same
+ * pure module composition. The toast grammar is tighter ("Added
+ * #x" vs "Added #x to N clips") because the action is per-clip.
+ */
+detailNotePromote.addEventListener("click", async () => {
+  if (!detailId) return;
+  const noteValue = detailNote.value;
+  // Live tag list (mirrors what paintNotePromoteChip uses on
+  // input). Defensive re-plan in case the textarea or the tag
+  // input changed since the chip last painted.
+  const liveTags = detailTags.value
+    .split(/,\s*/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const plan = planNoteHashtagPromote({
+    id: detailId,
+    note: noteValue,
+    tags: liveTags,
+  });
+  if (plan.pending.length === 0 || !plan.mergedTags) {
+    // Stale chip click - no work to do. Hide the chip + toast a
+    // gentle "already tagged" so the user doesn't think the click
+    // missed.
+    paintNotePromoteChip(noteValue, liveTags);
+    toast(formatNoteHashtagPromoteToast(plan));
+    return;
+  }
+  await updateTags(detailId, plan.mergedTags);
+  // Refresh the visible tags input + the chip post-write so the
+  // user sees the promotion land + the chip vanishes (every
+  // hashtag is now structured).
+  detailTags.value = plan.mergedTags.join(", ");
+  paintNotePromoteChip(noteValue, plan.mergedTags);
+  toast(formatNoteHashtagPromoteToast(plan));
 });
 
 detailExpiry.addEventListener("change", async () => {
