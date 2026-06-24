@@ -1437,7 +1437,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -5942,6 +5942,43 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:nonoted");
+      },
+    },
+    {
+      // `is:hashtags` — narrower than `is:noted`. Surfaces clips
+      // whose note carries at least one extractable `#hashtag`
+      // token (same grammar as bulk Tag-from-notes + Cmd+K
+      // hashtag-discovery — single source of truth). This is the
+      // "ready-for-promotion" view: filtering down to clips where
+      // running Tag-from-notes would actually do work. Pair with
+      // `host:<x>` for per-site cleanup, or with `is:notenewer:7d`
+      // to find this week's writeups that still have inline tags.
+      id: "filter-hashtags",
+      label: "Show clips with #hashtags in notes",
+      hint: "is:hashtags — notes containing inline #hashtag tokens (promotion candidates)",
+      group: "Filter",
+      keywords: "is:hashtags hashtag inline tags promote candidates ready note",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:hashtags");
+      },
+    },
+    {
+      // `is:nohashtags` — inverse twin of `is:hashtags`. Different
+      // semantic axis from `is:nonoted`: a clip with prose-only
+      // notes passes BOTH `is:noted` AND `is:nohashtags` because
+      // it has annotation but no inline tag pollution. Pair with
+      // `is:noted` to surface the "clean" annotated subset:
+      // "show me my real prose notes, filter out the messy
+      // still-tagging-inline tail".
+      id: "filter-nohashtags",
+      label: "Hide clips with #hashtags in notes",
+      hint: "is:nohashtags — notes without inline #hashtag tokens (prose-only or empty)",
+      group: "Filter",
+      keywords: "is:nohashtags no hashtag clean prose only inverse",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:nohashtags");
       },
     },
     {

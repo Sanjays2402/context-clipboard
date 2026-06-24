@@ -21,6 +21,7 @@
 import type { ClipItem, ClipKind } from "./types";
 import { hostFrom } from "./util";
 import { hasClipNote } from "./clip-note";
+import { extractHashtagsFromNote } from "./tag-from-notes";
 
 export interface ParsedQuery {
   freeText: string;
@@ -131,6 +132,56 @@ export interface ParsedQuery {
    * `is:noted` / `is:nonoted`, and the AND of both is always empty.
    */
   nonotedOnly: boolean;
+  /**
+   * Surface clips whose `note` contains at least one extractable
+   * `#hashtag` token (same grammar as bulk Tag-from-notes /
+   * Cmd+K hashtag discovery). Implies `is:noted` (a clip with no
+   * note can't have inline hashtags) but is STRICTER — `is:noted`
+   * surfaces every annotated clip; `is:hashtags` surfaces only the
+   * subset whose annotation carries promotable inline tags.
+   *
+   * Why a dedicated operator (vs `is:noted` + a content needle
+   * search for "#")?
+   *   - Free-text `#` would match any literal hash in note text,
+   *     URL fragments, code snippets, etc. The hashtag grammar
+   *     (word-boundary, leading punctuation set, char class) is
+   *     a tight gate the tag-from-notes / hashtag-discovery
+   *     primitives already enforce — surfacing it as a parsable
+   *     operator means the search filter and the promote actions
+   *     agree on what counts as a hashtag.
+   *   - This is the "candidates for Tag-from-notes" view —
+   *     filtering down to clips where running the bulk action
+   *     would actually DO work. Pair with `host:<x>` for
+   *     per-site cleanup passes, or with `is:notenewer:7d` for
+   *     "what hashtags did I write THIS week that I should
+   *     promote?".
+   *
+   * Composition: gate is `extractHashtagsFromNote(c.note).length >
+   * 0`. Same single source of truth as Tag-from-notes promotion
+   * — if a clip surfaces under `is:hashtags`, running
+   * Tag-from-notes on it WILL find at least one hashtag. Doesn't
+   * distinguish "would promote" vs "already structured" — that's
+   * the discovery report's job; this operator just gates on
+   * hashtag presence.
+   */
+  hashtagsOnly: boolean;
+  /**
+   * Inverse of `hashtagsOnly`. When true, only clips whose `note`
+   * is empty OR has no extractable `#hashtag` tokens match. The
+   * complement is over the NOTE-hashtag axis: clips with notes
+   * containing only prose pass, clips without notes pass, clips
+   * with hashtag-bearing notes fail.
+   *
+   * Useful for filtering OUT the messy "still-tagging-inline"
+   * tail: `is:noted is:nohashtags` surfaces the "clean" noted
+   * subset (real prose annotation, no inline tag pollution).
+   *
+   * Mutually-exclusive with `hashtagsOnly`: a clip's note either
+   * has hashtags or it doesn't. Combined the result is always
+   * empty by AND-semantics — same intent contract as `is:noted
+   * is:nonoted`.
+   */
+  noHashtags: boolean;
   /**
    * Surface clips whose HOST is governed by a site rule with
    * `autoLock: true` under first-match-wins ingest semantics.
@@ -322,6 +373,8 @@ export function parseQuery(raw: string): ParsedQuery {
     unlockedOnly: false,
     notedOnly: false,
     nonotedOnly: false,
+    hashtagsOnly: false,
+    noHashtags: false,
     hostLockedOnly: false,
     hostPinnedOnly: false,
     hostRedactedOnly: false,
@@ -363,6 +416,8 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "unlocked") out.unlockedOnly = true;
       else if (v === "noted") out.notedOnly = true;
       else if (v === "nonoted") out.nonotedOnly = true;
+      else if (v === "hashtags") out.hashtagsOnly = true;
+      else if (v === "nohashtags") out.noHashtags = true;
       else if (v === "hostlocked") out.hostLockedOnly = true;
       else if (v === "hostpinned") out.hostPinnedOnly = true;
       else if (v === "hostredacted") out.hostRedactedOnly = true;
@@ -523,6 +578,22 @@ export function applyQuery(
     // construction — same intent contract as `is:template
     // is:notemplate` / `is:locked is:unlocked`.
     if (q.nonotedOnly && hasClipNote(c)) return false;
+    // `is:hashtags` / `is:nohashtags` — gate over inline `#hashtag`
+    // tokens in the note. Composes extractHashtagsFromNote so the
+    // search filter, the Tag-from-notes promotion, and the Cmd+K
+    // hashtag-discovery report all agree on what counts as a
+    // hashtag (single source of truth). A clip with no note returns
+    // [] from the extractor, which means:
+    //   - `is:hashtags` filters it out (no extractable tokens)
+    //   - `is:nohashtags` passes it (no hashtag-bearing prose)
+    // So `is:hashtags` implies `is:noted` but `is:nohashtags` does
+    // NOT imply `is:nonoted` — prose-only notes pass `is:nohashtags`
+    // because they have no inline tag pollution.
+    if (q.hashtagsOnly || q.noHashtags) {
+      const tags = extractHashtagsFromNote(c.note);
+      if (q.hashtagsOnly && tags.length === 0) return false;
+      if (q.noHashtags && tags.length > 0) return false;
+    }
     // `is:notelonger:N` / `is:noteshorter:N` — measure the note
     // length AFTER trim (same length the editor + breadcrumb see),
     // gate strictly (`>` / `<`). A clip with no note has trimmed
@@ -650,6 +721,8 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.unlockedOnly) bits.push("unlocked");
   if (q.notedOnly) bits.push("noted");
   if (q.nonotedOnly) bits.push("not-noted");
+  if (q.hashtagsOnly) bits.push("hashtags");
+  if (q.noHashtags) bits.push("no-hashtags");
   if (q.hostLockedOnly) bits.push("hostlocked");
   if (q.hostPinnedOnly) bits.push("hostpinned");
   if (q.hostRedactedOnly) bits.push("hostredacted");
