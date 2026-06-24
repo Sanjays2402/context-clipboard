@@ -196,6 +196,11 @@ import {
   formatTagFromNotesButtonTitle,
 } from "../lib/tag-from-notes";
 import {
+  discoverHashtagsInNotes,
+  formatHashtagDiscoveryToast,
+  formatHashtagDiscoveryHint,
+} from "../lib/hashtag-discovery";
+import {
   sanitizeClipNote,
   hasClipNote,
   CLIP_NOTE_MAX_LEN,
@@ -6397,6 +6402,44 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         bulkTagFromNotes.click();
+      },
+    },
+    {
+      // "Find hashtags in notes" - discovery / triage command. Scans
+      // the currently-visible clip set's notes for #hashtag tokens
+      // and surfaces a sorted distribution via toast: "Found
+      // #staging in 8 clips, #wip in 5, ..." Completes the loop the
+      // OPPOSITE direction from tag-from-notes - the user can SEE
+      // what hashtags they've left scattered across notes BEFORE
+      // committing to a bulk promote. Different from "Tag selection
+      // from #hashtags" (which writes) - this READS so the user can
+      // decide whether to wipe noise (#wip), promote signal
+      // (#staging), or just keep the discovery for awareness.
+      //
+      // Operates on currentClips (the visible set) so the hint can
+      // honestly say "10 hashtags across 23 clips" reflecting what
+      // the user actually sees. Pure discovery: no IDB writes, no
+      // side effects.
+      id: "discover-hashtags-in-notes",
+      label: "Find hashtags in notes",
+      hint: formatHashtagDiscoveryHint(
+        discoverHashtagsInNotes(currentClips, { topN: 1 }),
+      ),
+      keywords:
+        "find discover hashtag tag note inline distribution top frequency triage audit list",
+      group: "Filter",
+      // Always available - even an empty scan is a useful answer
+      // ("no hashtags hiding in your notes"). Greyed only when no
+      // clips at all.
+      available: currentClips.length > 0,
+      run: () => {
+        closePalette();
+        // Re-scan at click time (currentClips may have changed
+        // between palette open and command run) with a generous
+        // topN so the toast can include the headline list. The
+        // hint already showed the high-signal preview.
+        const report = discoverHashtagsInNotes(currentClips, { topN: 12 });
+        toast(formatHashtagDiscoveryToast(report));
       },
     },
     {
