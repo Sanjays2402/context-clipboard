@@ -349,6 +349,45 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Site-rule form: paste-from-clipboard URL → auto-fill hostPattern (extends the existing paste-URL helper to detect URLs in the system clipboard at form-open time)
 
 
+### New (added this tick — 2026-06-23 17:57 PT refill)
+- [ ] Audit log: "Mark as resolved" pill — recurring
+- [ ] Settings: per-kind retention split — recurring (`maxUnpinnedText` + `maxUnpinnedImage`)
+- [ ] Detail-view: per-clip "Pinned hits" sparkline — recurring
+- [ ] Note composer: paste an image directly — recurring
+- [ ] Detail: "Re-capture from URL" — recurring
+- [ ] Site-rule form: per-rule "test against active tab" — recurring
+- [ ] In-page palette: pinned-bias slider in settings — recurring
+- [ ] In-page palette: live token-counter in palette search input — recurring
+- [ ] Quick-capture: paste an image directly — recurring
+- [ ] Site rules: "Suggest from top hosts" — recurring
+- [ ] Audit panel: hover-preview the clip on each row — recurring
+- [ ] In-page palette: keyboard shortcut to copy-as-Markdown without modifier — recurring
+- [ ] Trash row: hover-preview note tail for the LIVE re-capture too — recurring
+- [ ] Note composer keyboard shortcut: `n` on an active row jumps to detail-view note textarea
+- [ ] Settings: per-kind note auto-capture — recurring
+- [ ] Audit log: track note-set + note-clear actions in the privacy ring — recurring
+- [ ] Saved searches: `is:hostlocked` / `is:hostpinned` / `is:hostredacted` / `is:hostscrubbed` chip counts should refresh on site-rule edits — recurring
+- [ ] Audit panel: filter chip "Note" — bucket note-set/note-clear actions once tracking ships — recurring
+- [ ] Detail-view: note's last-edit history — surface previous N note values for recovery
+- [ ] Bulk-bar: "Append to existing notes" toggle — opt-in APPEND vs OVERWRITE semantics
+- [ ] Note composer: hashtag autocomplete — typing `#` triggers dropdown of existing tags
+- [ ] Site-rule form: paste-from-clipboard URL → auto-fill hostPattern at form-open time
+- [ ] In-page palette: note tail in HOVER tooltip too (not just inline) for long notes that get ellipsed
+- [x] In-page palette: row color hint when note contains warning keywords (`prod`, `production`, `do not`, `caution`) — soft red tint — `b0000a9`
+- [x] Cmd+K: "Find hashtags in notes" — surface all distinct hashtags across the visible set so user can see what's hiding in note text before running Tag-from-notes — `da66486`
+- [ ] `is:notenewer` / `is:noteolder` saved-search chips — show live count of matches refreshed on render
+- [x] Detail send-to: "Copy clip + note as cURL comment" — for link clips with notes, emit `curl '<url>' # <note>` so the caveat rides with the shell command — `901c2f5`
+- [ ] Audit panel: filter by note presence — `note-only` chip alongside Redact/Scrub/etc to surface only the noted-clip actions
+- [x] Bulk-bar: combined "Tag from notes + clear notes" — for users who want to promote hashtags AND wipe the source text in one action — `491bf7f`
+- [x] Detail-view: per-note hashtag-extract preview chip — shows which hashtags WOULD be extracted from this clip's note (one-click promote single clip without going through bulk-bar) — `45e8681`
+
+### Open follow-ups from this tick
+- [ ] Note-warning keyword list editable per-site (user can extend with workspace-specific terms like "internal", "beta", company name etc) — extends b0000a9 with a per-host site-rule field
+- [ ] Cmd+K hashtag-discovery: open a panel listing every tag with click-to-filter (today's toast surfaces top-3 inline + top-12 in toast; a full panel UI is the next step for users with many distinct hashtags)
+- [ ] Detail promote-chip: surface inline-tag-only mode (`#hashtag` extraction respects an "exclude already-tagged" toggle so users with verbose notes don't see noise)
+- [ ] Combo tag-from-notes-clear: split into "promote + tag-clear" vs "promote + note-clear" — current combo always clears the WHOLE note; some users want to keep prose while only stripping the hashtags from it
+- [ ] cURL-with-note: settings option for `# note` vs `\\n# note` form (some users prefer leading comment for grep-ability)
+
 ### New (added this tick — 2026-06-23 13:46 PT refill)
 - [ ] Audit log: "Mark as resolved" pill — recurring
 - [ ] Settings: per-kind retention split — recurring (`maxUnpinnedText` + `maxUnpinnedImage`)
@@ -525,12 +564,187 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Search: `is:notenewer:Nd` / `is:noteolder:Nd` — chronology gates over `noteUpdatedAt` with same `Nd`/`Nh`/`Nw` duration grammar as `before:`/`after:` (delegates to existing parseDuration helper), distinct from `after:` (gates on lastSeenAt re-copy recency not annotation-decision recency), band-pass via AND-semantics composition (`is:notenewer:30d is:noteolder:7d` → notes touched between 7 and 30 days ago), 2 new Cmd+K commands with default 7d/30d thresholds + greys when no clip satisfies — `15d6b9a`
 - [x] Bulk-bar: "Tag from notes" — extract `#hashtag` tokens from selected clips' notes and merge into structured tag list (promotes inline note-style tagging to `tag:` searchable structure), new pure tag-from-notes module with strict hashtag regex (start-of-string or whitespace/punctuation leader, alphanumeric/underscore start char, 32-char per-tag cap, 16-tag per-note cap, case-folded to lowercase, hyphens allowed mid-tag), case-insensitive dedup against existing tags, 8-shape toast grammar with failure-mode disambiguation (no-notes / no-hashtags / already-tagged / 1-tag-1-clip / 1-tag-N-clips / N-tags-1-clip / N-tags-across-M-clips), new bulk-bar button + Cmd+K mirror, button hides entirely when isTagFromNotesActionable=false — `e4f50da`
 - [x] In-page palette: surface clip notes inline as 2nd-line italic tail under preview — passive caveat surfacing at the moment of paste-decision so the user sees "staging only" / "needs login" BEFORE pasting, not after, new pure palette-note-tail module (trim + whitespace-collapse to single spaces + 80-char word-boundary truncation with hard-slice fallback when last-space too early in cap window), shadow-DOM `.note-tail` CSS rule (italic dim gold #c4a86b with 0.85 opacity, "note: " prefix in non-italic at lower opacity), PaletteClip interface gains optional `note?: string` field (back-compat preserved), both background.ts cc-open-palette send sites updated to pass through `note: c.note` in the lite payload — `bb510ec`
+- [x] In-page palette: warning tint for rows whose note contains caution keywords (prod/staging/do not/deprecated/secret/draft/wip etc) — soft warm-red row background + ⚠ glyph prefix on the note-tail so the user sees the row is FLAGGED before reading the tail. Pure note-warning module with 24-entry curated keyword list (env names + caution verbs + lifecycle markers + secrecy markers), single combined regex compiled once with `\b` boundaries (preproduction/donut/restaging all rejected), multi-word phrases accept variable whitespace, apostrophe in "don't paste" hard-matched. hasNoteWarning/firstWarningKeyword/formatNoteWarningTooltip API. False positives are cosmetic only (no data dropped, no action blocked) — `b0000a9`
+- [x] Cmd+K "Find hashtags in notes" — discovery command scanning currentClips for #hashtag distribution across notes, sorted descending by clipCount with alphabetical tiebreak for determinism. Pure hashtag-discovery module composes existing extractHashtagsFromNote so the discovery + bulk Tag-from-notes share a single source of truth on what counts as a hashtag. Per entry: alreadyTagged flag identifies hashtags already in EVERY clip's structured tag list (case-insensitive), so user sees what's NEW vs already-promoted. 4-shape toast grammar (empty / single-tag / 2-3-inline / 4+ headline-with-top3-hint), live hint with topN=1 preview at palette build time. Always available (empty scan is useful answer "no hashtags hiding"), greyed only when no clips visible — `da66486`
+- [x] Detail-view per-clip "Promote N #tags" chip — note-row foot surfaces an accent-tinted chip when current note text contains #hashtag tokens NOT already in the structured tag list. Click promotes inline using same db.updateTags path the bulk-bar uses (byte-identical merged-tag lists across single + bulk via shared note-hashtag-promote module composing extractHashtagsFromNote + mergedTagsForClip). Live refresh on textarea input + detailTags input/change so chip appears the moment user finishes typing `#staging` and hides the moment they manually structure a matching tag. dataset.merged stash so click acts on plan the user SAW, with defensive re-plan as tie-break. 4-shape grammar (empty / 1 / 2-3 list / 4+ count), tooltip surfaces full pending list + alreadyTagged tail — `45e8681`
+- [x] Bulk-bar "Tag from notes + clear notes" combo — eraser-icon button next to standalone Tag-from-notes. Promotes #hashtags AND wipes the source note text on every clip where promotion happened (targeted: clip with no hashtags keeps note, all-already-tagged keeps note). Pre-prompt destructive confirm surfaces "Add #X to N clips AND clear N notes?" so misclick doesn't surprise-wipe. Pure tag-from-notes-clear module composes existing primitives (extractHashtagsFromNote + mergedTagsForClip + sanitizeClipNote contract). 5-shape toast grammar with destructive variant ("Added #x · cleared 1 note" / "Added N tags across M clips · cleared M notes"). Cmd+K mirror distinct from standalone palette row so keyboard discovery surfaces destructive variant separately — `491bf7f`
+- [x] Detail send-to "Copy as cURL with note comment" — for any clip with BOTH a curlable URL AND a non-empty note, emit `curl 'url' # note`. Composition: byte-identical to standalone curl row on URL half (delegates to curlCommandForClip). Critical safety: multi-line notes collapsed to single line (newline in shell `#` comment would TERMINATE the comment and execute note text). sanitiseForShellComment helper strips C0 controls + caps at 200 chars with word-boundary truncation. New send-to row id=curl-note slots between curl and fenced-code, count bumped 16→17. End-of-line `# note` form survives single-line paste in chat/PR/terminal — newline-prefixed comment forms would be stripped by paste-mangling tools — `901c2f5`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-23 17:57 PT** — 5/5 shipped. Theme: closing the
+  note-hashtag loop in five orthogonal directions (paste-time
+  warning + discovery + per-clip promote + destructive combo +
+  shell-comment). Every feature this tick composes existing pure
+  primitives (extractHashtagsFromNote / mergedTagsForClip /
+  curlCommandForClip / hasClipNote / sanitizeClipNote) so the
+  five new entry points produce byte-identical output to what
+  the user would get by running the constituent actions back-
+  to-back — composition law holds across all 5. (1) In-page
+  palette warning tint — when a clip's note contains caution
+  keywords (prod / staging / do not / deprecated / secret /
+  draft / wip / 18 more), the palette row paints with a soft
+  warm-red background + the note-tail prefix swaps from "note:"
+  to a ⚠ glyph so the user sees the row is FLAGGED before
+  reading the tail. Sits one rung above last tick's note-tail
+  surfacing — the tail shows WHAT the caveat says, the tint
+  shows THAT it carries weight. Pure note-warning module with a
+  24-entry curated keyword list (env names + caution verbs +
+  lifecycle markers + secrecy markers) + single combined regex
+  compiled once with `\b` boundaries (preproduction / donut /
+  restaging all rejected — word-boundary discipline). Multi-
+  word phrases ("do not", "internal only") accept variable
+  whitespace via `\s+` so tabs and double-spaces match;
+  apostrophe in "don't paste" hard-matched. Hashtag forms
+  (#prod, #staging) also trigger via the leading-`#` boundary.
+  Excluded by design: "dev" / "test" / "live" too noisy in
+  unrelated note prose. False positives are cosmetic only — no
+  data dropped, no action blocked. 73/73 sanity covers
+  defensive (null/undefined/empty/non-string), positive case
+  per keyword, word-boundary discipline, punctuation
+  boundaries, multi-word edge cases (extra whitespace, tab,
+  word-order), stateful-regex repeat-safety (no lastIndex
+  drift), realistic notes with + without warnings, canonical
+  lowercase form, NOTE_WARNING_KEYWORDS constant shape
+  (b0000a9). (2) Cmd+K "Find hashtags in notes" — discovery /
+  triage command in Filter group. Scans currentClips for the
+  #hashtag distribution and surfaces a sorted toast ("Found
+  #staging in 8 clips, #wip in 5, #review-q3 in 2") so the user
+  SEES what's hiding in their notes BEFORE committing to a bulk
+  promote. Closes the loop the OPPOSITE direction from Tag-
+  from-notes (which writes) — this reads so the user can decide
+  whether to wipe noise (#wip), promote signal (#staging), or
+  just keep awareness without acting. Pure hashtag-discovery
+  module composes extractHashtagsFromNote so the discovery + the
+  bulk Tag-from-notes share a single source of truth on what
+  counts as a hashtag (32-char cap / 16-per-note cap / word-
+  boundary start / lowercase fold). Per entry: alreadyTagged
+  flag identifies hashtags already in EVERY clip's structured
+  tag list (case-insensitive match) so the user distinguishes
+  "would do work" from "already promoted everywhere". 4-shape
+  toast grammar (empty / single-tag / 2-3-inline / 4+-headline-
+  with-top3-hint). Hint pre-computes a topN=1 report at palette
+  build time for the live preview; click handler re-scans with
+  topN=12 for the headline list. Always available (empty scan is
+  the useful answer "no hashtags in any visible note"); greyed
+  only when no clips visible at all. 36/36 sanity covers
+  defensive (null/non-array/empty), basic extraction, aggregation
+  (same hashtag across N clips, twice-in-one-note counts once),
+  alreadyTagged tracking (true when all clips have it, false
+  when any don't, case-insensitive match, per-hashtag
+  granularity), sort (count-desc + alpha-tiebreak), topN
+  (limits entries / preserves distinctTags / defensive against
+  0/negative/NaN), both formatters at every shape, realistic
+  12-clip workspace end-to-end (da66486). (3) Detail-view
+  per-clip "Promote N #tags" chip — note-row foot surfaces an
+  accent-tinted chip when the current note text contains
+  #hashtag tokens NOT already in the structured tag list. Click
+  promotes inline using the same db.updateTags path the bulk-
+  bar uses — single-clip variant of bulk Tag-from-notes that
+  bypasses the multi-select requirement. Why this matters:
+  detail-view is where the user EDITS the note. The moment they
+  type "#staging" into a note is the moment they're most likely
+  to want a structured tag with that name; the chip catches the
+  intent IN PLACE before they close detail-view. The chip is
+  INCREMENTAL — visible only when there's work to do; after
+  promotion (every hashtag now structured) the chip vanishes.
+  Zero noise when nothing's pending. Pure note-hashtag-promote
+  module composes extractHashtagsFromNote + mergedTagsForClip
+  from tag-from-notes so single-clip + bulk paths produce
+  byte-identical merged tag lists for the same input. Live
+  refresh on detailNote input event so chip appears the moment
+  user finishes typing `#staging`; also refreshes on
+  detailTags input + change so a manually-typed structured tag
+  matching a hashtag immediately hides the chip. dataset.merged
+  stash so click acts on the plan the user SAW, with defensive
+  re-plan as tie-break. 4-shape grammar (empty / 1 / 2-3 list /
+  4+ count form). Tooltip surfaces full pending list + optional
+  "Already tagged: #x" tail so user knows what's IGNORED vs
+  ADDED. 47/47 sanity covers defensive (null/undefined/missing-
+  id/missing-note/non-string), extraction (single / multi /
+  already-tagged / mixed), case-insensitive matching (Hashtag
+  vs structured tag), duplicate-in-note collapses to one,
+  hyphenated hashtags, non-array tags + non-string entries
+  filtered, mergedTags preserves existing tag order with new
+  appended in note order, all 3 formatters at every shape,
+  realistic chip cycle (paint → click → hide → user adds new
+  hashtag → chip reappears) (45e8681). (4) Bulk-bar "Tag from
+  notes + clear notes" combo — eraser-icon button next to the
+  standalone Tag-from-notes. Combines additive + destructive:
+  promotes #hashtags AND wipes source note text on every clip
+  where promotion happened. The standalone Tag-from-notes
+  STILL EXISTS for the keep-the-prose workflow (note has more
+  than just hashtags — "be careful #staging, check $person
+  first" — clearing would lose the prose). The combo is
+  TARGETED: only clears notes on clips where promotion
+  happened. A clip with no hashtags keeps its note. A clip with
+  all-already-tagged hashtags also keeps its note (nothing got
+  promoted = nothing to clean up). Pre-prompt destructive
+  confirm surfaces "Add #X to N clips AND clear N notes?" so
+  misclick on the combo button (vs standalone one row over)
+  doesn't surprise-wipe notes. Pure tag-from-notes-clear
+  module composes existing primitives so the combo + standalone
+  + single-clip paths all produce identical structured tag
+  output for the same input. 5-shape toast grammar
+  (nothing-to-tag / no-hashtags / all-already-tagged / single-
+  tag-single-clip tightest form / multi-tag-multi-clip). Cmd+K
+  mirror distinct from standalone palette row so keyboard
+  discovery surfaces the destructive variant separately. 39/39
+  sanity covers defensive (null/missing-id/no-note), per-clip
+  action (promote-and-clear / all-already / mixed / case-
+  insensitive), plan aggregation (single / no-promote /
+  already-tagged / mixed / distinctNewTags from multi-clip
+  same-tag), actionable predicate at every shape, toast +
+  button-title grammar at every shape, realistic 4-clip end-
+  to-end + idempotent re-run no-op verification (491bf7f).
+  (5) Detail send-to "Copy as cURL with note comment" — for
+  any clip with BOTH a curlable URL AND a non-empty note, emit
+  `curl 'url' # note` single-line shell command. Common
+  workflow: handing off a request to someone (Slack, PR
+  comment, runbook paste) where recipient needs both the
+  command AND the caveat. End-of-line `# note` form survives
+  single-line paste everywhere (terminals + chat apps that
+  strip newlines on paste won't drop the note); shells treat
+  ` # ...` as a real comment so the line runs verbatim.
+  Composition: byte-identical to standalone `Copy as cURL` row
+  on the URL half (delegates to curlCommandForClip — no re-
+  implementation of shell-quoting). Critical safety: multi-
+  line notes COLLAPSED to single line. A newline in the
+  shell `#` comment would TERMINATE the comment and turn
+  note text into an executable shell command. The
+  sanitiseForShellComment helper handles this defensively +
+  caps at 200 chars with word-boundary truncation + strips
+  C0 controls (belt + braces over sanitizeClipNote which
+  does this at store-time). New send-to row id=curl-note
+  slots between curl and fenced-code; count bumped 16→17.
+  Hides when EITHER URL unshareable OR note missing — no
+  dimmed half-broken combo row; both single-purpose rows
+  (curl, note-md) still cover those cases. 46/46 sanity
+  covers sanitiseForShellComment (defensive at every shape,
+  cap normalisation, word-boundary truncation, hard-slice
+  fallback for giant words, default cap fallbacks),
+  curlWithNoteCommentForClip (defensive + positive for
+  link/text/single-quote-URL/multi-line-note/long-note),
+  buildSendActions integration (row exists/hides/order=
+  curl+1/image-clip-with-url), shell-comment safety
+  (backtick, dollar-sign, hyphen-flag) (901c2f5). Quality
+  gates: tsc --noEmit clean, chrome+firefox builds green
+  (popup 374.0kb +16.9kb for 5 features + 4 new pure
+  modules + chip CSS + bulk button + Cmd+K commands;
+  background 48.0kb unchanged; content 31.2kb +2.8kb for
+  note-warning module + warning-tint CSS + tooltip wiring).
+  All 85 sanity suites pass (5 new this tick: note-warning,
+  hashtag-discovery, note-hashtag-promote, tag-from-notes-
+  clear, curl-note-comment = 241 new checks); 0 regressions
+  across existing 80 suites (send-to + json-line count
+  assertions bumped 16→17 to reflect new row).
+
+<!-- LATEST TICK ABOVE -->
+
 
 - **2026-06-23 13:46 PT** — 5/5 shipped. Theme: note-family
   composition + host-rule operator family completion. (1)
@@ -648,9 +862,6 @@ Status: ` ` open / `~` in-progress / `x` shipped
   clip-note-markdown, note-chronology, tag-from-notes,
   palette-note-tail = 158 new checks); 0 regressions across
   existing 75 suites.
-
-<!-- LATEST TICK ABOVE -->
-
 
 - **2026-06-23 10:05 PT** — 5/5 shipped. Theme: post-note-suite
   expansion in 5 orthogonal directions. (1) `is:hostlocked` search
