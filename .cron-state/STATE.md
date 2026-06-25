@@ -469,28 +469,29 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [x] Search inline clear (×) button + Esc-to-clear — `49862e5`
 - [x] Bulk "Copy selected" — join N clip bodies to clipboard — `1e36355`
 - [x] Detail word-wrap toggle (wrap/nowrap body, persisted) — `d267c36`
-- [ ] Detail content-stats: click the breadcrumb to copy the count summary (e.g. "1,240 chars · 198 words") for sharing
-- [ ] List multi-select: Shift+↑/↓ keyboard range-extend (mirror Shift+Click for keyboard-only users)
+- [x] Detail content-stats: click the breadcrumb to copy the count summary (e.g. "1,240 chars · 198 words") for sharing — `7c06937`
+- [x] List multi-select: Shift+↑/↓ keyboard range-extend (mirror Shift+Click for keyboard-only users) — `01ee6b4`
 - [ ] Search: recent-searches dropdown on focus (show last 5 even before typing, like a browser address bar)
-- [ ] Bulk "Copy selected as Markdown" — companion to plain Copy, wraps each in its source-cited blockquote
+- [x] Bulk "Copy selected as Markdown" — companion to plain Copy, wraps each in its source-cited blockquote — `5a5ef7a`
 - [ ] Detail word-wrap: per-clip override (a wide-table clip remembers nowrap even when the global default is wrap)
 - [ ] Detail: "Copy line N" affordance for multi-line clips — click a line number gutter to copy just that line
 - [ ] List: hover-to-peek full preview tooltip for clips whose preview is truncated at 140 chars
 - [ ] Detail body: syntax-aware soft highlighting for detected code clips (lang already detected via detectCodeLang; just tint keywords/strings, no heavy lib)
 - [ ] Settings: a "density" radio (comfortable / compact) replacing the lone compact-rows checkbox — room for a future "cozy" tier
-- [ ] Footer: live keyboard-focus breadcrumb ("row 3 of 28") so keyboard-nav users always know their position
+- [x] Footer: live keyboard-focus breadcrumb ("row 3 of 28") so keyboard-nav users always know their position — `c35cd17`
 - [ ] Detail prev/next: wrap-around option (last → first) with a subtle "looped" toast instead of a dead-end
 - [ ] List: sticky day-group headers ("Today", "Yesterday", "Mon Jun 22") when sorted by recent — currently a flat list
-- [ ] Quick-chips: horizontal scroll-shadow affordance when the chip row overflows the popup width
+- [x] Quick-chips: horizontal scroll-shadow affordance when the chip row overflows the popup width — `246019c`
 - [ ] Detail tags: chip-style tag editor (click an × on each tag instead of comma-editing a raw input)
 - [ ] Bulk bar: a count-aware "Copy selected" label on hover that previews the joined char total
 
-### Open follow-ups from this tick (2026-06-24 21:38 PT)
-- [ ] Range-select: visual "anchor" hint (subtle ring on the anchor row) so the user knows where a Shift+Click will extend FROM
-- [ ] Content-stats: surface a "selected text" stat when the user highlights part of the detail body (selectionchange listener)
-- [ ] Bulk-copy: respect the list sort order vs visible order toggle (currently always visible order — some users may want selection order)
-- [ ] Wrap-toggle: a keyboard shortcut (e.g. `w` in detail) to flip wrap without reaching for the header button
-- [ ] Search-clear: animate the button in/out (fade) instead of a hard hidden flip for a smoother feel
+### Open follow-ups from this tick (2026-06-25 03:51 PT)
+- [ ] Content-stats copy: also offer a "Copy as Markdown stat line" variant (`**1,240** chars · **198** words`) for doc paste
+- [ ] Bulk Copy-as-Markdown: a settings toggle for the clip separator (`---` rule vs bare blank line) — some doc targets dislike horizontal rules
+- [ ] Shift+↑/↓ range-extend: support reverse-SHRINK (Gmail-style) as an opt-in, vs the current extend-only additive model
+- [ ] Focus breadcrumb: also surface "N selected" inline when a selection is active (so keyboard users see both position AND selection size)
+- [ ] Quick-chips scroll-shadow: clicking a faded edge (or a chevron affordance) scrolls the strip one page in that direction
+
 
 
 
@@ -647,6 +648,33 @@ dominated the last several ticks. These are orthogonal UX gaps.
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-25 03:51 PT** — 5/5 shipped. Theme: extended last tick's
+  fresh non-hashtag frontend cluster with five orthogonal slices —
+  three of them direct follow-ups to features that landed last tick,
+  two new UX gaps. (1) Detail content-stats breadcrumb is now
+  click-to-copy — clicking "1,240 chars · 198 words" writes that exact
+  summary to the clipboard + toasts a receipt (`7c06937`, new
+  contentStatsClipboard + formatContentStatsCopyToast in
+  lib/content-stats, WYSIWYG via the canonical formatter). (2) Bulk
+  "Copy selected as Markdown" — structured sibling of plain bulk-copy;
+  each clip renders with the single-clip MD grammar (fenced code via
+  detectCodeLang, image/link syntax, cited blockquotes) joined by a
+  horizontal rule; new lib/bulk-markdown + monochrome `markdown` glyph +
+  Cmd+K command for keyboard parity (`5a5ef7a`). (3) Shift+↑/↓ keyboard
+  range-extend — the keyboard twin of Shift+Click range-select, reuses
+  the same lib/range-select helpers, additive extend-only contract,
+  documented in footer hint + cheatsheet (`01ee6b4`). (4) Footer
+  "row N of M" keyboard-focus breadcrumb — new pure lib/focus-position,
+  shown only while arrow-navigating (listKeyboardActive flag), hidden on
+  search focus, accent-tinted aria-live pill (`c35cd17`). (5) Quick-chips
+  scroll-shadow edge-fade — new pure lib/scroll-shadow (computeScrollEdges
+  with 1px epsilon), mask-image fades toggled by data attributes,
+  re-measured on rAF + scroll + resize (`246019c`). Gate: tsc --noEmit
+  clean; chrome + firefox builds green (409.4kb popup). Pushed
+  300c638..246019c. No new lib touched the network or weakened
+  local-only / MV3.
+
 
 - **2026-06-24 21:38 PT** — 5/5 shipped. Theme: deliberately broke out
   of the multi-tick hashtag/note-cleanup rut with five fresh,
