@@ -133,3 +133,36 @@ export function formatContentStats(
   if (s.lines > 1) parts.push(countUnit(s.lines, "line"));
   return parts.join(" \u00b7 ");
 }
+
+/**
+ * The string that lands on the clipboard when the user clicks the
+ * detail stats breadcrumb. This is the WYSIWYG payload — it equals
+ * exactly what the breadcrumb shows so clicking the thing that reads
+ * "1,240 chars · 198 words" copies precisely that text. We delegate to
+ * formatContentStats so the rendered breadcrumb and the copied summary
+ * can never drift apart (one source of truth for the format).
+ *
+ * Returns null in the same cases the breadcrumb hides (image clip,
+ * empty body, bad input) — the caller treats null as "nothing to
+ * copy" and skips the clipboard write + toast rather than putting an
+ * empty string on the user's clipboard.
+ */
+export function contentStatsClipboard(
+  c: ContentStatsInput | null | undefined,
+): string | null {
+  return formatContentStats(c);
+}
+
+/**
+ * Toast confirmation for a completed stats copy. Echoes the copied
+ * summary back so the toast itself is a receipt of what landed on the
+ * clipboard ("Copied: 1,240 chars · 198 words"). Falls back to a bare
+ * "Copied stats" when the summary is unexpectedly long so the toast
+ * stays a single tidy line.
+ */
+export function formatContentStatsCopyToast(summary: string): string {
+  const s = typeof summary === "string" ? summary.trim() : "";
+  if (s === "") return "Copied stats";
+  if (s.length > 48) return "Copied stats";
+  return `Copied: ${s}`;
+}

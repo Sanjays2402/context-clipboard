@@ -2391,6 +2391,21 @@ kbd {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+/* Click-to-copy affordance: brighten the breadcrumb on hover so the
+   otherwise-static line reads as an actionable copy target. The whole
+   row is the hit area (it's a single short line). */
+.detail-stats:hover {
+  color: var(--text);
+  background: var(--glass-strong);
+}
+
+.detail-stats:active {
+  color: var(--accent);
 }
 
 /* Word-wrap toggle: when the user turns wrapping OFF (for tabular /

@@ -110,7 +110,7 @@ import {
   syncSimilarNav,
   type SimilarNav,
 } from "../lib/similar-nav";
-import { formatContentStats } from "../lib/content-stats";
+import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast } from "../lib/content-stats";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import {
   planBulkCopy,
@@ -831,10 +831,18 @@ function renderContentStats(c: ClipItem): void {
   if (!line) {
     detailStats.hidden = true;
     detailStats.textContent = "";
+    detailStats.removeAttribute("data-copyable");
+    detailStats.title = "";
     return;
   }
   detailStats.hidden = false;
   detailStats.textContent = line;
+  // Mark the breadcrumb as clickable so the click handler knows there's
+  // a real summary to copy (vs. an empty/hidden row). The cursor +
+  // title affordance telegraphs that this static-looking line is
+  // actually a one-click copy target.
+  detailStats.dataset.copyable = "1";
+  detailStats.title = "Click to copy this summary";
 }
 
 /**
@@ -8221,6 +8229,29 @@ detailWrap.addEventListener("click", async () => {
     console.debug("[context-clipboard] persist detail-wrap failed", err);
   }
   toast(detailWrapOn ? "Word wrap on" : "Word wrap off");
+});
+
+// Content-stats breadcrumb: click to copy the summary line itself
+// ("1,240 chars · 198 words"). The breadcrumb is read-only signal the
+// user often wants to paste into a PR / chat ("this file is 1.2k
+// chars") — clicking it is the fastest path. We re-read the open clip
+// and recompute the payload from the canonical formatter so the copied
+// text always equals what's on screen, even if the clip changed shape
+// under the panel. No-op for the hidden/empty state (no data-copyable).
+detailStats.addEventListener("click", async () => {
+  if (detailStats.hidden || !detailStats.dataset.copyable) return;
+  if (!detailId) return;
+  const c = await getClip(detailId);
+  if (!c) return;
+  const summary = contentStatsClipboard(c);
+  if (!summary) return;
+  try {
+    await navigator.clipboard.writeText(summary);
+    toast(formatContentStatsCopyToast(summary));
+  } catch (err) {
+    console.error("[context-clipboard] stats copy failed", err);
+    toast("Copy failed", "error");
+  }
 });
 
 detailCopy.addEventListener("click", async () => {
