@@ -109,6 +109,7 @@ import {
   type SimilarNav,
 } from "../lib/similar-nav";
 import { formatContentStats } from "../lib/content-stats";
+import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
@@ -461,6 +462,13 @@ let activeIndex = 0;
 let detailId: string | null = null;
 let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
+// Range-select anchor: the list index of the user's most recent
+// explicit single-toggle. Shift+Click extends a contiguous range
+// from here to the clicked row. A plain/Cmd-click sets it; a
+// shift-click leaves it put (so the user can re-extend from the
+// same anchor, Finder/Gmail-style). Reset to null whenever the
+// selection is fully cleared.
+let selectionAnchor: number | null = null;
 // Similar-traversal nav stack. When non-null, the detail-view's prev/next
 // walk this list instead of `currentClips`. Set by "Open all (N)" from
 // the Similar row; cleared when the user navigates to a clip outside
@@ -4783,6 +4791,35 @@ listEl.addEventListener("click", async (e) => {
   if (!c) return;
 
   const mouseEvt = e as MouseEvent;
+  const clickedIdx = Number(clipEl.dataset.idx);
+
+  // Shift+Click range-select: extend a contiguous run from the
+  // anchor (last explicit toggle) to the clicked row. Adds the whole
+  // span to the selection — extending is the gesture's only job, so
+  // it never deselects.
+  //
+  // Gated on an ALREADY-ACTIVE selection (or Cmd/Ctrl held) so we
+  // don't clobber the long-standing "Shift+Click = copy as Markdown"
+  // shortcut for the no-selection case. The standard flow: Cmd-click
+  // one row to start a selection (sets the anchor), THEN Shift-click
+  // another row to fill in the range — exactly how Finder/Gmail work.
+  // Action buttons (pin/copy/del) are excluded so Shift-clicking the
+  // trash glyph still deletes.
+  const inSelectionMode = selectedIds.size > 0 || mouseEvt.metaKey || mouseEvt.ctrlKey;
+  if (mouseEvt.shiftKey && inSelectionMode && !act) {
+    const range = computeRange(selectionAnchor, clickedIdx, currentClips.length);
+    if (range) {
+      const rangeIds = idsForRange(currentClips, range.indices);
+      const toAdd = rangeIdsToAdd(rangeIds, selectedIds);
+      for (const rid of toAdd) selectedIds.add(rid);
+      // Anchor stays put so a subsequent shift-click re-extends from
+      // the same origin (Finder/Gmail behavior).
+      updateBulkBar();
+      await render();
+      return;
+    }
+  }
+
   const wantsSelect =
     mouseEvt.metaKey || mouseEvt.ctrlKey || selectedIds.size > 0;
 
@@ -4790,6 +4827,9 @@ listEl.addEventListener("click", async (e) => {
   // of opening the clip. Action buttons (pin/copy/del) still work directly.
   if (wantsSelect && !act) {
     toggleSelected(id);
+    // This is an explicit single-toggle — move the range anchor here
+    // so a following Shift+Click spans from this row.
+    if (Number.isFinite(clickedIdx)) selectionAnchor = clickedIdx;
     await render();
     return;
   }
@@ -7858,6 +7898,10 @@ document.addEventListener("keydown", async (e) => {
     const c = currentClips[activeIndex];
     if (c) {
       toggleSelected(c.id);
+      // Keep the range anchor aligned with the keyboard cursor so a
+      // following Shift+Click extends from the row the user just
+      // toggled with X.
+      if (Number.isFinite(activeIndex)) selectionAnchor = activeIndex;
       await render();
     }
   }
@@ -9356,6 +9400,7 @@ function toggleSelected(id: string): void {
 function clearSelection(): void {
   if (selectedIds.size === 0) return;
   selectedIds.clear();
+  selectionAnchor = null;
   updateBulkBar();
   void render();
 }
