@@ -119,6 +119,7 @@ import { peekTooltip } from "../lib/list-peek";
 import { computeDayHeaders } from "../lib/day-group";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
 import { parseTags, removeTag, serializeTags } from "../lib/tag-chips";
+import { highlightCode } from "../lib/code-highlight";
 import { nextDetailIndex, formatWrapToast } from "../lib/detail-nav";
 import {
   planBulkCopy,
@@ -1893,7 +1894,32 @@ async function openDetail(id: string) {
     const srcGuess = c.source.nearbyText || c.source.url || "";
     detailRefetch.hidden = !/^https?:\/\//i.test(srcGuess);
   } else {
-    detailBody.innerHTML = `<pre>${highlightHtml(c.content, currentNeedle)}</pre>`;
+    // Detail body: when the user is actively searching, the
+    // search-match highlight (<mark>) wins — finding the needle matters
+    // more than syntax colour, and composing the two would risk nested
+    // markup. With NO active needle (the common "just opened a clip"
+    // case), tint detected code (strings / comments / keywords /
+    // numbers) so a config / SQL / JSON clip is scannable instead of a
+    // flat grey wall. detectCodeLang gates BOTH the lang choice and
+    // whether we tint at all — an undetected clip stays plain escaped
+    // text. lib/code-highlight escapes internally (same entity map),
+    // so the body can never break out of the <pre>.
+    const needle = currentNeedle.trim();
+    let bodyHtml: string;
+    if (needle) {
+      bodyHtml = highlightHtml(c.content, currentNeedle);
+      detailBody.classList.remove("code-tinted");
+    } else {
+      const lang = detectCodeLang(c.content);
+      if (lang) {
+        bodyHtml = highlightCode(c.content, lang);
+        detailBody.classList.add("code-tinted");
+      } else {
+        bodyHtml = highlightHtml(c.content, "");
+        detailBody.classList.remove("code-tinted");
+      }
+    }
+    detailBody.innerHTML = `<pre>${bodyHtml}</pre>`;
     detailOcr.hidden = true;
     detailRefetch.hidden = true;
   }
