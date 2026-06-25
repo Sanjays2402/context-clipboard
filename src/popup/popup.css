@@ -2805,6 +2805,68 @@ kbd {
   color: var(--accent);
 }
 
+/* Detail-view tag chip editor — each tag as a pill with an × so
+   removal is one click instead of hunting for the right comma in the
+   raw input below. The raw input stays the canonical edit + add
+   surface; the chips are the fast remove path and mirror it live. */
+.detail-tags-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.detail-tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.detail-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 9px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text);
+  max-width: 100%;
+}
+
+.detail-tag-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-tag-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.detail-tag-x svg {
+  width: 12px;
+  height: 12px;
+}
+
+.detail-tag-x:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
 #detail-tags {
   width: 100%;
   background: var(--glass);

@@ -118,6 +118,7 @@ import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip } from "../lib/list-peek";
 import { computeDayHeaders } from "../lib/day-group";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
+import { parseTags, removeTag, serializeTags } from "../lib/tag-chips";
 import { nextDetailIndex, formatWrapToast } from "../lib/detail-nav";
 import {
   planBulkCopy,
@@ -321,6 +322,7 @@ const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
 const detailHits = $("detail-hits");
 const detailTags = $<HTMLInputElement>("detail-tags");
+const detailTagChips = $("detail-tag-chips");
 const detailNearby = $("detail-nearby");
 const detailNearbyRow = $("detail-nearby-row");
 const detailImageRow = $("detail-image-row");
@@ -930,6 +932,38 @@ function applyDetailWrap(): void {
   // uses elsewhere in the popup.
   detailWrap.classList.toggle("overridden", overridden);
   detailWrap.title = wrapButtonTitle(wrapOn, overridden);
+}
+
+/**
+ * Paint the detail-view tag chips from the live input value. Each tag
+ * renders as a pill with an × so removal is one click (no hunting for
+ * the right comma in the raw string). The raw input stays below as the
+ * canonical edit surface + the way to ADD tags; the chips mirror it and
+ * are the fast REMOVE path. Hidden when there are no tags so an empty
+ * clip shows just the placeholder input.
+ *
+ * Reads from `detailTags.value` (not the stored clip) so the chips stay
+ * in lock-step with whatever the user is mid-typing — committing a tag
+ * in the input repaints the chips, and removing a chip rewrites the
+ * input. lib/tag-chips owns the parse/dedupe so the two views agree.
+ */
+function renderDetailTagChips(): void {
+  const tags = parseTags(detailTags.value);
+  if (tags.length === 0) {
+    detailTagChips.hidden = true;
+    detailTagChips.innerHTML = "";
+    return;
+  }
+  detailTagChips.hidden = false;
+  detailTagChips.innerHTML = tags
+    .map(
+      (t) =>
+        `<span class="detail-tag-chip" data-tag="${escapeHtml(t)}">` +
+        `<span class="detail-tag-label">${escapeHtml(t)}</span>` +
+        `<button type="button" class="detail-tag-x" data-act="remove-tag" data-tag="${escapeHtml(t)}" title="Remove tag ${escapeHtml(t)}" aria-label="Remove tag ${escapeHtml(t)}">${icons.close()}</button>` +
+        `</span>`,
+    )
+    .join("");
 }
 
 function renderTagChips(allClips: ClipItem[]) {
@@ -1880,6 +1914,7 @@ async function openDetail(id: string) {
   detailTime.textContent = new Date(c.createdAt).toLocaleString();
   detailHits.textContent = String(c.hitCount);
   detailTags.value = c.tags.join(", ");
+  renderDetailTagChips();
   if (c.source.nearbyText) {
     detailNearbyRow.hidden = false;
     // Long nearby context (paragraphs around a copy) used to push the
@@ -8325,6 +8360,7 @@ detailRedact.addEventListener("click", async () => {
           detailBody.innerHTML = `<pre>${highlightHtml(updated.content, currentNeedle)}</pre>`;
         }
         detailTags.value = updated.tags.join(", ");
+        renderDetailTagChips();
         renderRedactButton(updated);
       }
       // Privacy audit: record once the underlying op succeeds. Fire-
@@ -8519,6 +8555,8 @@ detailTags.addEventListener("change", async () => {
   // Combo chip refreshes on tag edits since manually-added matching
   // tags reduce pending → can hide the combo.
   paintNotePromoteStripChip(detailNote.value, tags);
+  // Repaint the tag chips to mirror the just-committed tag list.
+  renderDetailTagChips();
   toast("Tags saved");
 });
 // Live refresh on input too (not just commit on change) so a user
@@ -8536,6 +8574,32 @@ detailTags.addEventListener("input", () => {
   paintNoteStripChip(detailNote.value);
   // Combo chip's promote gate moves when tag list changes — refresh.
   paintNotePromoteStripChip(detailNote.value, tags);
+  // Live-mirror the chips as the user types/deletes in the raw input.
+  renderDetailTagChips();
+});
+
+// Tag chip × — remove a single tag in one click. Rewrites the raw
+// input from the pruned list (lib/tag-chips owns the set math), then
+// commits via the same updateTags + render path the input's change
+// handler uses, so the chip remove and the raw edit can never drift.
+detailTagChips.addEventListener("click", async (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>(
+    "[data-act=remove-tag]",
+  );
+  if (!btn || !detailId) return;
+  const tag = btn.dataset.tag || "";
+  if (!tag) return;
+  const next = removeTag(parseTags(detailTags.value), tag);
+  detailTags.value = serializeTags(next);
+  renderDetailTagChips();
+  await updateTags(detailId, next);
+  await render();
+  // Keep the note chips honest — removing a structured tag can reveal
+  // a promotable hashtag again (same refresh the input change does).
+  paintNotePromoteChip(detailNote.value, next);
+  paintNoteStripChip(detailNote.value);
+  paintNotePromoteStripChip(detailNote.value, next);
+  toast(`Removed ${tag}`);
 });
 
 // Per-clip note — auto-save on blur + Cmd/Ctrl+Enter. Input event
@@ -8629,6 +8693,7 @@ detailNotePromote.addEventListener("click", async () => {
   // user sees the promotion land + the chip vanishes (every
   // hashtag is now structured).
   detailTags.value = plan.mergedTags.join(", ");
+  renderDetailTagChips();
   paintNotePromoteChip(noteValue, plan.mergedTags);
   // The strip chip is UNCHANGED — `#tag` tokens are still in the
   // note (promote doesn't touch the note text). User can click
@@ -8752,6 +8817,7 @@ detailNotePromoteStrip.addEventListener("click", async () => {
   // chip uses.
   await updateTags(detailId, plan.mergedTags);
   detailTags.value = plan.mergedTags.join(", ");
+  renderDetailTagChips();
   // Step 2: strip — same setClipNote path the standalone strip
   // chip uses. Refresh the textarea optimistically.
   const newNoteValue = plan.newNote ?? "";
