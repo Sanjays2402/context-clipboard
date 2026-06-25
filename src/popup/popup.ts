@@ -271,6 +271,7 @@ const quickChipsEl = $("quick-chips");
 const savedSearchesEl = $("saved-searches");
 const searchHistoryEl = $("search-history");
 const saveSearchBtn = $<HTMLButtonElement>("save-search-btn");
+const searchClearBtn = $<HTMLButtonElement>("search-clear-btn");
 const dropZone = $("drop-zone");
 const filterBtns = document.querySelectorAll<HTMLButtonElement>(
   ".filters button[data-kind]",
@@ -1382,6 +1383,7 @@ async function render(): Promise<void> {
   const all = await listClips({ limit: 1000 });
   renderTagChips(all);
   renderQuickChips(all);
+  syncSearchClearBtn();
   renderSavedSearches();
   renderSearchHistory();
   updateSaveSearchButton();
@@ -5043,9 +5045,40 @@ window.addEventListener("blur", () => closeRowMenu());
 
 searchEl.addEventListener("input", () => {
   activeIndex = 0;
+  syncSearchClearBtn();
   scheduleHistoryPush(searchEl.value);
   render();
 });
+
+/**
+ * Show the inline clear (×) button only when the search box has
+ * content. Keeps the search row clean in the common empty state and
+ * gives a one-click escape from a long operator query without
+ * dragging-to-select + Delete.
+ */
+function syncSearchClearBtn(): void {
+  searchClearBtn.hidden = searchEl.value.length === 0;
+}
+
+/**
+ * Clear the search box and re-render to the unfiltered list. Resets
+ * the active-row cursor, hides the clear button, and returns focus to
+ * the input so the user can immediately type a fresh query. Shared by
+ * the × button click and the Esc-in-search keybinding.
+ */
+async function clearSearch(opts: { focus?: boolean } = {}): Promise<void> {
+  if (searchEl.value === "") {
+    if (opts.focus) searchEl.focus();
+    return;
+  }
+  searchEl.value = "";
+  activeIndex = 0;
+  syncSearchClearBtn();
+  await render();
+  if (opts.focus !== false) searchEl.focus();
+}
+
+searchClearBtn.addEventListener("click", () => void clearSearch({ focus: true }));
 
 /**
  * Parse a `g <prefix>` jump pattern from the search box. Returns the
@@ -5103,6 +5136,20 @@ function resolveJumpTarget(clips: ClipItem[], prefix: string): ClipItem | null {
 // scoped to the search input via this listener so we don't have to
 // shoehorn host-jump logic into the global keydown handler.
 searchEl.addEventListener("keydown", async (e) => {
+  // Esc clears the search (when there's something to clear) and keeps
+  // focus in the box for an immediate re-query. We handle it
+  // explicitly rather than relying on type=search's native clear,
+  // which is browser-inconsistent and never triggers our re-render /
+  // clear-button sync. When the box is already empty, Esc falls
+  // through to the global handler (which closes panels / selection).
+  if (e.key === "Escape") {
+    if (searchEl.value !== "") {
+      e.preventDefault();
+      e.stopPropagation();
+      await clearSearch({ focus: true });
+    }
+    return;
+  }
   if (e.key !== "Enter") return;
   const prefix = parseJumpPattern(searchEl.value);
   if (!prefix) return;

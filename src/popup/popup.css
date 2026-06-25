@@ -295,6 +295,25 @@ header {
   color: var(--muted);
 }
 
+/* Suppress the native webkit search-cancel glyph — we render our own
+   clear (×) button so the affordance stays consistent across browsers
+   and triggers our re-render / clear-button sync. */
+#search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Inline clear (×) button — muted by default, brightens on hover.
+   Reuses .icon-btn sizing but reads as a quiet affordance, not a
+   primary action like capture/settings. */
+.search-clear-btn {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.search-clear-btn:hover {
+  color: var(--text);
+}
+
 #search:hover {
   border-color: var(--border-strong);
   background: var(--glass-strong);
