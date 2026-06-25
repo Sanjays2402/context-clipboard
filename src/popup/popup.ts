@@ -118,6 +118,11 @@ import {
   formatBulkCopyButtonTitle,
 } from "../lib/bulk-clipboard";
 import {
+  planBulkMarkdown,
+  formatBulkMarkdownToast,
+  formatBulkMarkdownButtonTitle,
+} from "../lib/bulk-markdown";
+import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
 } from "../lib/url-quick-capture";
@@ -429,6 +434,7 @@ const bulkTagFromNotes = $<HTMLButtonElement>("bulk-tag-from-notes");
 const bulkTagFromNotesClear = $<HTMLButtonElement>("bulk-tag-from-notes-clear");
 const bulkStripHashtags = $<HTMLButtonElement>("bulk-strip-hashtags");
 const bulkCopy = $<HTMLButtonElement>("bulk-copy");
+const bulkCopyMd = $<HTMLButtonElement>("bulk-copy-md");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkExportTag = $<HTMLInputElement>("bulk-export-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
@@ -6781,6 +6787,26 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Bulk copy-as-Markdown — palette twin of the copy-selection
+      // command so keyboard-only users reach the structured copy too.
+      // Label previews how many of the visible selected clips will
+      // render to a Markdown block (the click handler reads the full
+      // selection authoritatively at fire time).
+      id: "copy-selection-md",
+      label: (() => {
+        const vis = currentClips.filter((c) => selectedIds.has(c.id));
+        const plan = planBulkMarkdown(vis);
+        if (!plan.hasContent) return "Copy selected as Markdown";
+        return `Copy ${plan.rendered} selected as Markdown`;
+      })(),
+      group: "Bulk",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        bulkCopyMd.click();
+      },
+    },
+    {
       // Bulk lock/unlock — proxies the bulk-bar button so the palette
       // route + click route share the same authoritative logic. The
       // label adapts to the selection's lock distribution: "Lock 3
@@ -9467,6 +9493,10 @@ function updateBulkBar(): void {
   // selection at fire time, so the toast count stays truthful even
   // when the selection extends past the filter window.
   bulkCopy.title = formatBulkCopyButtonTitle(planBulkCopy(visibleSelected));
+  // Bulk-copy-as-Markdown title — same visible-slice contract as the
+  // plain copy button; the click handler reads the full selection at
+  // fire time so the toast count stays truthful past the filter window.
+  bulkCopyMd.title = formatBulkMarkdownButtonTitle(planBulkMarkdown(visibleSelected));
   // Lock button title — adapts to the selection's current lock-state
   // distribution so a hover reveals what the click will do BEFORE
   // the user commits to it. Counts run over the FULL selection
@@ -10014,6 +10044,39 @@ bulkCopy.addEventListener("click", async () => {
     toast(formatBulkCopyToast(plan));
   } catch (err) {
     console.error("[context-clipboard] bulk copy failed", err);
+    toast("Copy failed", "error");
+  }
+});
+
+// Bulk copy-as-Markdown — render the selected clips into a single
+// Markdown document (per-clip grammar mirrors the detail "Copy as
+// Markdown": fenced code, image/link syntax, cited blockquotes) and
+// write it to the clipboard. The structured sibling of plain bulk-copy
+// for users pasting a batch into a doc / PR / wiki. Same full-selection
+// read + visible-list ordering as bulk-copy so the document reads
+// top-to-bottom. Template clips render RAW (un-expanded) — see
+// lib/bulk-markdown for the rationale.
+bulkCopyMd.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  const orderIndex = new Map<string, number>();
+  currentClips.forEach((c, i) => orderIndex.set(c.id, i));
+  const orderedIds = [...ids].sort((a, b) => {
+    const ia = orderIndex.has(a) ? orderIndex.get(a)! : Number.MAX_SAFE_INTEGER;
+    const ib = orderIndex.has(b) ? orderIndex.get(b)! : Number.MAX_SAFE_INTEGER;
+    return ia - ib;
+  });
+  const items = await Promise.all(orderedIds.map((id) => getClip(id)));
+  const plan = planBulkMarkdown(items);
+  if (!plan.hasContent) {
+    toast(formatBulkMarkdownToast(plan), "error");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(plan.text);
+    toast(formatBulkMarkdownToast(plan));
+  } catch (err) {
+    console.error("[context-clipboard] bulk markdown copy failed", err);
     toast("Copy failed", "error");
   }
 });

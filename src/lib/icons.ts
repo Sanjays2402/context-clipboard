@@ -105,6 +105,13 @@ export const icons = {
     svg(
       `<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6M9 17h6"/>`,
     ),
+  // Markdown mark — the canonical "M with down-arrow inside a rounded
+  // rect" used by the bulk "Copy as Markdown" button to distinguish it
+  // from plain `copy`. Mono-stroke so it sits cleanly in the bulk bar.
+  markdown: () =>
+    svg(
+      `<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 15v-6l3 3 3-3v6"/><path d="M17 9v4M15 12l2 2 2-2"/>`,
+    ),
   // Clipboard with checkmark — quick-capture button. Distinct silhouette
   // from `copy` (which is two pages) so users don't confuse "paste a new
   // clip in" with "copy this clip to clipboard".
