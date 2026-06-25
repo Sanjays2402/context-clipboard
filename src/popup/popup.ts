@@ -880,7 +880,11 @@ function renderFocusPosition(): void {
     focusPosEl.textContent = "";
     return;
   }
-  const line = formatFocusPosition({ activeIndex, total: currentClips.length });
+  const line = formatFocusPosition({
+    activeIndex,
+    total: currentClips.length,
+    selectedCount: selectedIds.size,
+  });
   if (!line) {
     focusPosEl.hidden = true;
     focusPosEl.textContent = "";

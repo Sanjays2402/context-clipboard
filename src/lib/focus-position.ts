@@ -35,6 +35,15 @@ export interface FocusPositionInput {
   activeIndex: number;
   /** Total number of rows currently in the list window. */
   total: number;
+  /**
+   * How many clips are currently selected (the bulk-selection Set size).
+   * Optional — when omitted or 0 the breadcrumb is just "row N of M".
+   * When a selection is active during keyboard nav, we append a
+   * "· N selected" tail so a keyboard-only user sees BOTH their cursor
+   * position AND how big their selection has grown, without having to
+   * glance at the bulk bar. Defaults to 0 (no tail).
+   */
+  selectedCount?: number;
 }
 
 /**
@@ -44,6 +53,11 @@ export interface FocusPositionInput {
  * The active index is clamped into [0, total-1] so a transient stale
  * cursor during a re-render still produces a sane readout. A negative
  * or non-finite index, or a non-positive total, yields null.
+ *
+ * When `selectedCount` is a positive finite number, a "· N selected"
+ * tail is appended ("row 3 of 28 · 4 selected") so keyboard-nav users
+ * track their selection size alongside their cursor. A zero / missing /
+ * invalid count drops the tail entirely.
  */
 export function formatFocusPosition(
   input: FocusPositionInput | null | undefined,
@@ -54,5 +68,12 @@ export function formatFocusPosition(
   if (!Number.isFinite(activeIndex) || activeIndex < 0) return null;
   const t = Math.trunc(total);
   const clamped = Math.min(Math.max(0, Math.trunc(activeIndex)), t - 1);
-  return `row ${clamped + 1} of ${t}`;
+  const base = `row ${clamped + 1} of ${t}`;
+  // Selection tail — only when a real, positive selection exists.
+  const sel = input.selectedCount;
+  if (sel != null && Number.isFinite(sel)) {
+    const n = Math.trunc(sel);
+    if (n > 0) return `${base} \u00b7 ${n} selected`;
+  }
+  return base;
 }
