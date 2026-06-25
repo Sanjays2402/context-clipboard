@@ -2026,6 +2026,22 @@ footer .hint {
   letter-spacing: 0.01em;
 }
 
+/* Keyboard-focus position breadcrumb ("row 3 of 28"). Only painted
+   while the user is arrow-navigating the list, sitting just after the
+   clip count. Accent-tinted + tabular so the number reads as live
+   status rather than static chrome, and stays put as it ticks. */
+.focus-pos {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 footer button {
   background: var(--glass);
   backdrop-filter: blur(10px);

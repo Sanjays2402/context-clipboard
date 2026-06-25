@@ -111,6 +111,7 @@ import {
   type SimilarNav,
 } from "../lib/similar-nav";
 import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast } from "../lib/content-stats";
+import { formatFocusPosition } from "../lib/focus-position";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import {
   planBulkCopy,
@@ -272,6 +273,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
 const listEl = $("list");
 const searchEl = $<HTMLInputElement>("search");
 const countEl = $("count");
+const focusPosEl = $("focus-pos");
 const clearBtn = $<HTMLButtonElement>("clear");
 const pinnedToggle = $<HTMLButtonElement>("pinned-toggle");
 const settingsBtn = $<HTMLButtonElement>("settings-btn");
@@ -475,6 +477,12 @@ let pinnedOnly = false;
 let activeTag: string | null = null;
 let currentClips: ClipItem[] = [];
 let activeIndex = 0;
+// Whether the user is actively keyboard-navigating the clip list. Drives
+// the footer "row N of M" position breadcrumb — it's signal a keyboard
+// user wants but a mouse user would find noisy, so we only show it once
+// a list-navigation key has been pressed, and hide it when focus moves
+// to the search box or a panel opens.
+let listKeyboardActive = false;
 let detailId: string | null = null;
 let ocrLoading: Promise<unknown> | null = null;
 const selectedIds = new Set<string>();
@@ -849,6 +857,29 @@ function renderContentStats(c: ClipItem): void {
   // actually a one-click copy target.
   detailStats.dataset.copyable = "1";
   detailStats.title = "Click to copy this summary";
+}
+
+/**
+ * Paint the footer "row N of M" keyboard-focus breadcrumb. Only shows
+ * while the user is actively keyboard-navigating the list (set by the
+ * arrow/X/P handlers) AND the list is non-empty — for mouse users it
+ * stays hidden so the footer doesn't gain a number they don't need.
+ * Delegates the 1-based grammar + bounds handling to lib/focus-position.
+ */
+function renderFocusPosition(): void {
+  if (!listKeyboardActive) {
+    focusPosEl.hidden = true;
+    focusPosEl.textContent = "";
+    return;
+  }
+  const line = formatFocusPosition({ activeIndex, total: currentClips.length });
+  if (!line) {
+    focusPosEl.hidden = true;
+    focusPosEl.textContent = "";
+    return;
+  }
+  focusPosEl.hidden = false;
+  focusPosEl.textContent = line;
 }
 
 /**
@@ -1554,6 +1585,7 @@ async function render(): Promise<void> {
       .join("");
   }
   renderCountBreakdown(parsed);
+  renderFocusPosition();
   // Storage-delta hint depends on currentClips ∩ selectedIds, so we
   // refresh the bulk-bar on every render so the number stays truthful
   // as the filter changes.
@@ -5109,6 +5141,16 @@ searchEl.addEventListener("input", () => {
   render();
 });
 
+// Focusing the search box means the user has left list keyboard-nav, so
+// retire the footer "row N of M" breadcrumb until they arrow back into
+// the list. Cheap synchronous repaint of just the footer line — no full
+// render needed.
+searchEl.addEventListener("focus", () => {
+  if (!listKeyboardActive) return;
+  listKeyboardActive = false;
+  renderFocusPosition();
+});
+
 /**
  * Show the inline clear (×) button only when the search box has
  * content. Keeps the search row clean in the common empty state and
@@ -8016,6 +8058,7 @@ document.addEventListener("keydown", async (e) => {
 
   if (e.key === "ArrowDown") {
     e.preventDefault();
+    listKeyboardActive = true;
     if (e.shiftKey && !inSearch) {
       await moveActiveWithRange(1);
     } else {
@@ -8024,6 +8067,7 @@ document.addEventListener("keydown", async (e) => {
     }
   } else if (e.key === "ArrowUp") {
     e.preventDefault();
+    listKeyboardActive = true;
     if (e.shiftKey && !inSearch) {
       await moveActiveWithRange(-1);
     } else {
