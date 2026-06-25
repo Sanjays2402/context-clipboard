@@ -8016,12 +8016,20 @@ document.addEventListener("keydown", async (e) => {
 
   if (e.key === "ArrowDown") {
     e.preventDefault();
-    activeIndex = Math.min(currentClips.length - 1, activeIndex + 1);
-    await render();
+    if (e.shiftKey && !inSearch) {
+      await moveActiveWithRange(1);
+    } else {
+      activeIndex = Math.min(currentClips.length - 1, activeIndex + 1);
+      await render();
+    }
   } else if (e.key === "ArrowUp") {
     e.preventDefault();
-    activeIndex = Math.max(0, activeIndex - 1);
-    await render();
+    if (e.shiftKey && !inSearch) {
+      await moveActiveWithRange(-1);
+    } else {
+      activeIndex = Math.max(0, activeIndex - 1);
+      await render();
+    }
   } else if (e.key === "Enter") {
     const c = currentClips[activeIndex];
     if (!c) return;
@@ -9612,6 +9620,56 @@ function clearSelection(): void {
   selectionAnchor = null;
   updateBulkBar();
   void render();
+}
+
+/**
+ * Keyboard range-extend: the Shift+↑/↓ companion to Shift+Click range
+ * selection. Moves the active cursor one row in `direction` and grows
+ * the selection to cover the span between the range anchor and the new
+ * cursor row.
+ *
+ * Contract mirrors the additive Shift+Click gesture (lib/range-select):
+ *   - The FIRST Shift+Arrow seeds the anchor at the current cursor and
+ *     selects that origin row, so the range always has a real start.
+ *   - Each step ADDS the anchor->cursor span to the selection; it never
+ *     deselects on reversal. Extend-only keeps keyboard parity with the
+ *     mouse gesture (the popup's Shift+Click is additive too) — a clean,
+ *     non-surprising "grab this run" instead of Gmail's reverse-shrink.
+ *   - The anchor stays put across steps so a long press-and-hold of
+ *     Shift+Down keeps extending from the same origin.
+ *
+ * A no-op at the list edges (cursor already at row 0 / last row) leaves
+ * the selection untouched — there's no new row to fold in.
+ */
+async function moveActiveWithRange(direction: -1 | 1): Promise<void> {
+  if (currentClips.length === 0) return;
+  // Seed the anchor on the first Shift+Arrow of a run, and pull the
+  // origin row into the selection so the span has a concrete start.
+  if (selectionAnchor == null || !Number.isFinite(selectionAnchor)) {
+    selectionAnchor = activeIndex;
+    const origin = currentClips[activeIndex];
+    if (origin) selectedIds.add(origin.id);
+  }
+  const next =
+    direction === 1
+      ? Math.min(currentClips.length - 1, activeIndex + 1)
+      : Math.max(0, activeIndex - 1);
+  // Edge: nothing moved (already at top/bottom). Still ensure the
+  // origin row we just seeded is reflected before bailing.
+  if (next === activeIndex) {
+    updateBulkBar();
+    await render();
+    return;
+  }
+  activeIndex = next;
+  const range = computeRange(selectionAnchor, activeIndex, currentClips.length);
+  if (range) {
+    const rangeIds = idsForRange(currentClips, range.indices);
+    const toAdd = rangeIdsToAdd(rangeIds, selectedIds);
+    for (const rid of toAdd) selectedIds.add(rid);
+  }
+  updateBulkBar();
+  await render();
 }
 
 /**
