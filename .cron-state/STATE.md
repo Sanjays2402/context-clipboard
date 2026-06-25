@@ -461,6 +461,38 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [ ] Detail-view: per-note hashtag-extract preview chip — shows which hashtags WOULD be extracted from this clip's note (one-click promote single clip without going through bulk-bar)
 
 
+### New (added this tick — 2026-06-24 21:38 PT refill, FRESH non-hashtag frontend)
+Deliberately steering away from the hashtag/note-cleanup cluster that
+dominated the last several ticks. These are orthogonal UX gaps.
+- [x] Detail content-stats breadcrumb — chars/words/lines under the body — `1c06003`
+- [x] Shift+Click range selection in the clip list — `4682392`
+- [x] Search inline clear (×) button + Esc-to-clear — `49862e5`
+- [x] Bulk "Copy selected" — join N clip bodies to clipboard — `1e36355`
+- [x] Detail word-wrap toggle (wrap/nowrap body, persisted) — `d267c36`
+- [ ] Detail content-stats: click the breadcrumb to copy the count summary (e.g. "1,240 chars · 198 words") for sharing
+- [ ] List multi-select: Shift+↑/↓ keyboard range-extend (mirror Shift+Click for keyboard-only users)
+- [ ] Search: recent-searches dropdown on focus (show last 5 even before typing, like a browser address bar)
+- [ ] Bulk "Copy selected as Markdown" — companion to plain Copy, wraps each in its source-cited blockquote
+- [ ] Detail word-wrap: per-clip override (a wide-table clip remembers nowrap even when the global default is wrap)
+- [ ] Detail: "Copy line N" affordance for multi-line clips — click a line number gutter to copy just that line
+- [ ] List: hover-to-peek full preview tooltip for clips whose preview is truncated at 140 chars
+- [ ] Detail body: syntax-aware soft highlighting for detected code clips (lang already detected via detectCodeLang; just tint keywords/strings, no heavy lib)
+- [ ] Settings: a "density" radio (comfortable / compact) replacing the lone compact-rows checkbox — room for a future "cozy" tier
+- [ ] Footer: live keyboard-focus breadcrumb ("row 3 of 28") so keyboard-nav users always know their position
+- [ ] Detail prev/next: wrap-around option (last → first) with a subtle "looped" toast instead of a dead-end
+- [ ] List: sticky day-group headers ("Today", "Yesterday", "Mon Jun 22") when sorted by recent — currently a flat list
+- [ ] Quick-chips: horizontal scroll-shadow affordance when the chip row overflows the popup width
+- [ ] Detail tags: chip-style tag editor (click an × on each tag instead of comma-editing a raw input)
+- [ ] Bulk bar: a count-aware "Copy selected" label on hover that previews the joined char total
+
+### Open follow-ups from this tick (2026-06-24 21:38 PT)
+- [ ] Range-select: visual "anchor" hint (subtle ring on the anchor row) so the user knows where a Shift+Click will extend FROM
+- [ ] Content-stats: surface a "selected text" stat when the user highlights part of the detail body (selectionchange listener)
+- [ ] Bulk-copy: respect the list sort order vs visible order toggle (currently always visible order — some users may want selection order)
+- [ ] Wrap-toggle: a keyboard shortcut (e.g. `w` in detail) to flip wrap without reaching for the header button
+- [ ] Search-clear: animate the button in/out (fade) instead of a hard hidden flip for a smoother feel
+
+
 
 
 
@@ -615,6 +647,23 @@ Status: ` ` open / `~` in-progress / `x` shipped
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-24 21:38 PT** — 5/5 shipped. Theme: deliberately broke out
+  of the multi-tick hashtag/note-cleanup rut with five fresh,
+  orthogonal frontend slices filling obvious UX gaps. (1) Detail
+  content-stats breadcrumb — chars/words/lines under the body
+  (`1c06003`, lib/content-stats, 53/53 sanity). (2) Shift+Click range
+  selection in the list — direction-agnostic span from anchor, gated on
+  active selection so Shift=MD shortcut survives (`4682392`,
+  lib/range-select, 37/37). (3) Search inline clear (×) button +
+  Esc-to-clear (`49862e5`, DOM-coupled, build-gated). (4) Bulk "Copy
+  selected" — join N clip bodies to clipboard, skip images, raw
+  templates (`1e36355`, lib/bulk-clipboard, 43/43). (5) Detail word-wrap
+  toggle — wrap/nowrap body for tabular/log/wide-code, persisted in meta
+  (`d267c36`, lib/db + 20/20). tsc clean; chrome+firefox builds green
+  (popup.js 391.7→401.3kb, +9.6kb; bg+content unchanged). 153/153 sanity
+  across 4 new suites. Pushed 8b0152f..d267c36.
+
 
 - **2026-06-23 21:38 PT** — 5/5 shipped. Theme: a complete
   hashtag-cleanup affordance lattice for both individual clips
