@@ -115,6 +115,7 @@ import { formatFocusPosition } from "../lib/focus-position";
 import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip } from "../lib/list-peek";
+import { nextDetailIndex, formatWrapToast } from "../lib/detail-nav";
 import {
   planBulkCopy,
   formatBulkCopyToast,
@@ -2120,16 +2121,21 @@ function updateDetailNav(): void {
   }
   detailNavPos.hidden = false;
   detailNavPos.textContent = `${idx + 1} / ${currentClips.length}`;
-  detailNavPos.title = "";
-  detailPrev.disabled = idx <= 0;
-  detailNext.disabled = idx >= currentClips.length - 1;
+  // Prev/next wrap around (loop last↔first) whenever there are at least
+  // two clips, so the buttons only disable on a single-item list — no
+  // dead-ends. Title telegraphs the loop affordance at the edges.
+  const loopable = currentClips.length >= 2;
+  detailPrev.disabled = !loopable;
+  detailNext.disabled = !loopable;
+  detailNavPos.title = loopable ? "Prev / next wraps around the filtered list" : "";
 }
 
 /**
  * Step to the previous/next clip in the currently-filtered list and
  * re-open the detail view on it. Keeps `activeIndex` in sync so the
  * underlying list highlights the same clip when the user closes the
- * detail. No-op at list boundaries (buttons disable; keys silent).
+ * detail. Wraps around the list edges (last->first / first->last) with
+ * a subtle "looped" toast; only a single-item list has nowhere to go.
  */
 async function stepDetail(direction: -1 | 1): Promise<void> {
   if (!detailId) return;
@@ -2144,11 +2150,16 @@ async function stepDetail(direction: -1 | 1): Promise<void> {
   }
   const idx = currentClips.findIndex((c) => c.id === detailId);
   if (idx < 0) return;
-  const next = idx + direction;
-  if (next < 0 || next >= currentClips.length) return;
-  const target = currentClips[next];
-  activeIndex = next;
+  // Wrap-around: stepping past either edge loops to the other end (and
+  // surfaces a subtle "looped" toast), matching the similar-nav cycle.
+  // nextDetailIndex returns null only when there's genuinely nowhere to
+  // go (single-item list) — so a short filter result still loops.
+  const step = nextDetailIndex(idx, direction, currentClips.length, true);
+  if (!step) return;
+  const target = currentClips[step.index];
+  activeIndex = step.index;
   await openDetail(target.id);
+  if (step.wrapped) toast(formatWrapToast(direction));
 }
 
 function renderRedactButton(c: ClipItem) {
