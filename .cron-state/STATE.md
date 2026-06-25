@@ -473,16 +473,16 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [x] List multi-select: Shift+↑/↓ keyboard range-extend (mirror Shift+Click for keyboard-only users) — `01ee6b4`
 - [ ] Search: recent-searches dropdown on focus (show last 5 even before typing, like a browser address bar)
 - [x] Bulk "Copy selected as Markdown" — companion to plain Copy, wraps each in its source-cited blockquote — `5a5ef7a`
-- [ ] Detail word-wrap: per-clip override (a wide-table clip remembers nowrap even when the global default is wrap)
+- [x] Detail word-wrap: per-clip override (a wide-table clip remembers nowrap even when the global default is wrap) — `4656712`
 - [ ] Detail: "Copy line N" affordance for multi-line clips — click a line number gutter to copy just that line
 - [x] List: hover-to-peek full preview tooltip for clips whose preview is truncated at 140 chars — `25d7fa7`
-- [ ] Detail body: syntax-aware soft highlighting for detected code clips (lang already detected via detectCodeLang; just tint keywords/strings, no heavy lib)
-- [ ] Settings: a "density" radio (comfortable / compact) replacing the lone compact-rows checkbox — room for a future "cozy" tier
+- [x] Detail body: syntax-aware soft highlighting for detected code clips (lang already detected via detectCodeLang; just tint keywords/strings, no heavy lib) — `e55228d`
+- [x] Settings: a "density" radio (comfortable / cozy / compact) replacing the lone compact-rows checkbox — `138c3a2`
 - [x] Footer: live keyboard-focus breadcrumb ("row 3 of 28") so keyboard-nav users always know their position — `c35cd17`
 - [x] Detail prev/next: wrap-around option (last → first) with a subtle "looped" toast instead of a dead-end — `4724a03`
-- [ ] List: sticky day-group headers ("Today", "Yesterday", "Mon Jun 22") when sorted by recent — currently a flat list
+- [x] List: sticky day-group headers ("Today", "Yesterday", "Mon Jun 22") when sorted by recent — `67a410a`
 - [x] Quick-chips: horizontal scroll-shadow affordance when the chip row overflows the popup width — `246019c`
-- [ ] Detail tags: chip-style tag editor (click an × on each tag instead of comma-editing a raw input)
+- [x] Detail tags: chip-style tag editor (click an × on each tag instead of comma-editing a raw input) — `e773272`
 - [x] Bulk bar: a count-aware "Copy selected" label on hover that previews the joined char total — `c9812b7`
 
 ### Open follow-ups from this tick (2026-06-25 03:51 PT)
@@ -498,6 +498,27 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [ ] Bulk Copy char-total: surface the same char total in the post-copy toast ("Copied 3 clips · 1,240 chars") so the receipt matches the pre-commit preview
 - [ ] Detail wrap-around: a settings toggle to opt OUT of wrap (restore the dead-end) for users who rely on the disabled-button edge cue
 - [ ] Focus breadcrumb selection tail: when selection extends beyond the visible filter window, distinguish "N selected (M visible)" so the keyboard user knows the off-screen overflow
+
+### TICK LOG 2026-06-25 13:50 PT — 5/5 shipped (frontend UX, fresh surfaces)
+Steered away from the recent papercut cluster onto five orthogonal UX gaps.
+- `67a410a` List: sticky day-group headers (Today / Yesterday / weekday / dated) for time-ordered sorts; pinned tier collapses to one "Pinned" header. Pure lib/day-group, local-time DST-safe bucketing.
+- `4656712` Detail: per-clip word-wrap override (sticky, wins over the global default); Alt-click clears to follow global; accent dot telegraph. Additive `wrapOverride` field, global default moved to Cmd+K. Pure lib/wrap-pref.
+- `e773272` Detail: chip-style tag editor — each tag a pill with ×, one-click remove; raw input stays the add/edit surface, chips mirror it live. Pure lib/tag-chips (parse/remove/dedupe).
+- `e55228d` Detail: soft syntax tinting for detected code clips (strings/comments/keywords/numbers) when no search needle active. Dependency-free lib/code-highlight; XSS-safe (19 runtime checks); search-match still wins while searching.
+- `138c3a2` Settings: row-density control (Comfortable / Cozy / Compact) replacing the lone compact checkbox; new cozy middle tier. Backward-compatible — density field mirrored to legacy compactRows bool; migration verified (13 runtime checks). New Cmd+K cycle-density command. Pure lib/density.
+Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2.
+
+### Open follow-ups from this tick (2026-06-25 13:50 PT)
+- [ ] Day-group headers: also honor the "hits/size/alpha" sorts with a different grouping axis (e.g. host-group headers for non-chronological sorts) instead of a flat list
+- [ ] Day-group headers: a settings toggle to disable the dividers for users who prefer the pure flat stream
+- [ ] Wrap override: surface an `is:wrapoverride` search operator (or a quick way to find clips pinned to their own wrap) for the "what did I override?" review pass
+- [ ] Tag chips: keyboard support — focus a chip + Backspace/Delete removes it (currently mouse-only ×); arrow-key between chips
+- [ ] Tag chips: drag-to-reorder so the chip order (and thus the comma string) can be rearranged without retyping
+- [ ] Code tinting: add an operator/punctuation token class (currently only strings/comments/keywords/numbers) — a soft tint on `=> { } ( )` would help scan structure
+- [ ] Code tinting: a per-clip "force language" override (detail dropdown) for clips detectCodeLang guesses wrong or can't classify
+- [ ] Density: remember a per-window density (some users want compact in the side panel, comfortable in the popup) — needs a context probe
+- [ ] Density: a `density` keyboard shortcut binding (the cycle command exists in Cmd+K; a bare keypress would be faster)
+
 
 
 
