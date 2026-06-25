@@ -238,6 +238,23 @@ export interface Settings {
    */
   compactRows: boolean;
   /**
+   * Row density for the clip list — a three-step scale that supersedes
+   * the lone `compactRows` boolean: "comfortable" (the roomy default),
+   * "cozy" (a trimmer middle tier — tighter padding + margins, keeps
+   * the tag row + full thumb), and "compact" (the dense 28px-thumb mode
+   * `compactRows` used to be the only way to reach).
+   *
+   * `compactRows` is kept MIRRORED to this (compact <-> true) for
+   * backward compatibility: the palette quick-toggle, import/export
+   * round-trip, and any legacy reader still work off the boolean while
+   * the radio drives the tri-state. On load, an absent/old `density`
+   * is migrated from the boolean (see lib/density.resolveDensity).
+   *
+   * Additive optional field — undefined on settings objects saved
+   * before this shipped; resolveDensity() falls back to the boolean.
+   */
+  density?: "comfortable" | "cozy" | "compact";
+  /**
    * Privacy audit retention — how many recent privacy actions to keep
    * in the ring buffer (Settings → Privacy audit panel). Each entry is
    * tiny (~80 bytes), so the storage cost is negligible even at 100.
@@ -269,6 +286,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoRedactPii: false,
   blurPreviews: false,
   compactRows: false,
+  density: "comfortable",
   privacyAuditRetention: 30,
   blockList: [],
   allowList: [],

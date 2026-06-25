@@ -120,6 +120,13 @@ import { computeDayHeaders } from "../lib/day-group";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
 import { parseTags, removeTag, serializeTags } from "../lib/tag-chips";
 import { highlightCode } from "../lib/code-highlight";
+import {
+  resolveDensity,
+  densityBodyClass,
+  densityToCompactBool,
+  densityLabel,
+  type Density,
+} from "../lib/density";
 import { nextDetailIndex, formatWrapToast } from "../lib/detail-nav";
 import {
   planBulkCopy,
@@ -368,7 +375,7 @@ const sSidePanel = $<HTMLInputElement>("s-sidepanel");
 const sAutoRedact = $<HTMLInputElement>("s-autoredact");
 const retroRedactBtn = $<HTMLButtonElement>("retro-redact-btn");
 const sBlurPreviews = $<HTMLInputElement>("s-blur");
-const sCompactRows = $<HTMLInputElement>("s-compact");
+const sDensity = $<HTMLSelectElement>("s-density");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
 const sTheme = $<HTMLSelectElement>("s-theme");
@@ -2727,7 +2734,7 @@ async function openSettings() {
   sSidePanel.checked = s.enableSidePanel;
   sAutoRedact.checked = s.autoRedactPii;
   sBlurPreviews.checked = !!s.blurPreviews;
-  sCompactRows.checked = !!s.compactRows;
+  sDensity.value = resolveDensity(s);
   // Privacy audit retention — defaults to 30 if the stored value
   // is missing or junk (a freshly imported settings shape from an
   // older version won't have this field).
@@ -2759,6 +2766,15 @@ function closeSettings() {
 }
 
 async function saveSettingsFromForm() {
+  // Resolve the picked density once (snap a tampered <select> value back
+  // to comfortable) so both the density field and the mirrored
+  // compactRows boolean derive from the same source of truth.
+  const pickedDensity: Density =
+    sDensity.value === "comfortable" ||
+    sDensity.value === "cozy" ||
+    sDensity.value === "compact"
+      ? (sDensity.value as Density)
+      : "comfortable";
   const next: Partial<Settings> = {
     maxUnpinned: Math.max(50, Number(sMax.value) || 500),
     dedupWindowMs: Math.max(0, (Number(sDedup.value) || 60) * 1000),
@@ -2771,7 +2787,11 @@ async function saveSettingsFromForm() {
     enableSidePanel: sSidePanel.checked,
     autoRedactPii: sAutoRedact.checked,
     blurPreviews: sBlurPreviews.checked,
-    compactRows: sCompactRows.checked,
+    // Row density drives the new tri-state; keep the legacy compactRows
+    // boolean MIRRORED (compact <-> true) so the palette quick-toggle +
+    // import/export round-trip + any legacy reader stay consistent.
+    density: pickedDensity,
+    compactRows: densityToCompactBool(pickedDensity),
     // Snap the raw <select> value back to the allowed quartet so a
     // tampered DOM (extension dev-tools, etc.) can't sneak a value
     // like 5000 into IDB.
@@ -2786,7 +2806,9 @@ async function saveSettingsFromForm() {
   const saved = await saveSettings(next);
   document.body.dataset.theme = saved.theme;
   applyBlurMode(saved.blurPreviews);
-  applyCompactRows(saved.compactRows);
+  // Apply the resolved density (honors the new field; falls back to the
+  // legacy boolean for an old saved shape).
+  applyCompactRows(resolveDensity(saved));
   // Tell background to re-apply Chrome side panel behavior (no-op on Firefox).
   try {
     api.runtime.sendMessage({ type: "cc-rpc", action: "applySidePanelMode" });
@@ -2803,13 +2825,29 @@ function applyBlurMode(on: boolean): void {
 }
 
 /**
- * Compact-row mode: shrink each clip row to ~36px so the popup fits 30+
- * clips per screen. Pure DOM — no IDB write here, just the body class.
- * `compactRows` setting drives this; quick-toggle from the palette flips
- * the same bit.
+ * Apply the row density to the body. Toggles the `compact-rows` /
+ * `cozy-rows` classes (comfortable = neither) the list CSS keys off.
+ * Pure DOM — no IDB write. Accepts either a Density string OR the
+ * legacy boolean (true = compact) so the existing call sites that pass
+ * `compactRows` keep working unchanged; a boolean is mapped through the
+ * same comfortable/compact pair.
+ *
+ * `compactRows` setting still drives the legacy path; the density radio
+ * + palette command pass an explicit Density.
  */
-function applyCompactRows(on: boolean): void {
-  document.body.classList.toggle("compact-rows", !!on);
+function applyCompactRows(density: Density | boolean): void {
+  const d: Density =
+    typeof density === "boolean"
+      ? density
+        ? "compact"
+        : "comfortable"
+      : density;
+  // Clear both modifier classes, then add the one this density needs
+  // (comfortable adds neither). densityBodyClass returns "" for
+  // comfortable so we guard the empty add.
+  document.body.classList.remove("compact-rows", "cozy-rows");
+  const cls = densityBodyClass(d);
+  if (cls) document.body.classList.add(cls);
 }
 
 async function renderStorage() {
@@ -6219,13 +6257,44 @@ function buildPaletteActions(): PaletteAction[] {
         : "Compact rows (fit 30+ per screen)",
       hint: "Shrink each clip row so more fit on one screen",
       group: "Filter",
-      keywords: "dense compact tight rows height",
+      keywords: "dense compact tight rows height density",
       run: async () => {
         closePalette();
         const next = !document.body.classList.contains("compact-rows");
-        await saveSettings({ compactRows: next });
-        applyCompactRows(next);
+        const nextDensity: Density = next ? "compact" : "comfortable";
+        // Write BOTH the new density field and the mirrored boolean so
+        // the radio + palette never diverge.
+        await saveSettings({ density: nextDensity, compactRows: next });
+        applyCompactRows(nextDensity);
         toast(next ? "Compact rows on" : "Compact rows off");
+      },
+    },
+    {
+      // Cycle the row density comfortable -> cozy -> compact -> ... in
+      // one keystroke, for users who want the middle "cozy" tier the
+      // boolean toggle above can't reach. Reads the live body class to
+      // know where we are; writes both the density field + mirrored
+      // boolean so every density consumer stays consistent.
+      id: "cycle-row-density",
+      label: "Cycle row density (comfortable / cozy / compact)",
+      hint: "Step the clip-list density to the next tier",
+      group: "Filter",
+      keywords: "density cozy comfortable compact rows spacing tight roomy",
+      run: async () => {
+        closePalette();
+        const cur: Density = document.body.classList.contains("compact-rows")
+          ? "compact"
+          : document.body.classList.contains("cozy-rows")
+            ? "cozy"
+            : "comfortable";
+        const order: Density[] = ["comfortable", "cozy", "compact"];
+        const nextDensity = order[(order.indexOf(cur) + 1) % order.length];
+        await saveSettings({
+          density: nextDensity,
+          compactRows: densityToCompactBool(nextDensity),
+        });
+        applyCompactRows(nextDensity);
+        toast(`Density: ${densityLabel(nextDensity)}`);
       },
     },
     {
@@ -9558,11 +9627,16 @@ sBlurPreviews.addEventListener("change", () => {
   applyBlurMode(sBlurPreviews.checked);
 });
 
-sCompactRows.addEventListener("change", () => {
-  // Same live-preview pattern as blur — flip the body class so the
-  // toggle telegraphs the result. The actual setting persists on
-  // Save / Esc / back via saveSettingsFromForm.
-  applyCompactRows(sCompactRows.checked);
+sDensity.addEventListener("change", () => {
+  // Same live-preview pattern as blur — apply the picked density's body
+  // class so the radio telegraphs the result immediately. The actual
+  // setting persists on Save / Esc / back via saveSettingsFromForm.
+  const v = sDensity.value;
+  const d: Density =
+    v === "comfortable" || v === "cozy" || v === "compact"
+      ? (v as Density)
+      : "comfortable";
+  applyCompactRows(d);
 });
 
 retroRedactBtn.addEventListener("click", () => void runRetroactiveAutoRedact());
@@ -10516,7 +10590,9 @@ bulkExport.addEventListener("click", async () => {
   const s = await getSettings();
   document.body.dataset.theme = s.theme;
   applyBlurMode(s.blurPreviews);
-  applyCompactRows(s.compactRows);
+  // Resolve density from the new field, migrating from the legacy
+  // compactRows boolean for settings saved before this shipped.
+  applyCompactRows(resolveDensity(s));
   // Restore the persisted sort mode BEFORE the first render so the list
   // doesn't flash in the wrong order.
   listSort = await getListSort();

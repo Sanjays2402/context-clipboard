@@ -4171,6 +4171,29 @@ body.compact-rows #list {
   gap: 0;
 }
 
+/* Cozy rows — the middle density tier. Trims padding + margins and
+ * shrinks the thumb a touch, but KEEPS the tag chip row + the full
+ * preview, so it reads roomier than compact while fitting noticeably
+ * more than comfortable. Applied via the `cozy-rows` body class
+ * (applyCompactRows / densityBodyClass). */
+body.cozy-rows .clip {
+  padding: 7px 10px;
+  margin-bottom: 2px;
+  gap: 9px;
+  border-radius: 10px;
+}
+body.cozy-rows .clip .thumb {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+}
+body.cozy-rows .clip .meta {
+  margin-top: 2px;
+}
+body.cozy-rows #list {
+  gap: 0;
+}
+
 /* Archive — clip row gets a faint stripe when displayed (only ever
  * happens under is:archived). The inline pill badge tells the user
  * "yes this is archived" so it's obvious in mixed views too. */
