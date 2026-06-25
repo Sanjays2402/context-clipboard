@@ -110,7 +110,7 @@ import {
   syncSimilarNav,
   type SimilarNav,
 } from "../lib/similar-nav";
-import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast } from "../lib/content-stats";
+import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast, formatContentStatsMarkdown } from "../lib/content-stats";
 import { formatFocusPosition } from "../lib/focus-position";
 import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
@@ -864,7 +864,7 @@ function renderContentStats(c: ClipItem): void {
   // title affordance telegraphs that this static-looking line is
   // actually a one-click copy target.
   detailStats.dataset.copyable = "1";
-  detailStats.title = "Click to copy this summary";
+  detailStats.title = "Click to copy this summary \u00b7 Alt-click for Markdown";
 }
 
 /**
@@ -8363,16 +8363,22 @@ detailWrap.addEventListener("click", async () => {
 // and recompute the payload from the canonical formatter so the copied
 // text always equals what's on screen, even if the clip changed shape
 // under the panel. No-op for the hidden/empty state (no data-copyable).
-detailStats.addEventListener("click", async () => {
+detailStats.addEventListener("click", async (e) => {
   if (detailStats.hidden || !detailStats.dataset.copyable) return;
   if (!detailId) return;
   const c = await getClip(detailId);
   if (!c) return;
-  const summary = contentStatsClipboard(c);
+  // Alt/Option-click copies the Markdown stat line ("**1,240** chars ·
+  // **198** words") for doc paste; a plain click copies the WYSIWYG
+  // plain-text summary the breadcrumb shows. Both re-read the open clip
+  // and recompute from the canonical formatter so the copied text can
+  // never drift from what's on screen.
+  const wantsMarkdown = (e as MouseEvent).altKey === true;
+  const summary = wantsMarkdown ? formatContentStatsMarkdown(c) : contentStatsClipboard(c);
   if (!summary) return;
   try {
     await navigator.clipboard.writeText(summary);
-    toast(formatContentStatsCopyToast(summary));
+    toast(wantsMarkdown ? "Copied as Markdown" : formatContentStatsCopyToast(summary));
   } catch (err) {
     console.error("[context-clipboard] stats copy failed", err);
     toast("Copy failed", "error");

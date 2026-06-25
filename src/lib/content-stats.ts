@@ -166,3 +166,41 @@ export function formatContentStatsCopyToast(summary: string): string {
   if (s.length > 48) return "Copied stats";
   return `Copied: ${s}`;
 }
+
+/**
+ * Markdown variant of the stats line, for users who paste clip metadata
+ * into docs / issues / PRs and want the numbers to render bold. Where
+ * the plain breadcrumb reads "1,240 chars · 198 words", this emits
+ * "**1,240** chars · **198** words" — same counts, same separator, same
+ * hide-the-line-count-when-it-is-1 rule, just with the figures wrapped
+ * in `**` so a Markdown renderer bolds them.
+ *
+ * Returns null in exactly the cases the plain breadcrumb hides (null
+ * input, image clip, empty body) so the caller treats null as "nothing
+ * to copy" and skips the clipboard write — the two formatters stay in
+ * lock-step on WHAT counts as showable, differing only in HOW it renders.
+ *
+ * Only the numbers are bolded (not the unit words) so the line reads
+ * "**1,240** chars" — emphasising the figure the eye scans for, the way
+ * a human writing the stat by hand would. We rebuild from the same
+ * ContentStats the plain path uses rather than regex-bolding the plain
+ * string, so the two can never drift on grouping / pluralisation.
+ */
+export function formatContentStatsMarkdown(
+  c: ContentStatsInput | null | undefined,
+): string | null {
+  const s = statsForClip(c);
+  if (!s) return null;
+  if (s.chars === 0 && s.words === 0 && s.lines === 0) return null;
+  const parts: string[] = [
+    boldCountUnit(s.chars, "char"),
+    boldCountUnit(s.words, "word"),
+  ];
+  if (s.lines > 1) parts.push(boldCountUnit(s.lines, "line"));
+  return parts.join(" \u00b7 ");
+}
+
+/** "**1,240** chars" — bold figure + plain pluralised unit. */
+function boldCountUnit(n: number, unit: string): string {
+  return `**${groupThousands(n)}** ${unit}${n === 1 ? "" : "s"}`;
+}

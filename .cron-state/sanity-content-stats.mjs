@@ -48,6 +48,19 @@ function formatContentStats(c) {
   return parts.join(" \u00b7 ");
 }
 
+function boldCountUnit(n, unit) {
+  return `**${groupThousands(n)}** ${unit}${n === 1 ? "" : "s"}`;
+}
+
+function formatContentStatsMarkdown(c) {
+  const s = statsForClip(c);
+  if (!s) return null;
+  if (s.chars === 0 && s.words === 0 && s.lines === 0) return null;
+  const parts = [boldCountUnit(s.chars, "char"), boldCountUnit(s.words, "word")];
+  if (s.lines > 1) parts.push(boldCountUnit(s.lines, "line"));
+  return parts.join(" \u00b7 ");
+}
+
 let pass = 0;
 let total = 0;
 function check(name, got, want) {
@@ -137,6 +150,36 @@ const sample = "line1\nline2 has more words\nline3";
 const a = JSON.stringify(computeContentStats(sample));
 const b = JSON.stringify(computeContentStats(sample));
 check("deterministic", a, b);
+
+// --- 10. formatContentStatsMarkdown: bold figures, parity with plain ----
+check("md single-line bolds figures, drops line", formatContentStatsMarkdown({ kind: "text", content: "hello world" }), "**11** chars \u00b7 **2** words");
+check("md multi-line includes line seg", formatContentStatsMarkdown({ kind: "text", content: "a\nb\nc" }), "**5** chars \u00b7 **3** words \u00b7 **3** lines");
+check("md one char singular", formatContentStatsMarkdown({ kind: "text", content: "x" }), "**1** char \u00b7 **1** word");
+check("md thousands grouping inside bold", formatContentStatsMarkdown({ kind: "text", content: "a".repeat(1240) }), "**1,240** chars \u00b7 **1** word");
+check("md image hides", formatContentStatsMarkdown({ kind: "image", content: "data:..." }), null);
+check("md empty hides", formatContentStatsMarkdown({ kind: "text", content: "" }), null);
+check("md null hides", formatContentStatsMarkdown(null), null);
+check("md whitespace-only shows chars, 0 words", formatContentStatsMarkdown({ kind: "text", content: "   " }), "**3** chars \u00b7 **0** words");
+// Same hide/show decision as the plain formatter on every shape.
+for (const c of [
+  { kind: "text", content: "hello world" },
+  { kind: "text", content: "a\nb\nc" },
+  { kind: "text", content: "" },
+  { kind: "image", content: "data:x" },
+  null,
+  { kind: "link", content: "https://example.com/very/long/path?with=query" },
+]) {
+  const plainNull = formatContentStats(c) === null;
+  const mdNull = formatContentStatsMarkdown(c) === null;
+  check(`md/plain show-decision parity ${JSON.stringify(c)}`, mdNull, plainNull);
+}
+// Stripping the ** from the MD line must reproduce the plain line exactly.
+const parityClip = { kind: "text", content: "alpha beta\ngamma delta epsilon" };
+check(
+  "md without ** equals plain line",
+  formatContentStatsMarkdown(parityClip).replace(/\*\*/g, ""),
+  formatContentStats(parityClip),
+);
 
 console.log(`content-stats sanity: ${pass}/${total} passed`);
 if (pass !== total) process.exit(1);
