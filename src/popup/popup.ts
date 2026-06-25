@@ -108,6 +108,7 @@ import {
   syncSimilarNav,
   type SimilarNav,
 } from "../lib/similar-nav";
+import { formatContentStats } from "../lib/content-stats";
 import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
@@ -292,6 +293,7 @@ const detailSendMenu = $("detail-send-menu");
 const detailHistory = $<HTMLButtonElement>("detail-history");
 const detailLock = $<HTMLButtonElement>("detail-lock");
 const detailBody = $("detail-body");
+const detailStats = $("detail-stats");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
 const detailHits = $("detail-hits");
@@ -788,6 +790,27 @@ function formatRemaining(deadline: number): string {
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   if (s < 86_400) return `${Math.floor(s / 3600)}h`;
   return `${Math.floor(s / 86_400)}d`;
+}
+
+/**
+ * Paint the content-stats breadcrumb under the detail body. Text /
+ * link clips show "1,240 chars · 198 words · 12 lines"; image clips
+ * (and empty bodies) hide the row entirely. Delegates all counting +
+ * grammar to lib/content-stats so the popup just renders the string.
+ *
+ * Cheap + synchronous — called from openDetail after the body paints,
+ * and again from the wrap-toggle (no recompute needed, but keeps the
+ * row consistent if the open clip ever changes shape under it).
+ */
+function renderContentStats(c: ClipItem): void {
+  const line = formatContentStats(c);
+  if (!line) {
+    detailStats.hidden = true;
+    detailStats.textContent = "";
+    return;
+  }
+  detailStats.hidden = false;
+  detailStats.textContent = line;
 }
 
 function renderTagChips(allClips: ClipItem[]) {
@@ -1668,6 +1691,7 @@ async function openDetail(id: string) {
     detailOcr.hidden = true;
     detailRefetch.hidden = true;
   }
+  renderContentStats(c);
   detailUrl.href = c.source.url || "#";
   detailUrl.textContent = c.source.url || "—";
   detailTime.textContent = new Date(c.createdAt).toLocaleString();

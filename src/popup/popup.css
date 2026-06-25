@@ -2358,6 +2358,34 @@ kbd {
   box-shadow: var(--shadow-md);
 }
 
+/* Content-stats breadcrumb — char/word/line counts under the body.
+   Subtle, monospace-numerals, sits as a thin footnote between the
+   body and the meta block. */
+.detail-stats {
+  padding: 6px 18px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--glass);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Word-wrap toggle: when the user turns wrapping OFF (for tabular /
+   log / wide-code clips), the body scrolls horizontally instead of
+   reflowing. Applied as a modifier class on .detail-body so the
+   default stays wrap-on (the historical behavior). */
+.detail-body.nowrap {
+  overflow-x: auto;
+}
+.detail-body.nowrap pre {
+  white-space: pre;
+  word-break: normal;
+}
+
 .detail-meta {
   padding: 14px;
   flex: 1;
