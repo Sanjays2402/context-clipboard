@@ -115,6 +115,7 @@ import { formatFocusPosition } from "../lib/focus-position";
 import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip } from "../lib/list-peek";
+import { computeDayHeaders } from "../lib/day-group";
 import { nextDetailIndex, formatWrapToast } from "../lib/detail-nav";
 import {
   planBulkCopy,
@@ -1622,8 +1623,24 @@ async function render(): Promise<void> {
     }
     listEl.innerHTML = hint;
   } else {
+    // Day-group dividers — only for time-ordered sorts (recent/oldest),
+    // where adjacent rows actually share calendar days. For hits/size/
+    // alpha the order isn't chronological, so grouping by day would
+    // scatter one-row "headers" everywhere; we skip them and render a
+    // flat list. The pinned tier collapses to a single "Pinned" header
+    // (see lib/day-group) so a stale age label never lands at the top.
+    const showDayHeaders = listSort === "recent" || listSort === "oldest";
+    const dayHeaders = showDayHeaders
+      ? computeDayHeaders(currentClips)
+      : [];
     listEl.innerHTML = currentClips
-      .map((c, i) => renderClip(c, i, i === activeIndex, currentNeedle))
+      .map((c, i) => {
+        const header = dayHeaders[i];
+        const headerHtml = header
+          ? `<div class="day-header" role="presentation">${escapeHtml(header)}</div>`
+          : "";
+        return headerHtml + renderClip(c, i, i === activeIndex, currentNeedle);
+      })
       .join("");
   }
   renderCountBreakdown(parsed);

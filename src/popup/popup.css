@@ -956,6 +956,44 @@ main:focus {
     var(--shadow-md);
 }
 
+/* Day-group dividers — a sticky, uppercase micro-label that marks
+   where each calendar-day run begins in time-ordered lists. Sticks to
+   the top of the scroll container so the user always knows which day
+   the rows currently in view belong to (mail / chat-client pattern).
+   The blurred backing keeps the rows behind it legible as they slide
+   under. Painted only for recent/oldest sorts (see render()). */
+.day-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 6px 2px 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--glass-strong);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-inner);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* First header sits flush at the top of the list (no extra gap above). */
+.day-header:first-child {
+  margin-top: 2px;
+}
+
+/* Compact mode tightens the dividers to match the denser rows. */
+body.compact-rows .day-header {
+  margin: 3px 2px 2px;
+  padding: 2px 7px;
+  font-size: 9px;
+}
+
 .clip .thumb {
   width: 42px;
   height: 42px;
