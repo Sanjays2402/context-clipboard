@@ -114,6 +114,7 @@ import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast 
 import { formatFocusPosition } from "../lib/focus-position";
 import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
+import { peekTooltip } from "../lib/list-peek";
 import {
   planBulkCopy,
   formatBulkCopyToast,
@@ -799,12 +800,18 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
     c.kind === "image"
       ? escapeHtml(previewSlice)
       : highlightHtml(previewSlice, needle);
+  // Hover-peek: when the preview is truncated at 140 chars, carry a longer
+  // (flattened, capped) slice as a native `title` so the user can read more
+  // context on hover / focus without opening the detail view. Images never
+  // get a peek — their "preview" is a placeholder label, not real text.
+  const peek = c.kind === "image" ? null : peekTooltip(previewText, { rowSliceLength: 140 });
+  const previewTitle = peek ? ` title="${escapeHtml(peek)}"` : "";
   return `
     <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}${c.archived ? " archived" : ""}" data-id="${c.id}" data-idx="${idx}">
       ${selectedIds.size > 0 ? `<div class="select-mark">${selectedIds.has(c.id) ? icons.check() : ""}</div>` : ""}
       ${thumb}
       <div class="body">
-        <div class="preview">${previewHtml}${archivedBadge}${lockedBadge}</div>
+        <div class="preview"${previewTitle}>${previewHtml}${archivedBadge}${lockedBadge}</div>
         <div class="meta">
           <span class="src" title="${escapeHtml(c.source.url || "")}">${escapeHtml(src || "—")}</span>
           <span>· ${timeAgo(c.lastSeenAt)}${hits}${expiry}</span>
