@@ -111,6 +111,11 @@ import {
 import { formatContentStats } from "../lib/content-stats";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import {
+  planBulkCopy,
+  formatBulkCopyToast,
+  formatBulkCopyButtonTitle,
+} from "../lib/bulk-clipboard";
+import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
 } from "../lib/url-quick-capture";
@@ -420,6 +425,7 @@ const bulkNote = $<HTMLButtonElement>("bulk-note");
 const bulkTagFromNotes = $<HTMLButtonElement>("bulk-tag-from-notes");
 const bulkTagFromNotesClear = $<HTMLButtonElement>("bulk-tag-from-notes-clear");
 const bulkStripHashtags = $<HTMLButtonElement>("bulk-strip-hashtags");
+const bulkCopy = $<HTMLButtonElement>("bulk-copy");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkExportTag = $<HTMLInputElement>("bulk-export-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
@@ -6693,6 +6699,25 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Bulk copy — proxies the bulk-bar button so palette + click
+      // share the same join logic + toast. Label reflects how many of
+      // the visible selected clips carry copyable text (images
+      // skipped) so the keyboard route previews the outcome too.
+      id: "copy-selection",
+      label: (() => {
+        const vis = currentClips.filter((c) => selectedIds.has(c.id));
+        const plan = planBulkCopy(vis);
+        if (!plan.hasContent) return "Copy selected as text";
+        return `Copy ${plan.copied} selected as text`;
+      })(),
+      group: "Bulk",
+      available: hasSelection,
+      run: () => {
+        closePalette();
+        bulkCopy.click();
+      },
+    },
+    {
       // Bulk lock/unlock — proxies the bulk-bar button so the palette
       // route + click route share the same authoritative logic. The
       // label adapts to the selection's lock distribution: "Lock 3
@@ -9335,6 +9360,13 @@ function updateBulkBar(): void {
   // forget the earlier work), so we honestly distinguish "visible"
   // vs total. The label only includes what we can count concretely.
   const visibleSelected = currentClips.filter((c) => selectedIds.has(c.id));
+  // Bulk-copy button title: reflect how many of the VISIBLE selected
+  // clips carry copyable text (images skipped). Uses the visible
+  // slice because that's what we can inspect synchronously here; the
+  // click handler does its own authoritative read over the FULL
+  // selection at fire time, so the toast count stays truthful even
+  // when the selection extends past the filter window.
+  bulkCopy.title = formatBulkCopyButtonTitle(planBulkCopy(visibleSelected));
   // Lock button title — adapts to the selection's current lock-state
   // distribution so a hover reveals what the click will do BEFORE
   // the user commits to it. Counts run over the FULL selection
@@ -9849,6 +9881,41 @@ bulkStripHashtags.addEventListener("click", async () => {
   }
   toast(formatBulkStripHashtagsToast(plan));
   await render();
+});
+
+// Bulk copy — join the selected clips' text bodies and write them to
+// the system clipboard in one shot. The basic batch op the selection
+// model was missing (pin/lock/tag/note/export existed; "copy all of
+// these" didn't). Skips image clips (no pasteable text body) and
+// copies template clips RAW (un-expanded) — see lib/bulk-clipboard
+// for the rationale. Honours every id in selectedIds, in visible
+// list order so the paste reads top-to-bottom.
+bulkCopy.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  // Order the fetch by visible list position when possible so the
+  // joined paste matches what the user sees; ids outside the visible
+  // window fall to the end in selection order.
+  const orderIndex = new Map<string, number>();
+  currentClips.forEach((c, i) => orderIndex.set(c.id, i));
+  const orderedIds = [...ids].sort((a, b) => {
+    const ia = orderIndex.has(a) ? orderIndex.get(a)! : Number.MAX_SAFE_INTEGER;
+    const ib = orderIndex.has(b) ? orderIndex.get(b)! : Number.MAX_SAFE_INTEGER;
+    return ia - ib;
+  });
+  const items = await Promise.all(orderedIds.map((id) => getClip(id)));
+  const plan = planBulkCopy(items);
+  if (!plan.hasContent) {
+    toast(formatBulkCopyToast(plan), "error");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(plan.text);
+    toast(formatBulkCopyToast(plan));
+  } catch (err) {
+    console.error("[context-clipboard] bulk copy failed", err);
+    toast("Copy failed", "error");
+  }
 });
 
 // Bulk export — cherry-pick JSON download. Different from the Settings
