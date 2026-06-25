@@ -1691,6 +1691,40 @@ export async function setListSort(mode: SortMode): Promise<void> {
   });
 }
 
+// Detail body word-wrap preference -------------------------------------
+//
+// The detail body wraps long lines by default (the historical
+// behavior). For tabular text / logs / wide code the user can flip
+// wrapping OFF so the body scrolls horizontally and columns stay
+// aligned. Persisted in `meta` under `detail_wrap` so the preference
+// survives popup re-opens. `true` (wrap on) is the default + fallback
+// whenever the row is missing / corrupt.
+
+const DETAIL_WRAP_KEY = "detail_wrap";
+
+export async function getDetailWrap(): Promise<boolean> {
+  const store = await metaTx("readonly");
+  return new Promise((resolve) => {
+    const req = store.get(DETAIL_WRAP_KEY);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: unknown } | undefined;
+      // Default to wrap-on for any non-boolean / missing value.
+      resolve(row?.value === false ? false : true);
+    };
+    req.onerror = () => resolve(true);
+  });
+}
+
+export async function setDetailWrap(wrap: boolean): Promise<void> {
+  const next = wrap !== false;
+  const store = await metaTx("readwrite");
+  await new Promise<void>((resolve, reject) => {
+    const req = store.put({ key: DETAIL_WRAP_KEY, value: next });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
 // Similar clips ---------------------------------------------------------
 //
 // Detail-view sidekick: given an open clip, find OTHER clips that share

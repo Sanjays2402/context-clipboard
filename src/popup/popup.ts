@@ -25,6 +25,8 @@ import {
   reorderSearchHistory,
   getListSort,
   setListSort,
+  getDetailWrap,
+  setDetailWrap,
   mergeDuplicatesByHash,
   findDuplicateGroups,
   mergeDuplicateGroup,
@@ -292,6 +294,7 @@ const detailDelete = $<HTMLButtonElement>("detail-delete");
 const detailOcr = $<HTMLButtonElement>("detail-ocr");
 const detailRefetch = $<HTMLButtonElement>("detail-refetch");
 const detailReveal = $<HTMLButtonElement>("detail-reveal");
+const detailWrap = $<HTMLButtonElement>("detail-wrap");
 const detailRedact = $<HTMLButtonElement>("detail-redact");
 const detailScrub = $<HTMLButtonElement>("detail-scrub");
 const detailArchive = $<HTMLButtonElement>("detail-archive");
@@ -610,6 +613,12 @@ let editingRuleId: string | null = null;
 // which preserves the historical behavior — `lastSeenAt desc` with
 // pinned floated to the top.
 let listSort: SortMode = "recent";
+// Detail body word-wrap preference. True = wrap long lines (default,
+// historical behavior); false = no-wrap + horizontal scroll for
+// tabular / log / wide-code clips. Loaded from the meta store on
+// init, persisted on every toggle, applied to .detail-body via the
+// .nowrap modifier class.
+let detailWrapOn = true;
 // Debounce timer for recording the search box into history. We wait ~900ms
 // after the last keystroke before persisting so we don't write a row
 // per character.
@@ -826,6 +835,25 @@ function renderContentStats(c: ClipItem): void {
   }
   detailStats.hidden = false;
   detailStats.textContent = line;
+}
+
+/**
+ * Apply the current word-wrap preference to the detail body. Wrap-on
+ * (the default) leaves the body reflowing; wrap-off adds the .nowrap
+ * modifier so long lines scroll horizontally and columns stay aligned
+ * (tabular text, logs, wide code). Also flips the toggle button's
+ * pressed state + tooltip so the affordance reflects the live mode.
+ *
+ * Pure DOM — no IDB write (that happens in the toggle handler). Safe
+ * to call on every openDetail so a freshly-opened clip inherits the
+ * persisted preference without a flash.
+ */
+function applyDetailWrap(): void {
+  detailBody.classList.toggle("nowrap", !detailWrapOn);
+  detailWrap.classList.toggle("active", !detailWrapOn);
+  detailWrap.title = detailWrapOn
+    ? "Word wrap on \u2014 click to scroll long lines instead"
+    : "Word wrap off \u2014 click to wrap long lines";
 }
 
 function renderTagChips(allClips: ClipItem[]) {
@@ -1708,6 +1736,17 @@ async function openDetail(id: string) {
     detailRefetch.hidden = true;
   }
   renderContentStats(c);
+  // Word-wrap toggle only applies to the text <pre> body — images
+  // have no wrappable lines, so hide the button for image clips and
+  // always paint them wrapped (a no-op for an <img>). For text/link
+  // clips, show the button and apply the persisted preference.
+  if (c.kind === "image") {
+    detailWrap.hidden = true;
+    detailBody.classList.remove("nowrap");
+  } else {
+    detailWrap.hidden = false;
+    applyDetailWrap();
+  }
   detailUrl.href = c.source.url || "#";
   detailUrl.textContent = c.source.url || "—";
   detailTime.textContent = new Date(c.createdAt).toLocaleString();
@@ -5971,6 +6010,22 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
+      // Word-wrap toggle for the detail body — available only while a
+      // text/link clip is open (the affordance is meaningless on the
+      // list or an image). Proxies the same handler as the header
+      // button so palette + click share persistence.
+      id: "toggle-detail-wrap",
+      label: detailWrapOn ? "Detail: stop wrapping long lines" : "Detail: wrap long lines",
+      hint: "Toggle word wrap in the open clip's body (tabular / log / wide code)",
+      group: "Detail",
+      keywords: "wrap nowrap word wrap lines scroll horizontal tabular log code columns",
+      available: !detailEl.hidden && !detailWrap.hidden,
+      run: () => {
+        closePalette();
+        detailWrap.click();
+      },
+    },
+    {
       id: "scrub-open-clip",
       label: "Scrub origin from open clip",
       hint: "Drop URL/title/context, keep content",
@@ -8154,6 +8209,20 @@ async function startRevealOnce(): Promise<void> {
 
 detailReveal.addEventListener("click", () => void startRevealOnce());
 
+// Word-wrap toggle: flip the body between reflow (wrap) and
+// horizontal-scroll (nowrap). Persists the choice so it sticks across
+// clips + popup re-opens. Applies immediately to the open clip.
+detailWrap.addEventListener("click", async () => {
+  detailWrapOn = !detailWrapOn;
+  applyDetailWrap();
+  try {
+    await setDetailWrap(detailWrapOn);
+  } catch (err) {
+    console.debug("[context-clipboard] persist detail-wrap failed", err);
+  }
+  toast(detailWrapOn ? "Word wrap on" : "Word wrap off");
+});
+
 detailCopy.addEventListener("click", async () => {
   if (!detailId) return;
   const c = await getClip(detailId);
@@ -10010,6 +10079,9 @@ bulkExport.addEventListener("click", async () => {
   sortModeEl.value = listSort;
   sortModeEl.classList.toggle("changed", listSort !== "recent");
   sortModeEl.title = `Sort: ${sortLabel(listSort)}`;
+  // Restore the persisted word-wrap preference so the first detail
+  // open inherits it without a flash. Default true (wrap on).
+  detailWrapOn = await getDetailWrap();
   await refreshSavedSearches();
   await refreshSearchHistory();
   // Mirror the last-applied saved search id from meta so the Cmd+K

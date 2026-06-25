@@ -191,6 +191,13 @@ export const icons = {
     svg(
       `<path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 1 0-5-5l-1.5 1.5"/><path d="M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 1 0 5 5l1.5-1.5"/>`,
     ),
+  // Text-wrap glyph: a top full-width line, a middle line that curls
+  // back with a return arrow (the universal "word wrap" affordance),
+  // and a short bottom line.
+  textWrap: () =>
+    svg(
+      `<path d="M4 6h16"/><path d="M4 12h14a3 3 0 0 1 0 6h-4"/><path d="m11 15-3 3 3 3"/><path d="M4 18h3"/>`,
+    ),
 };
 
 export function clipKindIcon(kind: "text" | "image" | "link"): string {

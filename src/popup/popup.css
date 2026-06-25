@@ -3981,6 +3981,13 @@ body.compact-rows #list {
   color: var(--accent);
 }
 
+/* Word-wrap toggle — accent color when wrapping is OFF (the
+   non-default state), mirroring how archive/lock light up when their
+   non-default mode is engaged. */
+#detail-wrap.active {
+  color: var(--accent);
+}
+
 /* Per-clip "ask before deleting" lock — inline padlock chip in the
  * preview row + active state on the detail-view toolbar toggle. The
  * row chip is subtle (no fill, no pill background) because locking is
