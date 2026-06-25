@@ -475,22 +475,29 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [x] Bulk "Copy selected as Markdown" — companion to plain Copy, wraps each in its source-cited blockquote — `5a5ef7a`
 - [ ] Detail word-wrap: per-clip override (a wide-table clip remembers nowrap even when the global default is wrap)
 - [ ] Detail: "Copy line N" affordance for multi-line clips — click a line number gutter to copy just that line
-- [ ] List: hover-to-peek full preview tooltip for clips whose preview is truncated at 140 chars
+- [x] List: hover-to-peek full preview tooltip for clips whose preview is truncated at 140 chars — `25d7fa7`
 - [ ] Detail body: syntax-aware soft highlighting for detected code clips (lang already detected via detectCodeLang; just tint keywords/strings, no heavy lib)
 - [ ] Settings: a "density" radio (comfortable / compact) replacing the lone compact-rows checkbox — room for a future "cozy" tier
 - [x] Footer: live keyboard-focus breadcrumb ("row 3 of 28") so keyboard-nav users always know their position — `c35cd17`
-- [ ] Detail prev/next: wrap-around option (last → first) with a subtle "looped" toast instead of a dead-end
+- [x] Detail prev/next: wrap-around option (last → first) with a subtle "looped" toast instead of a dead-end — `4724a03`
 - [ ] List: sticky day-group headers ("Today", "Yesterday", "Mon Jun 22") when sorted by recent — currently a flat list
 - [x] Quick-chips: horizontal scroll-shadow affordance when the chip row overflows the popup width — `246019c`
 - [ ] Detail tags: chip-style tag editor (click an × on each tag instead of comma-editing a raw input)
-- [ ] Bulk bar: a count-aware "Copy selected" label on hover that previews the joined char total
+- [x] Bulk bar: a count-aware "Copy selected" label on hover that previews the joined char total — `c9812b7`
 
 ### Open follow-ups from this tick (2026-06-25 03:51 PT)
-- [ ] Content-stats copy: also offer a "Copy as Markdown stat line" variant (`**1,240** chars · **198** words`) for doc paste
+- [x] Content-stats copy: also offer a "Copy as Markdown stat line" variant (`**1,240** chars · **198** words`) for doc paste — `8e65ea8`
 - [ ] Bulk Copy-as-Markdown: a settings toggle for the clip separator (`---` rule vs bare blank line) — some doc targets dislike horizontal rules
 - [ ] Shift+↑/↓ range-extend: support reverse-SHRINK (Gmail-style) as an opt-in, vs the current extend-only additive model
-- [ ] Focus breadcrumb: also surface "N selected" inline when a selection is active (so keyboard users see both position AND selection size)
+- [x] Focus breadcrumb: also surface "N selected" inline when a selection is active (so keyboard users see both position AND selection size) — `78f3995`
 - [ ] Quick-chips scroll-shadow: clicking a faded edge (or a chevron affordance) scrolls the strip one page in that direction
+
+### Open follow-ups from this tick (2026-06-25 08:41 PT)
+- [ ] List hover-peek: also surface the source URL / title in the peek tail for link clips (currently body-only) so disambiguating two same-host links is one hover
+- [ ] Detail-stats Alt-click: mirror the Markdown variant into the Cmd+K palette as an explicit "Copy stats as Markdown" command (keyboard parity with the Alt-click affordance)
+- [ ] Bulk Copy char-total: surface the same char total in the post-copy toast ("Copied 3 clips · 1,240 chars") so the receipt matches the pre-commit preview
+- [ ] Detail wrap-around: a settings toggle to opt OUT of wrap (restore the dead-end) for users who rely on the disabled-button edge cue
+- [ ] Focus breadcrumb selection tail: when selection extends beyond the visible filter window, distinguish "N selected (M visible)" so the keyboard user knows the off-screen overflow
 
 
 
@@ -648,6 +655,22 @@ dominated the last several ticks. These are orthogonal UX gaps.
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-25 08:41 PT** — 5/5 shipped. Theme: frontend UX papercuts,
+  all five orthogonal. (1) `25d7fa7` list hover-peek tooltip for previews
+  truncated at 140 chars (new lib/list-peek, flatten+cap+ellipsis,
+  null-when-fits). (2) `8e65ea8` detail-stats Alt-click copies a Markdown
+  stat line (`**1,240** chars · **198** words`; content-stats gains
+  formatContentStatsMarkdown with strip-** == plain invariant). (3)
+  `c9812b7` bulk Copy-selected hover previews the joined char total
+  (planBulkCopy gains chars = code-point length of exactly what hits the
+  clipboard). (4) `78f3995` footer focus breadcrumb appends "· N selected"
+  during keyboard nav (focus-position gains selectedCount tail). (5)
+  `4724a03` detail prev/next wraps last↔first with a "looped" toast (new
+  lib/detail-nav.nextDetailIndex, matches similar-nav cycle). Gate: tsc
+  clean, chrome+firefox built (popup 412.3kb). Sanity 196/196 across 5
+  suites (list-peek 21, content-stats 68, bulk-clipboard 50,
+  focus-position 26, detail-nav 31).
 
 - **2026-06-25 03:51 PT** — 5/5 shipped. Theme: extended last tick's
   fresh non-hashtag frontend cluster with five orthogonal slices —
