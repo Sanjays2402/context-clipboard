@@ -55,6 +55,15 @@ export interface BulkCopyPlan {
   skippedImages: number;
   /** True when there's text worth writing to the clipboard. */
   hasContent: boolean;
+  /**
+   * Code-point length of the joined `text` (including the "\n\n" seams).
+   * This is exactly what lands on the clipboard, so the button hover can
+   * promise "Copy 3 clips as text (1,240 chars)" and the number matches
+   * what the user pastes. Counted by code point (spread iterator) so an
+   * emoji counts as one character — same "length a human perceives"
+   * contract the detail-view content-stats uses.
+   */
+  chars: number;
 }
 
 const JOIN_SEPARATOR = "\n\n";
@@ -88,6 +97,8 @@ export function planBulkCopy(clips: ReadonlyArray<BulkCopyClip | null | undefine
     copied: bodies.length,
     skippedImages,
     hasContent: bodies.length > 0,
+    // Code-point length of exactly what hits the clipboard.
+    chars: [...text].length,
   };
 }
 
@@ -120,8 +131,10 @@ export function formatBulkCopyToast(plan: BulkCopyPlan): string {
 /**
  * Tooltip / button-title for the bulk Copy button. Reflects what the
  * click will do given the current selection so the user knows before
- * committing. `selectedCount` is the FULL selection size (visible or
- * not); `copyableCount` is how many of the visible ones carry text.
+ * committing — including the joined CHARACTER total, so the hover reads
+ * "Copy 3 clips as text (1,240 chars)". The char count is exactly what
+ * lands on the clipboard (the joined `text`, seams included), so the
+ * preview never overpromises.
  *
  * When the visible slice carries fewer copyable clips than the total
  * selection (selection outlives the filter window), we stay honest
@@ -134,9 +147,20 @@ export function formatBulkCopyButtonTitle(plan: BulkCopyPlan): string {
     }
     return "Copy selected clips as text";
   }
-  const base = `Copy ${plan.copied} clip${plan.copied === 1 ? "" : "s"} as text`;
+  const base = `Copy ${plan.copied} clip${plan.copied === 1 ? "" : "s"} as text (${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"})`;
   if (plan.skippedImages > 0) {
     return `${base} (${plan.skippedImages} image${plan.skippedImages === 1 ? "" : "s"} skipped)`;
   }
   return base;
+}
+
+/**
+ * Group an integer with commas: 1240 -> "1,240". Deterministic en-US.
+ * Local copy (the bulk module stays dependency-free) — mirrors the
+ * content-stats grouping so the two read identically across the UI.
+ */
+function groupThousandsLocal(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const digits = Math.abs(Math.trunc(n)).toString();
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }

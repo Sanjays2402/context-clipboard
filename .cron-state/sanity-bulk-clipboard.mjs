@@ -27,6 +27,7 @@ function planBulkCopy(clips) {
     copied: bodies.length,
     skippedImages,
     hasContent: bodies.length > 0,
+    chars: [...text].length,
   };
 }
 
@@ -52,11 +53,17 @@ function formatBulkCopyButtonTitle(plan) {
     }
     return "Copy selected clips as text";
   }
-  const base = `Copy ${plan.copied} clip${plan.copied === 1 ? "" : "s"} as text`;
+  const base = `Copy ${plan.copied} clip${plan.copied === 1 ? "" : "s"} as text (${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"})`;
   if (plan.skippedImages > 0) {
     return `${base} (${plan.skippedImages} image${plan.skippedImages === 1 ? "" : "s"} skipped)`;
   }
   return base;
+}
+
+function groupThousandsLocal(n) {
+  if (!Number.isFinite(n)) return "0";
+  const digits = Math.abs(Math.trunc(n)).toString();
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 let pass = 0;
@@ -110,7 +117,7 @@ check("empty not counted as image", planBulkCopy([T(""), T("real")]).skippedImag
 // --- 7. defensive nullish ------------------------------------------------
 check("null entries skipped", planBulkCopy([T("a"), null, T("b"), undefined]).text, "a\n\nb");
 check("non-string content skipped", planBulkCopy([{ kind: "text", content: null }, T("ok")]).text, "ok");
-check("empty array", planBulkCopy([]), { text: "", copied: 0, skippedImages: 0, hasContent: false });
+check("empty array", planBulkCopy([]), { text: "", copied: 0, skippedImages: 0, hasContent: false, chars: 0 });
 
 // --- 8. toast grammar ----------------------------------------------------
 check("toast 1 clip singular", formatBulkCopyToast(planBulkCopy([T("a")])), "Copied 1 clip");
@@ -124,10 +131,22 @@ check("toast nothing one image", formatBulkCopyToast(planBulkCopy([I()])), "Noth
 // --- 9. button title -----------------------------------------------------
 check("title default no content", formatBulkCopyButtonTitle(planBulkCopy([])), "Copy selected clips as text");
 check("title all images", formatBulkCopyButtonTitle(planBulkCopy([I(), I()])), "Copy selected as text (selection is all images \u2014 nothing to copy)");
-check("title 1 clip", formatBulkCopyButtonTitle(planBulkCopy([T("a")])), "Copy 1 clip as text");
-check("title 3 clips", formatBulkCopyButtonTitle(planBulkCopy([T("a"), T("b"), T("c")])), "Copy 3 clips as text");
-check("title with image skip", formatBulkCopyButtonTitle(planBulkCopy([T("a"), I()])), "Copy 1 clip as text (1 image skipped)");
-check("title with images skip plural", formatBulkCopyButtonTitle(planBulkCopy([T("a"), T("b"), I(), I()])), "Copy 2 clips as text (2 images skipped)");
+check("title 1 clip with char total", formatBulkCopyButtonTitle(planBulkCopy([T("a")])), "Copy 1 clip as text (1 char)");
+check("title 3 clips with char total", formatBulkCopyButtonTitle(planBulkCopy([T("a"), T("b"), T("c")])), "Copy 3 clips as text (7 chars)");
+check("title with image skip + char total", formatBulkCopyButtonTitle(planBulkCopy([T("a"), I()])), "Copy 1 clip as text (1 char) (1 image skipped)");
+check("title with images skip plural + char total", formatBulkCopyButtonTitle(planBulkCopy([T("ab"), T("cd"), I(), I()])), "Copy 2 clips as text (6 chars) (2 images skipped)");
+
+// --- 9b. char total accounting ------------------------------------------
+// chars is the code-point length of the joined text, seams included.
+check("chars single clip", planBulkCopy([T("hello")]).chars, 5);
+check("chars two clips count both bodies + 2-char seam", planBulkCopy([T("ab"), T("cd")]).chars, 6); // "ab\n\ncd" = 6
+check("chars all images zero", planBulkCopy([I(), I()]).chars, 0);
+check("chars empty bodies zero", planBulkCopy([T(""), T("  ")]).chars, 0);
+check("chars matches joined text length", planBulkCopy([T("alpha"), T("beta")]).chars, [...("alpha\n\nbeta")].length);
+// Emoji counts as one code point, not two UTF-16 units.
+check("chars counts emoji as one", planBulkCopy([T("\u{1F370}")]).chars, 1);
+// Thousands grouping shows up in the title for big joins.
+check("title groups thousands", formatBulkCopyButtonTitle(planBulkCopy([T("x".repeat(2500))])), "Copy 1 clip as text (2,500 chars)");
 
 // --- 10. realistic end-to-end -------------------------------------------
 const selection = [
