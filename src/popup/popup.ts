@@ -112,6 +112,7 @@ import {
 } from "../lib/similar-nav";
 import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast } from "../lib/content-stats";
 import { formatFocusPosition } from "../lib/focus-position";
+import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import {
   planBulkCopy,
@@ -1035,6 +1036,35 @@ function renderQuickChips(allClips: ClipItem[]) {
         `<button class="quick-chip ${p.active ? "active" : ""}" data-op="${escapeHtml(p.op)}" title="${escapeHtml(p.ariaLabel || `Toggle ${p.op}`)}"><span>${escapeHtml(p.label)}</span>${p.count != null ? `<em>${p.count}</em>` : ""}</button>`,
     )
     .join("");
+  // Layout metrics (scrollWidth/clientWidth) aren't valid until the new
+  // chips have been laid out — defer the shadow measure one frame so the
+  // edge-fade reflects the freshly-painted row, not the previous one.
+  requestAnimationFrame(refreshQuickChipsScrollShadow);
+}
+
+/**
+ * Toggle the leading/trailing edge-fade affordance on the quick-chips
+ * strip based on its live scroll position. The strip hides its
+ * scrollbar for a clean look, which also removes the only native cue
+ * that chips are clipped off an edge — the fades restore that "there's
+ * more this way" signal. Pure edge math lives in lib/scroll-shadow;
+ * here we just read the element's metrics and flip two data attributes
+ * the CSS keys off. Safe to call any time (hidden / empty strip → no
+ * fades).
+ */
+function refreshQuickChipsScrollShadow(): void {
+  if (quickChipsEl.hidden) {
+    quickChipsEl.removeAttribute("data-shadow-start");
+    quickChipsEl.removeAttribute("data-shadow-end");
+    return;
+  }
+  const edges = computeScrollEdges({
+    scrollLeft: quickChipsEl.scrollLeft,
+    scrollWidth: quickChipsEl.scrollWidth,
+    clientWidth: quickChipsEl.clientWidth,
+  });
+  quickChipsEl.toggleAttribute("data-shadow-start", edges.start);
+  quickChipsEl.toggleAttribute("data-shadow-end", edges.end);
 }
 
 function toggleSearchOp(op: string) {
@@ -4402,6 +4432,16 @@ quickChipsEl.addEventListener("click", (e) => {
   if (!op) return;
   toggleSearchOp(op);
 });
+
+// Keep the scroll-shadow edge fades honest as the user scrolls the chip
+// strip sideways (trackpad / shift-wheel / drag). Passive listener — we
+// only read metrics, never block the scroll.
+quickChipsEl.addEventListener("scroll", refreshQuickChipsScrollShadow, {
+  passive: true,
+});
+// Popup width can change (Firefox panel resize, zoom) — re-measure so a
+// row that newly fits, or newly overflows, updates its fades.
+window.addEventListener("resize", refreshQuickChipsScrollShadow);
 
 // Saved searches --------------------------------------------------------
 savedSearchesEl.addEventListener("click", async (e) => {

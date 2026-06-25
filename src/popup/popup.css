@@ -631,6 +631,59 @@ mark.match-hl {
   margin-top: 10px;
   padding-bottom: 2px;
   scrollbar-width: none;
+  /* Scroll-shadow affordance: the scrollbar is hidden for a clean look,
+     so a soft edge-fade is the only cue that chips are clipped past an
+     edge. We fade via mask-image (background-independent, works over the
+     blurred header) and toggle which edges fade through data attributes
+     set by refreshQuickChipsScrollShadow. Default: no mask (flush). */
+  --qc-fade: 22px;
+  transition: mask-image 0.18s ease;
+}
+
+/* More content to the RIGHT → fade the trailing edge. */
+.quick-chips[data-shadow-end] {
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - var(--qc-fade)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - var(--qc-fade)),
+    transparent 100%
+  );
+}
+
+/* More content to the LEFT → fade the leading edge. */
+.quick-chips[data-shadow-start] {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--qc-fade)
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--qc-fade)
+  );
+}
+
+/* Clipped on BOTH sides → fade both edges. */
+.quick-chips[data-shadow-start][data-shadow-end] {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--qc-fade),
+    #000 calc(100% - var(--qc-fade)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--qc-fade),
+    #000 calc(100% - var(--qc-fade)),
+    transparent 100%
+  );
 }
 
 .quick-chips::-webkit-scrollbar {
