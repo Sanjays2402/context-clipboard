@@ -158,6 +158,32 @@ export interface ClipItem {
    * noted" by definition).
    */
   noteUpdatedAt?: number;
+  /**
+   * Per-clip word-wrap override for the detail body.
+   *
+   * The detail-view body has a global wrap toggle (persisted in the
+   * `detail_wrap` meta row) that defaults to wrap-on. But a single
+   * wide clip — a TSV table, a log line, a column-aligned config —
+   * often wants the OPPOSITE of whatever the user's global default is:
+   * they keep wrap ON for prose generally, but this one wide thing
+   * should scroll horizontally so its columns stay aligned. Forcing
+   * them to flip the global every time they open that clip (and flip
+   * it back after) is the papercut this field kills.
+   *
+   *   - undefined -> follow the global default (the common case).
+   *   - true      -> always wrap THIS clip, regardless of the global.
+   *   - false     -> always nowrap THIS clip, regardless of the global.
+   *
+   * Set by a plain click on the detail wrap button (which now stores a
+   * per-clip override); cleared back to undefined by Alt-clicking the
+   * button (the clip goes back to following the global default). The
+   * effective wrap is resolved by `lib/wrap-pref.effectiveWrap`.
+   *
+   * Additive optional field — undefined for every clip that has never
+   * been explicitly wrapped/unwrapped in detail. Round-trips through
+   * import/export untouched (harmless UI hint; never affects content).
+   */
+  wrapOverride?: boolean;
 }
 
 export interface SearchQuery {

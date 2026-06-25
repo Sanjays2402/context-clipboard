@@ -479,6 +479,39 @@ export async function updateTags(id: string, tags: string[]): Promise<void> {
 }
 
 /**
+ * Set / clear the per-clip detail-body word-wrap override.
+ *
+ *   - `true`  -> always wrap THIS clip in detail, regardless of global.
+ *   - `false` -> always nowrap THIS clip, regardless of global.
+ *   - `undefined` -> clear the override; the clip follows the global
+ *     default again (the field is deleted so it doesn't linger in the
+ *     stored shape / export bundle).
+ *
+ * No-op fast path when the post-coercion value already matches the
+ * stored one (including both-undefined) so opening a clip and toggling
+ * back to its existing state doesn't churn IDB. Returns the resolved
+ * override (or undefined) on success, or `null` when the clip is gone.
+ */
+export async function setWrapOverride(
+  id: string,
+  wrap: boolean | undefined,
+): Promise<boolean | undefined | null> {
+  const item = await getClip(id);
+  if (!item) return null;
+  const want = typeof wrap === "boolean" ? wrap : undefined;
+  const current =
+    typeof item.wrapOverride === "boolean" ? item.wrapOverride : undefined;
+  if (current === want) return current; // no-op fast path
+  if (want === undefined) {
+    delete item.wrapOverride;
+  } else {
+    item.wrapOverride = want;
+  }
+  await putClip(item);
+  return want;
+}
+
+/**
  * Set / clear the free-form per-clip note. The note is sanitised at
  * the caller via `lib/clip-note.sanitizeClipNote(raw)`, which returns
  * `undefined` for empty/whitespace input — passing that through here

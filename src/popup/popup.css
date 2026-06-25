@@ -4110,6 +4110,25 @@ body.compact-rows #list {
   color: var(--accent);
 }
 
+/* Per-clip override telegraph — a small accent dot on the wrap button
+   when THIS clip is pinned to its own wrap preference (not following
+   the global default). Same dot language the send-to last-action cue
+   uses; Alt-click clears the override and the dot disappears. */
+#detail-wrap.overridden {
+  position: relative;
+}
+#detail-wrap.overridden::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--bg);
+}
+
 /* Per-clip "ask before deleting" lock — inline padlock chip in the
  * preview row + active state on the detail-view toolbar toggle. The
  * row chip is subtle (no fill, no pill background) because locking is

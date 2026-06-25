@@ -27,6 +27,7 @@ import {
   setListSort,
   getDetailWrap,
   setDetailWrap,
+  setWrapOverride,
   mergeDuplicatesByHash,
   findDuplicateGroups,
   mergeDuplicateGroup,
@@ -116,6 +117,7 @@ import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip } from "../lib/list-peek";
 import { computeDayHeaders } from "../lib/day-group";
+import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
 import { nextDetailIndex, formatWrapToast } from "../lib/detail-nav";
 import {
   planBulkCopy,
@@ -637,6 +639,12 @@ let listSort: SortMode = "recent";
 // init, persisted on every toggle, applied to .detail-body via the
 // .nowrap modifier class.
 let detailWrapOn = true;
+// The open clip's per-clip wrap override (undefined = follow the
+// global default above). Refreshed on every openDetail from the clip's
+// `wrapOverride` field; mutated by the wrap-button click handler. The
+// effective wrap painted on the body is resolved from BOTH this and
+// the global default via lib/wrap-pref.effectiveWrap.
+let detailWrapClipOverride: boolean | undefined = undefined;
 // Debounce timer for recording the search box into history. We wait ~900ms
 // after the last keystroke before persisting so we don't write a row
 // per character.
@@ -908,11 +916,20 @@ function renderFocusPosition(): void {
  * persisted preference without a flash.
  */
 function applyDetailWrap(): void {
-  detailBody.classList.toggle("nowrap", !detailWrapOn);
-  detailWrap.classList.toggle("active", !detailWrapOn);
-  detailWrap.title = detailWrapOn
-    ? "Word wrap on \u2014 click to scroll long lines instead"
-    : "Word wrap off \u2014 click to wrap long lines";
+  // Resolve the effective wrap from the per-clip override (if any) layered
+  // over the global default. A clip with an explicit override ignores the
+  // global; everything else follows it. The button's .active (nowrap) state
+  // + .overridden badge + tooltip all reflect the resolved view so the
+  // affordance never lies about what's painted.
+  const wrapOn = effectiveWrap({ wrapOverride: detailWrapClipOverride }, detailWrapOn);
+  const overridden = hasWrapOverride({ wrapOverride: detailWrapClipOverride });
+  detailBody.classList.toggle("nowrap", !wrapOn);
+  detailWrap.classList.toggle("active", !wrapOn);
+  // A dot cue on the button telegraphs "this clip is pinned to its own
+  // wrap, not the global" — the same language the send-to last-action dot
+  // uses elsewhere in the popup.
+  detailWrap.classList.toggle("overridden", overridden);
+  detailWrap.title = wrapButtonTitle(wrapOn, overridden);
 }
 
 function renderTagChips(allClips: ClipItem[]) {
@@ -1825,6 +1842,12 @@ async function openDetail(id: string) {
     similarNav = resynced; // null when id not in stack -> exits mode
   }
   detailId = c.id;
+  // Refresh the per-clip wrap override from the freshly-loaded clip so
+  // applyDetailWrap() below resolves THIS clip's effective wrap (override
+  // wins, else global default). A clip with no override falls through to
+  // the global as before.
+  detailWrapClipOverride =
+    typeof c.wrapOverride === "boolean" ? c.wrapOverride : undefined;
   if (c.kind === "image") {
     detailBody.innerHTML = `<img src="${c.content}" alt="" />`;
     detailOcr.hidden = false;
@@ -6145,19 +6168,31 @@ function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
-      // Word-wrap toggle for the detail body — available only while a
-      // text/link clip is open (the affordance is meaningless on the
-      // list or an image). Proxies the same handler as the header
-      // button so palette + click share persistence.
+      // Global default word-wrap for the detail body. The header
+      // wrap button now sets a STICKY PER-CLIP override (plain click)
+      // / clears it (Alt-click); this palette command is where the
+      // GLOBAL default lives, so users who want "wrap off everywhere
+      // by default" still have a one-action path. Available while a
+      // text/link clip is open (so the change is visible immediately)
+      // and re-applies the effective wrap to the open clip.
       id: "toggle-detail-wrap",
-      label: detailWrapOn ? "Detail: stop wrapping long lines" : "Detail: wrap long lines",
-      hint: "Toggle word wrap in the open clip's body (tabular / log / wide code)",
+      label: detailWrapOn
+        ? "Detail: default to scrolling long lines"
+        : "Detail: default to wrapping long lines",
+      hint: "Flip the GLOBAL detail word-wrap default (per-clip overrides still win)",
       group: "Detail",
-      keywords: "wrap nowrap word wrap lines scroll horizontal tabular log code columns",
+      keywords: "wrap nowrap word wrap lines scroll horizontal tabular log code columns default global",
       available: !detailEl.hidden && !detailWrap.hidden,
-      run: () => {
+      run: async () => {
         closePalette();
-        detailWrap.click();
+        detailWrapOn = !detailWrapOn;
+        applyDetailWrap();
+        try {
+          await setDetailWrap(detailWrapOn);
+        } catch (err) {
+          console.debug("[context-clipboard] persist detail-wrap default failed", err);
+        }
+        toast(detailWrapOn ? "Default: wrap on" : "Default: wrap off");
       },
     },
     {
@@ -8374,18 +8409,54 @@ async function startRevealOnce(): Promise<void> {
 
 detailReveal.addEventListener("click", () => void startRevealOnce());
 
-// Word-wrap toggle: flip the body between reflow (wrap) and
-// horizontal-scroll (nowrap). Persists the choice so it sticks across
-// clips + popup re-opens. Applies immediately to the open clip.
-detailWrap.addEventListener("click", async () => {
-  detailWrapOn = !detailWrapOn;
+// Word-wrap toggle for the detail body.
+//
+// PLAIN CLICK sets a STICKY PER-CLIP override: the open clip is pinned
+// to the opposite of whatever it's currently showing, regardless of
+// the global default — so a wide TSV/log clip stays nowrap even when
+// the user's global preference is wrap-on (and vice versa). The choice
+// rides on the clip (db.setWrapOverride) and survives re-opens.
+//
+// ALT/OPTION-CLICK clears the override: the clip drops back to
+// following the global default. (The global default itself is flipped
+// from the Cmd+K "Detail: set default wrapping" command, which keeps
+// that capability without burdening the common per-clip case.)
+detailWrap.addEventListener("click", async (e) => {
+  if (!detailId) return;
+  const alt = (e as MouseEvent).altKey === true;
+  if (alt) {
+    // Clear the per-clip override — follow the global again.
+    if (!hasWrapOverride({ wrapOverride: detailWrapClipOverride })) {
+      // Nothing to clear; the clip already follows the global. Echo the
+      // state so the gesture isn't a silent no-op.
+      toast(detailWrapOn ? "Following global \u2014 wrap on" : "Following global \u2014 wrap off");
+      return;
+    }
+    detailWrapClipOverride = undefined;
+    applyDetailWrap();
+    try {
+      await setWrapOverride(detailId, undefined);
+    } catch (err) {
+      console.debug("[context-clipboard] clear wrap override failed", err);
+    }
+    toast(detailWrapOn ? "Now following global \u2014 wrap on" : "Now following global \u2014 wrap off");
+    return;
+  }
+  // Plain click — flip to a sticky per-clip override that's the
+  // opposite of the currently-resolved wrap state.
+  const currentlyWrapped = effectiveWrap(
+    { wrapOverride: detailWrapClipOverride },
+    detailWrapOn,
+  );
+  const next = !currentlyWrapped;
+  detailWrapClipOverride = next;
   applyDetailWrap();
   try {
-    await setDetailWrap(detailWrapOn);
+    await setWrapOverride(detailId, next);
   } catch (err) {
-    console.debug("[context-clipboard] persist detail-wrap failed", err);
+    console.debug("[context-clipboard] persist wrap override failed", err);
   }
-  toast(detailWrapOn ? "Word wrap on" : "Word wrap off");
+  toast(next ? "Wrap on for this clip" : "Wrap off for this clip");
 });
 
 // Content-stats breadcrumb: click to copy the summary line itself
