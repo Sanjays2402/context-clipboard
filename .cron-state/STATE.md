@@ -546,28 +546,28 @@ Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2
 
 
 ### Open follow-ups from this tick (2026-06-26 04:52 PT)
-- [ ] Lightbox: scroll-wheel / pinch zoom + pan beyond fit-to-viewport (inspect a corner of a huge screenshot); current nav is fit-only
+- [ ] Lightbox: scroll-wheel / pinch zoom + pan beyond fit-to-viewport (inspect a corner of a huge screenshot); current nav is fit-only — PARTIAL: `861c954` added +/-/0 stepped zoom (with overflow pan once enlarged); true wheel/pinch continuous zoom still open
 - [ ] Lightbox: the "image N of M" position could become a clickable dot-strip (jump straight to image K) for runs of many screenshots
-- [ ] Day-run select: a modifier (Shift+click the divider) could ADD the run to the existing selection instead of toggle-replacing, for cross-day multi-select
-- [ ] Day-run select: surface the run-select affordance in the keyboard cheatsheet (`?`) so keyboard users discover Enter-on-divider
+- [x] Day-run select: a modifier (Shift+click the divider) could ADD the run to the existing selection instead of toggle-replacing, for cross-day multi-select — `f0e4674`
+- [ ] Day-run select: surface the run-select affordance in the keyboard cheatsheet (`?`) so keyboard users discover Enter-on-divider (now also: Shift+click = add)
 - [ ] Tag-chip keyboard reorder: a brief highlight pulse on the moved chip so the eye tracks where it landed (currently focus-only)
-- [ ] Bulk Copy-as-Markdown: also honor langOverride in the per-clip fence (bulk re-runs detectCodeLang — wire exportFenceLang for single-clip parity)
-- [ ] Search: `is:langoverride:off` / `is:langoverride:<lang>` direction variants (mirror the wrap:on/off split that just shipped — forced-off vs forced-to-a-specific-language)
+- [x] Bulk Copy-as-Markdown: also honor langOverride in the per-clip fence (bulk re-runs detectCodeLang — wire exportFenceLang for single-clip parity) — `1cbbde0`
+- [x] Search: `is:langoverride:off` / `is:langoverride:<lang>` direction variants (mirror the wrap:on/off split that just shipped — forced-off vs forced-to-a-specific-language) — `5cf3385`
 
 ### New (added this tick — 2026-06-26 04:52 PT refill, FRESH frontend)
 Deliberately orthogonal to the wrap/lang-override + note clusters of
 recent ticks. Image-viewer, list-selection, settings, and detail UX gaps.
-- [ ] Lightbox: keyboard `+` / `-` zoom steps with a reset-to-fit on `0` (pairs with the new prev/next nav for a full viewer)
+- [x] Lightbox: keyboard `+` / `-` zoom steps with a reset-to-fit on `0` (pairs with the new prev/next nav for a full viewer) — `861c954`
 - [ ] Detail image: a "download / save image" affordance from the lightbox (Blob -> a[download], local data URL, no network)
 - [ ] List: a "jump to day" mini-strip — clicking a day label in a compact header rail scrolls that day's run into view (companion to day-run select)
 - [ ] Bulk-bar: "Copy selected as plain text + Markdown" disambiguation — a single split-button with a caret to pick the format, decluttering two adjacent copy buttons
 - [ ] Settings: a live PREVIEW swatch next to the bulk-md separator select (render two stub clips with the chosen seam) so the choice is concrete
-- [ ] Detail: per-clip "open in lightbox" should also work for the list-row image thumb (click the thumb in the row -> straight to lightbox, skipping detail)
+- [x] Detail: per-clip "open in lightbox" should also work for the list-row image thumb (click the thumb in the row -> straight to lightbox, skipping detail) — `af97a90`
 - [ ] Quick-chips: a "Today" chip that applies the same day-run filter the divider selects (filter, not select) for users who want to NARROW not select
 - [ ] Detail tag chips: drag-to-reorder should auto-scroll the chip row when dragging past its right edge (long tag lists overflow + clip)
 - [ ] Search: `is:imageonly` shorthand chip that pairs with the lightbox nav (filter to images, then the lightbox steps just those)
 - [ ] List day-headers: a settings toggle to disable the dividers entirely for users who prefer the pure flat stream (recurring — worth doing)
-- [ ] Lightbox: respect prefers-reduced-motion for the fade-in + nav transitions (a11y)
+- [x] Lightbox: respect prefers-reduced-motion for the fade-in + nav transitions (a11y) — `861c954` (folded into the zoom slice)
 - [ ] Detail: a "copy image to clipboard" button (navigator.clipboard.write with the image Blob) distinct from copy-as-Markdown
 - [ ] Bulk Copy: surface the joined char total in the post-copy toast ("Copied 3 clips · 1,240 chars") so the receipt matches the pre-commit hover
 - [ ] Settings: group the copy/export prefs (bulk-md separator, future image-copy format) under a "Copy & export" subheading so the panel stays scannable
@@ -576,6 +576,11 @@ recent ticks. Image-viewer, list-selection, settings, and detail UX gaps.
 
 
 ### Shipped (autoship)
+- [x] Lightbox: +/-/0 zoom stepper (clamped [fit,5x], 0.5 steps, round-% readout) with reduced-motion a11y — `861c954`
+- [x] List: click an image-row thumb to open the lightbox directly (selection always wins) — `af97a90`
+- [x] Search: `is:langoverride:off` / `is:langoverride:<lang>` direction variants + forced-off Cmd+K command — `5cf3385`
+- [x] Bulk Copy-as-Markdown: honor per-clip force-language override (byte-identical fence to single-clip) — `1cbbde0`
+- [x] List: Shift+click a day divider ADDS the run (cross-day multi-select, "Added N" toast) — `f0e4674`
 - [x] Compact-row list mode — fit 30+ clips per popup screen — `76b3301`
 - [x] Find duplicates review panel — list groups, merge selectively — `b3a7e22`
 - [x] Clip archive mode — `is:archived` + detail toggle + quick chip — `12ad8cc`
@@ -741,6 +746,41 @@ recent ticks. Image-viewer, list-selection, settings, and detail UX gaps.
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-26 09:54 PT** — 5/5 shipped (frontend UX, fresh surfaces).
+  Five DISTINCT surfaces (image-viewer / list-selection / search grammar
+  / bulk-export / list-selection), each closing an open follow-up from
+  the last tick. (1) `861c954` lightbox +/-/0 zoom stepper — new pure
+  lib/lightbox-zoom (clamped [fit, 5x] additive 0.5 steps so the readout
+  lands on round percents; clampZoom/stepZoom-with-boundary-saturation/
+  canZoomIn/Out/formatZoomPercent/zoomTransform); bottom-centre control
+  cluster (out / %-readout-as-reset / in), + = / - _ / 0 keys, scale-from-
+  centre with overflow pan once enlarged, each image opens/steps fitted;
+  FOLDS IN the open prefers-reduced-motion a11y item (drops the backdrop
+  fade + zoom tween); new `minus` icon; 42/42. (2) `af97a90` click a
+  list-row image thumb → lightbox directly (skip detail) — new pure
+  lib/thumb-zoom.shouldZoomThumb gates on hit-test + kind + selection
+  intent (selection ALWAYS wins so the thumb isn't a hole in multi-select);
+  zoom-in cursor + accent-ring hover cue, no new tab stops; 11/11. (3)
+  `5cf3385` is:langoverride:off / is:langoverride:<lang> direction
+  variants — new lang-override.langOverrideMatches + isLangOverrideDir
+  (normalises off/none to the forced-off sentinel, validates a lang id;
+  a bad dir matches NOTHING + the parser rejects it to free-text); apply
+  gate replaces presence when dir set; describeQuery "lang-off"/"lang:rust";
+  new "tinting forced off" Cmd+K command w/ live count; 25/25 (is-lang
+  12/12 + lang-override 25/25 regress clean). (4) `1cbbde0` bulk
+  Copy-as-Markdown honors langOverride — BulkMarkdownClip.langOverride +
+  bulkMarkdownAsFence (mirrors the popup's markdownAsFence) + exportFenceLang
+  so a pinned-"rust" clip's batch fence is byte-identical to its single
+  paste; flows through with no call-site change (popup passes full clips);
+  9/9 (separator 12/12 regress clean). (5) `f0e4674` Shift+click a day
+  divider ADDS the run (cross-day multi-select) — new day-run.
+  dayRunModifierAction (Shift = always select, never deselect) +
+  dayRunAddedCount (net-new for an honest "Added N" toast); plain-click
+  byte-identical; 26/26 (10 new). Gate: tsc --noEmit clean; chrome +
+  firefox builds green (popup 461.4KB, background 48.0KB, content 31.2KB);
+  full sanity suite 116/116. Pushed 6163862..f0e4674.
+
 
 - **2026-06-26 04:52 PT** — 5/5 shipped (frontend UX, fresh surfaces).
   Spread across five DISTINCT surfaces (image-viewer / list-selection /
