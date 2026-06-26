@@ -2458,6 +2458,57 @@ kbd {
   right: 12px;
 }
 
+/* Zoom control cluster — bottom-centre of the backdrop, above the
+   figure (z 51). Out / readout / in, with the readout doubling as the
+   reset-to-fit button. Sits clear of the prev/next chevrons (vertically
+   centred on the sides) so neither overlaps. */
+.lightbox-zoom {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 51;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--glass-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+.lightbox-zoom-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.lightbox-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lightbox-zoom-level {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  min-width: 42px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: calc(var(--radius) - 2px);
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.lightbox-zoom-level:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover, var(--glass));
+}
+
 .lightbox-figure {
   margin: 0;
   display: flex;
@@ -2479,6 +2530,17 @@ kbd {
      opened it to SEE the image, so the anti-shoulder-surf treatment that
      dims thumbnails in the list/detail doesn't apply here. */
   filter: none !important;
+  /* Zoom scales from the centre with a short ease so stepping +/- reads
+     as a smooth enlarge rather than a jump. transform-origin centre keeps
+     the focal point of a fitted image steady as it grows. */
+  transform-origin: center center;
+  transition: transform 0.14s ease-out;
+}
+
+/* When enlarged past fit the image can exceed the figure box; the
+   backdrop's overflow:auto then gives scroll/pan to inspect a corner. */
+.lightbox-img.zoomed {
+  cursor: zoom-out;
 }
 
 .lightbox-caption {
@@ -2487,6 +2549,20 @@ kbd {
   letter-spacing: 0.02em;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+/* Accessibility: honour the user's reduced-motion preference. The
+   lightbox backdrop fade-in and the zoom scale transition are pure
+   decoration — drop them so the overlay opens and the image enlarges
+   instantly for users who get motion sickness / vestibular discomfort
+   from animated UI. The image still scales; it just doesn't tween. */
+@media (prefers-reduced-motion: reduce) {
+  .lightbox {
+    animation: none;
+  }
+  .lightbox-img {
+    transition: none;
+  }
 }
 
 .toast .toast-text {

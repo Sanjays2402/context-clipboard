@@ -138,6 +138,15 @@ import {
   formatLightboxWrapToast,
 } from "../lib/lightbox-nav";
 import {
+  stepZoom,
+  resetZoom,
+  isZoomed,
+  canZoomIn,
+  canZoomOut,
+  formatZoomPercent,
+  zoomTransform,
+} from "../lib/lightbox-zoom";
+import {
   effectiveLang,
   selectValueFor,
   normalizeLangChoice,
@@ -503,6 +512,9 @@ const lightboxCaptionEl = $("lightbox-caption");
 const lightboxClose = $<HTMLButtonElement>("lightbox-close");
 const lightboxPrev = $<HTMLButtonElement>("lightbox-prev");
 const lightboxNext = $<HTMLButtonElement>("lightbox-next");
+const lightboxZoomOut = $<HTMLButtonElement>("lightbox-zoom-out");
+const lightboxZoomReset = $<HTMLButtonElement>("lightbox-zoom-reset");
+const lightboxZoomIn = $<HTMLButtonElement>("lightbox-zoom-in");
 const paletteEl = $("palette");
 const paletteInput = $<HTMLInputElement>("palette-input");
 const paletteListEl = $("palette-list");
@@ -6389,6 +6401,12 @@ cheatsheetEl
 // when the lightbox is closed.
 let lightboxId = "";
 
+// Current zoom level in the lightbox (1 = fit-to-viewport, the floor).
+// `+` / `-` (and the on-screen controls) step it; `0` resets to fit.
+// Reset whenever the lightbox opens, closes, or steps to another image
+// so each image starts fitted. Math lives in lib/lightbox-zoom (pure).
+let lightboxZoom = resetZoom();
+
 /** Open (or re-target) the lightbox to a specific image clip by id. */
 async function openLightboxClip(id: string): Promise<void> {
   const c = await getClip(id);
@@ -6396,6 +6414,10 @@ async function openLightboxClip(id: string): Promise<void> {
   lightboxId = c.id;
   lightboxImg.src = c.content;
   lightboxCaptionEl.textContent = composeLightboxCaption(c);
+  // Each freshly-opened image starts at fit — a carried-over 300% from
+  // the previous image would land the user mid-zoom on an unrelated shot.
+  lightboxZoom = resetZoom();
+  applyLightboxZoom();
   lightboxEl.hidden = false;
   syncLightboxNav();
 }
@@ -6427,6 +6449,48 @@ function closeLightbox(): void {
   lightboxCaptionEl.textContent = "";
   lightboxPrev.hidden = true;
   lightboxNext.hidden = true;
+  // Snap back to fit so the next open starts clean (and clear the
+  // transform off the <img> so a stale scale() can't linger).
+  lightboxZoom = resetZoom();
+  lightboxImg.style.transform = "";
+  lightboxImg.classList.remove("zoomed");
+}
+
+/**
+ * Paint the current zoom level onto the <img> (scale transform), the
+ * percentage readout, and the +/- control enabled-states. Centralised
+ * so the keyboard path, the on-screen buttons, and a fresh open all
+ * route through one place and can never disagree about the rendered
+ * scale. At fit (1.0) the transform is cleared entirely (not `scale(1)`)
+ * so the un-zoomed image is byte-identical to the pre-zoom behaviour and
+ * the overflow:auto pan affordance only kicks in once enlarged.
+ */
+function applyLightboxZoom(): void {
+  const zoomed = isZoomed(lightboxZoom);
+  lightboxImg.style.transform = zoomed ? zoomTransform(lightboxZoom) : "";
+  lightboxImg.classList.toggle("zoomed", zoomed);
+  lightboxZoomReset.textContent = formatZoomPercent(lightboxZoom);
+  // Grey the control that can't step further so the user feels the
+  // floor/ceiling. `disabled` also drops it from the tab order.
+  lightboxZoomOut.disabled = !canZoomOut(lightboxZoom);
+  lightboxZoomIn.disabled = !canZoomIn(lightboxZoom);
+}
+
+/** Step the lightbox zoom in (+1) / out (-1), clamped to [fit, max]. */
+function zoomLightboxBy(direction: -1 | 1): void {
+  if (lightboxEl.hidden) return;
+  const next = stepZoom(lightboxZoom, direction);
+  if (next === lightboxZoom) return; // already at the boundary — no-op
+  lightboxZoom = next;
+  applyLightboxZoom();
+}
+
+/** Snap the lightbox zoom back to fit-to-viewport. */
+function resetLightboxZoom(): void {
+  if (lightboxEl.hidden) return;
+  if (!isZoomed(lightboxZoom)) return;
+  lightboxZoom = resetZoom();
+  applyLightboxZoom();
 }
 
 /**
@@ -6479,6 +6543,20 @@ lightboxPrev.addEventListener("click", (e) => {
 lightboxNext.addEventListener("click", (e) => {
   e.stopPropagation();
   void stepLightboxBy(1);
+});
+// Zoom controls — stop propagation so a click on them steps the zoom
+// rather than bubbling to the backdrop (which would close the lightbox).
+lightboxZoomOut.addEventListener("click", (e) => {
+  e.stopPropagation();
+  zoomLightboxBy(-1);
+});
+lightboxZoomIn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  zoomLightboxBy(1);
+});
+lightboxZoomReset.addEventListener("click", (e) => {
+  e.stopPropagation();
+  resetLightboxZoom();
 });
 lightboxEl.addEventListener("click", (e) => {
   // Backdrop / figure-gap click closes; clicking the image itself does
@@ -8749,6 +8827,17 @@ document.addEventListener("keydown", async (e) => {
     } else if (e.key === "]" || e.key === "ArrowRight") {
       e.preventDefault();
       await stepLightboxBy(1);
+    } else if (e.key === "+" || e.key === "=") {
+      // `=` is the unshifted twin of `+` on US layouts, so both zoom in
+      // (no need to hold Shift). Mirrors how editors bind zoom.
+      e.preventDefault();
+      zoomLightboxBy(1);
+    } else if (e.key === "-" || e.key === "_") {
+      e.preventDefault();
+      zoomLightboxBy(-1);
+    } else if (e.key === "0") {
+      e.preventDefault();
+      resetLightboxZoom();
     }
     return;
   }
