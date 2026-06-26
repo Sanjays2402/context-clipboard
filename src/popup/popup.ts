@@ -187,6 +187,7 @@ import {
   bulkSeparatorPreview,
   bulkSeparatorCaption,
 } from "../lib/bulk-separator-preview";
+import { isToday } from "../lib/today-filter";
 import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
@@ -1235,6 +1236,8 @@ function renderQuickChips(allClips: ClipItem[]) {
   let templates = 0;
   let expiring = 0;
   let archived = 0;
+  let todayCount = 0;
+  const todayNow = Date.now();
   for (const c of allClips) {
     const h = hostFrom(c.source.url);
     if (h) hostCounts.set(h, (hostCounts.get(h) || 0) + 1);
@@ -1244,6 +1247,7 @@ function renderQuickChips(allClips: ClipItem[]) {
     if (c.template) templates++;
     if (typeof c.expiresAt === "number") expiring++;
     if (c.archived) archived++;
+    if (isToday(c.lastSeenAt, todayNow)) todayCount++;
   }
   const topHosts = Array.from(hostCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -1304,10 +1308,23 @@ function renderQuickChips(allClips: ClipItem[]) {
       active: hasOp("kind:image"),
       count: images,
     });
+  // "Today" — the LOCAL calendar day (since local midnight), matching
+  // the day-group dividers. Distinct from "Last 24h" below, which is a
+  // rolling window. Only shown when there's at least one clip from today
+  // (an empty "Today (0)" chip would just be noise).
+  if (todayCount > 0)
+    pills.push({
+      label: "Today",
+      op: "is:today",
+      active: hasOp("is:today"),
+      count: todayCount,
+      ariaLabel: "Filter to clips from today (since local midnight)",
+    });
   pills.push({
     label: "Last 24h",
     op: "after:24h",
     active: hasOp("after:24h"),
+    ariaLabel: "Filter to the last 24 hours (rolling window)",
   });
   for (const [h, n] of topHosts) {
     pills.push({
@@ -1925,7 +1942,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -6996,6 +7013,17 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:archived");
+      },
+    },
+    {
+      id: "filter-today",
+      label: "Show today's clips",
+      hint: "is:today — clips since local midnight (not rolling 24h)",
+      group: "Filter",
+      keywords: "today calendar day midnight recent fresh is:today",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:today");
       },
     },
     {

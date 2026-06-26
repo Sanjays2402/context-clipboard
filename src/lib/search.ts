@@ -24,6 +24,7 @@ import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
 import { hasLangOverride, langOverrideMatches, isLangOverrideDir } from "./lang-override";
+import { localDayStart } from "./today-filter";
 
 export interface ParsedQuery {
   freeText: string;
@@ -56,6 +57,23 @@ export interface ParsedQuery {
    * view.
    */
   archivedOnly: boolean;
+  /**
+   * Surface only clips whose `lastSeenAt` falls within the LOCAL
+   * calendar day containing "now" — i.e. since local midnight.
+   * Triggered by `is:today` (and the "Today" quick-chip that injects
+   * it). Distinct from the rolling `after:24h` window: at 9am,
+   * `after:24h` still includes yesterday afternoon, while `is:today`
+   * starts fresh at local midnight — matching the day-group dividers'
+   * "Today" bucket exactly.
+   *
+   * The threshold (local-midnight Unix-ms) is computed at PARSE time
+   * (mirroring how `before:`/`after:` store an absolute `now ±
+   * duration`) and stashed in `todayAfter`; applyQuery does a straight
+   * `lastSeenAt >= todayAfter` comparison. We use only the lower bound
+   * in the filter (no clip is normally in the future); the exact
+   * both-ends predicate lives in lib/today-filter for tests + reuse.
+   */
+  todayOnly: boolean;
   /**
    * Parity twin of `kind:link`. The other `is:` operators
    * (pinned/redacted/template/expiring/archived) read as
@@ -407,6 +425,12 @@ export interface ParsedQuery {
   before?: number;
   /** Unix ms — only clips newer than this. */
   after?: number;
+  /**
+   * Unix ms — local midnight of "today", computed at parse time when
+   * `is:today` is present. applyQuery requires `lastSeenAt >=
+   * todayAfter`. Absent when `todayOnly` is false.
+   */
+  todayAfter?: number;
 }
 
 const TOKEN_RE = /\S+/g;
@@ -441,6 +465,7 @@ export function parseQuery(raw: string): ParsedQuery {
     noTemplate: false,
     expiringOnly: false,
     archivedOnly: false,
+    todayOnly: false,
     linkOnly: false,
     lockedOnly: false,
     unlockedOnly: false,
@@ -486,6 +511,13 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "notemplate") out.noTemplate = true;
       else if (v === "expiring") out.expiringOnly = true;
       else if (v === "archived") out.archivedOnly = true;
+      else if (v === "today") {
+        // Local calendar day (since local midnight) — distinct from the
+        // rolling after:24h. Threshold computed once at parse time, the
+        // same way before:/after: store an absolute Unix-ms bound.
+        out.todayOnly = true;
+        out.todayAfter = localDayStart(now);
+      }
       else if (v === "link") out.linkOnly = true;
       else if (v === "locked") out.lockedOnly = true;
       else if (v === "unlocked") out.unlockedOnly = true;
@@ -831,6 +863,10 @@ export function applyQuery(
     }
     if (q.before != null && c.lastSeenAt >= q.before) return false;
     if (q.after != null && c.lastSeenAt <= q.after) return false;
+    // `is:today` — clips since local midnight (todayAfter computed at
+    // parse time). Inclusive lower bound; no upper bound needed (clips
+    // aren't normally future-stamped).
+    if (q.todayOnly && q.todayAfter != null && c.lastSeenAt < q.todayAfter) return false;
     for (const t of q.tags) if (!c.tags.includes(t)) return false;
     if (extraTag && !c.tags.includes(extraTag)) return false;
     if (needle) {
@@ -864,6 +900,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.noTemplate) bits.push("not-template");
   if (q.expiringOnly) bits.push("expiring");
   if (q.archivedOnly) bits.push("archived");
+  if (q.todayOnly) bits.push("today");
   if (q.linkOnly) bits.push("link");
   if (q.lockedOnly) bits.push("locked");
   if (q.unlockedOnly) bits.push("unlocked");
