@@ -118,7 +118,11 @@ import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip, linkPeekTooltip } from "../lib/list-peek";
 import { computeDayHeaderInfos } from "../lib/day-group";
-import { dayRunClipIds, dayRunToggleAction } from "../lib/day-run";
+import {
+  dayRunClipIds,
+  dayRunModifierAction,
+  dayRunAddedCount,
+} from "../lib/day-run";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
 import { parseTags, removeTag, serializeTags, reorderTags } from "../lib/tag-chips";
 import {
@@ -5370,23 +5374,30 @@ listEl.addEventListener("click", async (e) => {
   // deselect) the whole day's contiguous run in one tap. The header
   // carries its run-start index + count as data attributes (computed
   // by computeDayHeaderInfos at paint time), so dayRunClipIds replays
-  // exactly the rows under that divider. Toggle semantics mean a second
-  // tap on the same day clears it.
+  // exactly the rows under that divider. Plain click = toggle (a second
+  // tap on the same day clears it). Shift+click = ADD-only, so the user
+  // can build a cross-day selection ("Today", then Shift+"Yesterday")
+  // without the second tap clearing a run that was already all-selected.
   const dayHeaderEl = target.closest(".day-header") as HTMLElement | null;
   if (dayHeaderEl) {
     const start = Number(dayHeaderEl.dataset.runStart);
     const count = Number(dayHeaderEl.dataset.runCount);
     const runIds = dayRunClipIds(currentClips, start, count);
     if (runIds.length === 0) return;
-    const action = dayRunToggleAction(runIds, selectedIds);
+    const addModifier = (e as MouseEvent).shiftKey;
+    const action = dayRunModifierAction(runIds, selectedIds, addModifier);
     if (action === "deselect") {
       for (const rid of runIds) selectedIds.delete(rid);
       toast(`Deselected ${runIds.length}`);
     } else {
+      // For a Shift+add that overlaps an existing selection, report the
+      // NET-NEW count ("Added 4") rather than the whole run ("Selected 6")
+      // so the receipt matches what actually changed.
+      const added = dayRunAddedCount(runIds, selectedIds);
       for (const rid of runIds) selectedIds.add(rid);
       // Anchor a subsequent Shift+Click range from the run's first row.
       if (Number.isFinite(start)) selectionAnchor = start;
-      toast(`Selected ${runIds.length}`);
+      toast(addModifier ? `Added ${added}` : `Selected ${runIds.length}`);
     }
     updateBulkBar();
     await render();

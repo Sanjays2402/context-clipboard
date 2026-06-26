@@ -29,6 +29,17 @@ function dayRunToggleAction(runIds, selected) {
   const allSelected = runIds.every((id) => selected.has(id));
   return allSelected ? "deselect" : "select";
 }
+function dayRunModifierAction(runIds, selected, addModifier) {
+  if (addModifier) return "select";
+  return dayRunToggleAction(runIds, selected);
+}
+function dayRunAddedCount(runIds, selected) {
+  if (!Array.isArray(runIds) || runIds.length === 0) return 0;
+  const sel = selected instanceof Set ? selected : new Set();
+  let n = 0;
+  for (const id of runIds) if (!sel.has(id)) n++;
+  return n;
+}
 
 let p = 0, t = 0;
 function ck(n, g, w) {
@@ -66,6 +77,22 @@ ck("partial selected -> select", dayRunToggleAction(["a", "b", "d"], sel), "sele
 ck("none selected -> select", dayRunToggleAction(["d", "e"], sel), "select");
 ck("empty run -> select", dayRunToggleAction([], sel), "select");
 ck("single already-selected -> deselect", dayRunToggleAction(["a"], sel), "deselect");
+
+// 3. modifier-aware action — Shift (addModifier) is ALWAYS "select",
+//    never deselect, so a cross-day add can't clear an all-selected run.
+ck("Shift on all-selected run still selects (no clear)", dayRunModifierAction(["a", "b", "c"], sel, true), "select");
+ck("Shift on partial run selects", dayRunModifierAction(["a", "d"], sel, true), "select");
+ck("plain on all-selected run deselects (unchanged)", dayRunModifierAction(["a", "b", "c"], sel, false), "deselect");
+ck("plain on partial run selects (unchanged)", dayRunModifierAction(["a", "d"], sel, false), "select");
+ck("Shift on empty run -> select", dayRunModifierAction([], sel, true), "select");
+
+// 4. added-count — net-new ids for an honest "Added N" toast
+ck("added: all new", dayRunAddedCount(["d", "e", "f"], sel), 3);
+ck("added: partial overlap (2 of 4 already in)", dayRunAddedCount(["a", "b", "d", "e"], sel), 2);
+ck("added: all already selected -> 0", dayRunAddedCount(["a", "b", "c"], sel), 0);
+ck("added: empty run -> 0", dayRunAddedCount([], sel), 0);
+ck("added: nullish run -> 0", dayRunAddedCount(null, sel), 0);
+ck("added: nullish selection treated as empty", dayRunAddedCount(["a", "b"], null), 2);
 
 console.log(`day-run: ${p}/${t}`);
 process.exit(p === t ? 0 : 1);

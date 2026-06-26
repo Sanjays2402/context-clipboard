@@ -74,6 +74,11 @@ export function dayRunClipIds(
  * Returns "deselect" only when the run is non-empty AND every id is
  * already in `selected`; otherwise "select". An empty run yields
  * "select" (a no-op the caller can short-circuit).
+ *
+ * This is the PLAIN-click behaviour. A Shift+click ADDS the run without
+ * ever deselecting (see `dayRunModifierAction`) so the user can build a
+ * cross-day selection — "Today" then Shift+"Yesterday" — without the
+ * second tap clearing if it happened to be all-selected already.
  */
 export function dayRunToggleAction(
   runIds: ReadonlyArray<string>,
@@ -82,4 +87,45 @@ export function dayRunToggleAction(
   if (!Array.isArray(runIds) || runIds.length === 0) return "select";
   const allSelected = runIds.every((id) => selected.has(id));
   return allSelected ? "deselect" : "select";
+}
+
+/**
+ * Resolve the day-run divider action given whether the user held the
+ * ADD modifier (Shift):
+ *   - modifier held  -> always "select" (ADD the run to the existing
+ *     selection; never deselect). This makes the divider an additive
+ *     cross-day gesture: click "Today", Shift+click "Yesterday", and
+ *     now both days are selected even if Yesterday was already fully
+ *     selected (a plain click there would have cleared it).
+ *   - modifier off   -> the plain toggle (`dayRunToggleAction`): select
+ *     the run, or clear it if it was already all-selected.
+ *
+ * Pure precedence resolver so the popup's click handler stays a thin
+ * dispatch and the "Shift = add-only" rule is exercised headless.
+ */
+export function dayRunModifierAction(
+  runIds: ReadonlyArray<string>,
+  selected: ReadonlySet<string>,
+  addModifier: boolean,
+): "select" | "deselect" {
+  if (addModifier) return "select";
+  return dayRunToggleAction(runIds, selected);
+}
+
+/**
+ * The ids in `runIds` that are NOT yet in `selected` — the net-new
+ * additions a "select" action would make. Lets the caller surface an
+ * honest "Added N" toast (vs "Selected N") for a Shift+add that overlaps
+ * an existing selection: clicking a run where 2 of 6 were already picked
+ * reports "Added 4", not "Selected 6". Defensive against nullish inputs.
+ */
+export function dayRunAddedCount(
+  runIds: ReadonlyArray<string> | null | undefined,
+  selected: ReadonlySet<string> | null | undefined,
+): number {
+  if (!Array.isArray(runIds) || runIds.length === 0) return 0;
+  const sel = selected instanceof Set ? selected : new Set<string>();
+  let n = 0;
+  for (const id of runIds) if (!sel.has(id)) n++;
+  return n;
 }
