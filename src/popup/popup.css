@@ -2452,6 +2452,20 @@ kbd {
   box-shadow: var(--shadow-md);
 }
 
+/* Save-image control — sits just left of the close button in the
+   top-right cluster. Saves the (local) data URL to disk via an
+   a[download]; no network, no permissions. Hidden until the lightbox
+   opens an actual image. */
+.lightbox-download {
+  position: fixed;
+  top: 12px;
+  right: 52px;
+  z-index: 51;
+  background: var(--glass-elevated);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
 /* Prev/next chevrons — vertically centred on each side of the backdrop,
    sized large enough to be an easy click target while reviewing a run
    of screenshots. They sit above the figure (z 51) and stop their own

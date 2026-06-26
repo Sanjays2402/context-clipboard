@@ -151,6 +151,7 @@ import {
   zoomTransform,
 } from "../lib/lightbox-zoom";
 import { shouldZoomThumb } from "../lib/thumb-zoom";
+import { imageDownloadName } from "../lib/image-download";
 import {
   effectiveLang,
   selectValueFor,
@@ -515,6 +516,7 @@ const lightboxEl = $("lightbox");
 const lightboxImg = $<HTMLImageElement>("lightbox-img");
 const lightboxCaptionEl = $("lightbox-caption");
 const lightboxClose = $<HTMLButtonElement>("lightbox-close");
+const lightboxDownload = $<HTMLButtonElement>("lightbox-download");
 const lightboxPrev = $<HTMLButtonElement>("lightbox-prev");
 const lightboxNext = $<HTMLButtonElement>("lightbox-next");
 const lightboxZoomOut = $<HTMLButtonElement>("lightbox-zoom-out");
@@ -6581,6 +6583,38 @@ detailBody.addEventListener("keydown", async (e) => {
 });
 
 lightboxClose.addEventListener("click", () => closeLightbox());
+// Save the currently-shown image to disk. The data URL is already on
+// the clip (local — no network); we drop it onto an a[download] with a
+// self-describing filename (product + host slug + dimensions) and click
+// it. Wrapped in try/catch so a download failure surfaces a toast
+// instead of throwing inside the click handler.
+async function downloadLightboxImage(): Promise<void> {
+  if (lightboxEl.hidden || !lightboxId) return;
+  const c = await getClip(lightboxId);
+  if (!c || !canZoom(c.kind, c.content)) return;
+  try {
+    const a = document.createElement("a");
+    a.href = c.content;
+    a.download = imageDownloadName({
+      mime: c.mime,
+      width: c.width,
+      height: c.height,
+      source: { url: c.source?.url },
+    });
+    // Append so Firefox honours the click; remove immediately after.
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast("Image saved");
+  } catch (err) {
+    console.error("[context-clipboard] image download failed", err);
+    toast("Save failed", "error");
+  }
+}
+lightboxDownload.addEventListener("click", (e) => {
+  e.stopPropagation();
+  void downloadLightboxImage();
+});
 lightboxPrev.addEventListener("click", (e) => {
   e.stopPropagation();
   void stepLightboxBy(-1);
@@ -8908,6 +8942,10 @@ document.addEventListener("keydown", async (e) => {
     } else if (e.key === "0") {
       e.preventDefault();
       resetLightboxZoom();
+    } else if (e.key === "s" || e.key === "S") {
+      // Save the shown image to disk (local data URL → a[download]).
+      e.preventDefault();
+      void downloadLightboxImage();
     }
     return;
   }

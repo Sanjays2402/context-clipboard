@@ -116,6 +116,13 @@ export const icons = {
     svg(
       `<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 15v-6l3 3 3-3v6"/><path d="M17 9v4M15 12l2 2 2-2"/>`,
     ),
+  // Download — tray with a down-arrow landing in it. Used by the
+  // lightbox "Save image" control (saves the local data URL to disk via
+  // a[download]; no network). Distinct from `markdown`'s in-rect arrow.
+  download: () =>
+    svg(
+      `<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 19h16"/>`,
+    ),
   // Clipboard with checkmark — quick-capture button. Distinct silhouette
   // from `copy` (which is two pages) so users don't confuse "paste a new
   // clip in" with "copy this clip to clipboard".
