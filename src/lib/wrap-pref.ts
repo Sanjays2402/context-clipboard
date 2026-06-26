@@ -72,6 +72,32 @@ export function hasWrapOverride(clip: WrapResolvable | null | undefined): boolea
 }
 
 /**
+ * Directional wrap-override match for the `is:wrapoverride:on` /
+ * `is:wrapoverride:off` search variants.
+ *
+ * The bare `is:wrapoverride` operator is presence-only (any override,
+ * either direction). These variants narrow it to a SPECIFIC forced
+ * state — "show me everything I forced to NOWRAP" is a real review
+ * pass (find the wide TSV/log clips you pinned to scroll):
+ *   - dir "on"  -> matches only clips with wrapOverride === true
+ *                  (forced word-wrap ON).
+ *   - dir "off" -> matches only clips with wrapOverride === false
+ *                  (forced word-wrap OFF / nowrap).
+ *
+ * A clip following the global default (undefined override) matches
+ * NEITHER direction — it has no forced state to point at. Strict
+ * boolean check so a stray truthy non-boolean never reads as a forced
+ * state. Defensive against a nullish clip (no override -> no match).
+ */
+export function wrapOverrideMatches(
+  clip: WrapResolvable | null | undefined,
+  dir: "on" | "off",
+): boolean {
+  if (!clip || typeof clip.wrapOverride !== "boolean") return false;
+  return dir === "on" ? clip.wrapOverride === true : clip.wrapOverride === false;
+}
+
+/**
  * Tooltip for the detail wrap button, reflecting BOTH the effective
  * wrap state and whether this clip is pinned to a per-clip override.
  * The base sentence mirrors the historical copy; when an override is

@@ -584,6 +584,11 @@ let archivedCount = 0;
 // tally is current without a per-palette-open IDB read; zero hides the
 // command via `available: false`.
 let wrapOverrideCount = 0;
+// Directional split of wrapOverrideCount for the is:wrapoverride:on /
+// :off Cmd+K commands — forced-wrap-ON vs forced-NOWRAP. on+off ===
+// wrapOverrideCount (a boolean override is one or the other).
+let wrapOverrideOnCount = 0;
+let wrapOverrideOffCount = 0;
 let langOverrideCount = 0;
 /**
  * Active-tab host cache for the Cmd+K "Pin every clip from this host"
@@ -1772,7 +1777,15 @@ async function render(): Promise<void> {
   // override"). Same predicate the search filter + detail toggle use
   // (hasWrapOverride) so the count, the filter, and the badge agree.
   wrapOverrideCount = 0;
-  for (const c of wide) if (hasWrapOverride(c)) wrapOverrideCount++;
+  wrapOverrideOnCount = 0;
+  wrapOverrideOffCount = 0;
+  for (const c of wide) {
+    if (hasWrapOverride(c)) {
+      wrapOverrideCount++;
+      if (c.wrapOverride === true) wrapOverrideOnCount++;
+      else wrapOverrideOffCount++;
+    }
+  }
   // Refresh the lang-override count (Cmd+K "Show clips with a forced
   // language"). Same predicate the search filter + detail control use
   // (hasLangOverride) so the count, the filter, and the dropdown agree.
@@ -1874,7 +1887,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:langoverride</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -6959,6 +6972,46 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:wrapoverride");
+      },
+    },
+    {
+      // `is:wrapoverride:off` — direction-specific narrowing: surface
+      // only clips the user forced to NOWRAP (the wide TSV / log / table
+      // clips pinned to scroll horizontally). The most-asked-for review
+      // pass of the wrap feature ("what did I force to nowrap?"). Greys
+      // when nothing's forced-off.
+      id: "filter-wrap-override-off",
+      label: "Show clips forced to nowrap",
+      hint:
+        wrapOverrideOffCount > 0
+          ? `is:wrapoverride:off — ${wrapOverrideOffCount} clip${wrapOverrideOffCount === 1 ? "" : "s"} forced to scroll`
+          : "is:wrapoverride:off — no clips forced to nowrap yet",
+      group: "Filter",
+      keywords:
+        "is:wrapoverride:off nowrap scroll forced override per-clip wide table tsv log lines",
+      available: wrapOverrideOffCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:wrapoverride:off");
+      },
+    },
+    {
+      // `is:wrapoverride:on` — companion: surface only clips the user
+      // forced to word-wrap ON (deviating from a global nowrap default).
+      // Greys when nothing's forced-on.
+      id: "filter-wrap-override-on",
+      label: "Show clips forced to word-wrap",
+      hint:
+        wrapOverrideOnCount > 0
+          ? `is:wrapoverride:on — ${wrapOverrideOnCount} clip${wrapOverrideOnCount === 1 ? "" : "s"} forced to wrap`
+          : "is:wrapoverride:on — no clips forced to wrap yet",
+      group: "Filter",
+      keywords:
+        "is:wrapoverride:on wrap word-wrap forced override per-clip lines",
+      available: wrapOverrideOnCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:wrapoverride:on");
       },
     },
     {

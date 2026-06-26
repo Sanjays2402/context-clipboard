@@ -22,7 +22,7 @@ import type { ClipItem, ClipKind } from "./types";
 import { hostFrom } from "./util";
 import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
-import { hasWrapOverride } from "./wrap-pref";
+import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
 import { hasLangOverride } from "./lang-override";
 
 export interface ParsedQuery {
@@ -352,6 +352,21 @@ export interface ParsedQuery {
    */
   wrapOverrideOnly: boolean;
   /**
+   * Directional narrowings of `is:wrapoverride` — surface only the clips
+   * forced to a SPECIFIC wrap state, not just "has any override":
+   *   - `is:wrapoverride:on`  -> wrapOverride === true  (forced wrap ON)
+   *   - `is:wrapoverride:off` -> wrapOverride === false (forced NOWRAP)
+   *
+   * The bare operator stays presence-only (either direction). These let
+   * the user answer "show me everything I forced to NOWRAP" — the wide
+   * TSV/log clips pinned to scroll — without eyeballing each override's
+   * direction. Undefined when the directional form wasn't typed; a clip
+   * following the global default matches neither. Gated via
+   * wrap-pref.wrapOverrideMatches so the filter and the detail toggle
+   * agree on what each direction means.
+   */
+  wrapOverrideDir?: "on" | "off";
+  /**
    * Surface clips carrying an explicit per-clip force-language override
    * (the detail-body `langOverride` field — a pinned syntax-tinting
    * language, or the "none" forced-off sentinel). Joins the `is:` family
@@ -463,6 +478,14 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "hostredacted") out.hostRedactedOnly = true;
       else if (v === "hostscrubbed") out.hostScrubbedOnly = true;
       else if (v === "wrapoverride") out.wrapOverrideOnly = true;
+      else if (v === "wrapoverride:on" || v === "wrapoverride:off") {
+        // Directional variants: narrow to a forced ON / OFF state. Also
+        // set the presence flag so describeQuery + any presence-only
+        // reader still sees "this is a wrap-override filter"; the
+        // direction does the extra narrowing in applyQuery.
+        out.wrapOverrideOnly = true;
+        out.wrapOverrideDir = v.endsWith(":on") ? "on" : "off";
+      }
       else if (v === "langoverride") out.langOverrideOnly = true;
       else if (v.startsWith("notelonger:") || v.startsWith("noteshorter:")) {
         // `is:notelonger:N` / `is:noteshorter:N` — parse N as a
@@ -615,7 +638,18 @@ export function applyQuery(
     // both wrap-on and wrap-off overrides match (the question is "did I
     // deviate?", not "which way?"). A clip following the global default
     // (undefined override) never surfaces.
-    if (q.wrapOverrideOnly && !hasWrapOverride(c)) return false;
+    //
+    // `is:wrapoverride:on` / `:off` narrow it to a forced direction via
+    // wrapOverrideMatches (true = forced-wrap, false = forced-nowrap);
+    // when wrapOverrideDir is set the directional gate REPLACES the
+    // presence gate (a clip forced the other way correctly drops out).
+    if (q.wrapOverrideOnly) {
+      if (q.wrapOverrideDir) {
+        if (!wrapOverrideMatches(c, q.wrapOverrideDir)) return false;
+      } else if (!hasWrapOverride(c)) {
+        return false;
+      }
+    }
     // `is:langoverride` — surface clips with an explicit per-clip
     // force-language override (a pinned tinting language, or the "none"
     // forced-off sentinel). Gate via hasLangOverride, the SAME predicate
@@ -787,7 +821,15 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.hostPinnedOnly) bits.push("hostpinned");
   if (q.hostRedactedOnly) bits.push("hostredacted");
   if (q.hostScrubbedOnly) bits.push("hostscrubbed");
-  if (q.wrapOverrideOnly) bits.push("wrap-override");
+  if (q.wrapOverrideOnly) {
+    bits.push(
+      q.wrapOverrideDir === "on"
+        ? "wrap-on"
+        : q.wrapOverrideDir === "off"
+          ? "nowrap"
+          : "wrap-override",
+    );
+  }
   if (q.langOverrideOnly) bits.push("lang-override");
   if (q.noteLongerThan != null) bits.push(`note>${q.noteLongerThan}`);
   if (q.noteShorterThan != null) bits.push(`note<${q.noteShorterThan}`);
