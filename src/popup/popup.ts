@@ -184,6 +184,10 @@ import {
   formatBulkMarkdownButtonTitle,
 } from "../lib/bulk-markdown";
 import {
+  bulkSeparatorPreview,
+  bulkSeparatorCaption,
+} from "../lib/bulk-separator-preview";
+import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
 } from "../lib/url-quick-capture";
@@ -425,6 +429,8 @@ const retroRedactBtn = $<HTMLButtonElement>("retro-redact-btn");
 const sBlurPreviews = $<HTMLInputElement>("s-blur");
 const sDensity = $<HTMLSelectElement>("s-density");
 const sBulkMdSep = $<HTMLSelectElement>("s-bulk-md-sep");
+const sBulkMdSepPreview = $("s-bulk-md-sep-preview");
+const sBulkMdSepCaption = $("s-bulk-md-sep-caption");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
 const sTheme = $<HTMLSelectElement>("s-theme");
@@ -3029,6 +3035,7 @@ async function openSettings() {
   sBlurPreviews.checked = !!s.blurPreviews;
   sDensity.value = resolveDensity(s);
   sBulkMdSep.value = s.bulkMarkdownSeparator === "blank" ? "blank" : "rule";
+  renderBulkSepPreview();
   // Privacy audit retention — defaults to 30 if the stored value
   // is missing or junk (a freshly imported settings shape from an
   // older version won't have this field).
@@ -3057,6 +3064,19 @@ async function openSettings() {
 
 function closeSettings() {
   settingsPanel.hidden = true;
+}
+
+/**
+ * Repaint the bulk-Markdown separator preview swatch from the current
+ * <select> value: two stub clips joined by the chosen seam, plus a
+ * one-line caption. Pure builder in lib/bulk-separator-preview keeps the
+ * seam byte-identical to the live bulk-copy join. Called on settings
+ * load + on every change of the select so the swatch is always live.
+ */
+function renderBulkSepPreview(): void {
+  const style = sBulkMdSep.value === "blank" ? "blank" : "rule";
+  sBulkMdSepPreview.textContent = bulkSeparatorPreview(style);
+  sBulkMdSepCaption.textContent = bulkSeparatorCaption(style);
 }
 
 async function saveSettingsFromForm() {
@@ -10538,6 +10558,11 @@ sDensity.addEventListener("change", () => {
       : "comfortable";
   applyCompactRows(d);
 });
+
+// Live-update the bulk-Markdown separator preview swatch as the user
+// changes the select (the value persists on Save/Esc/back like the rest
+// of the settings form).
+sBulkMdSep.addEventListener("change", () => renderBulkSepPreview());
 
 retroRedactBtn.addEventListener("click", () => void runRetroactiveAutoRedact());
 

@@ -3589,6 +3589,41 @@ kbd {
   background: var(--glass-strong);
 }
 
+/* Live preview swatch — renders a miniature of a choice (e.g. the bulk
+   Markdown clip separator) so an abstract dropdown option becomes
+   concrete. Sits just under its control, indented to read as a child of
+   the setting above it. */
+.setting-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: -4px 0 4px 14px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+}
+
+.setting-preview-caption {
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.setting-preview-swatch {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--bg-elevated, var(--glass));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: 160px;
+}
+
 /* Clip row context menu (right-click) — fixed-position floating menu
    styled to match the palette card. Built with real <button> rows so
    it's keyboard-accessible and identical handling on click/Enter. */
