@@ -146,6 +146,7 @@ import {
   formatZoomPercent,
   zoomTransform,
 } from "../lib/lightbox-zoom";
+import { shouldZoomThumb } from "../lib/thumb-zoom";
 import {
   effectiveLang,
   selectValueFor,
@@ -850,7 +851,7 @@ async function trashWithLockGuard(ids: string[], label?: string): Promise<void> 
 function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string): string {
   const thumb =
     c.kind === "image"
-      ? `<div class="thumb"><img src="${c.content}" alt="" />${c.width && c.height ? `<span class="thumb-dims">${c.width}×${c.height}</span>` : ""}</div>`
+      ? `<div class="thumb thumb-zoomable" title="Click to zoom" aria-label="Open image at full size"><img src="${c.content}" alt="" />${c.width && c.height ? `<span class="thumb-dims">${c.width}×${c.height}</span>` : ""}</div>`
       : `<div class="thumb thumb-icon">${clipKindIcon(c.kind)}${c.template ? `<span class="thumb-badge" title="Template — tokens fill in at copy time">T</span>` : ""}</div>`;
   const src = [hostFrom(c.source.url), c.source.title]
     .filter(Boolean)
@@ -5389,6 +5390,28 @@ listEl.addEventListener("click", async (e) => {
 
   const mouseEvt = e as MouseEvent;
   const clickedIdx = Number(clipEl.dataset.idx);
+
+  // Image-thumb click → open the lightbox directly, skipping the detail
+  // round-trip. A user scanning a run of screenshots can jump straight
+  // from the list row to the full-resolution zoom view (then step / zoom
+  // / close) without first opening detail. Gated OFF in selection mode
+  // (active selection, or Cmd/Ctrl/Shift held) so the thumb still toggles
+  // the row when the user is multi-selecting — see lib/thumb-zoom for the
+  // precedence (selection always wins over zoom).
+  const onZoomThumb = !!(target as HTMLElement).closest(".thumb-zoomable");
+  const thumbSelectionIntent =
+    selectedIds.size > 0 || mouseEvt.metaKey || mouseEvt.ctrlKey || mouseEvt.shiftKey;
+  if (
+    shouldZoomThumb({
+      onThumb: onZoomThumb,
+      kind: c.kind,
+      selectionIntent: thumbSelectionIntent,
+    })
+  ) {
+    e.preventDefault();
+    await openLightboxClip(id);
+    return;
+  }
 
   // Shift+Click range-select: extend a contiguous run from the
   // anchor (last explicit toggle) to the clicked row. Adds the whole

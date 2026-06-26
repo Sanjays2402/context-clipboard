@@ -1066,6 +1066,31 @@ body.compact-rows .day-header {
   object-fit: cover;
 }
 
+/* Image thumbs are a zoom affordance — a plain click jumps straight to
+   the lightbox (skipping detail). Telegraph it with a zoom cursor and a
+   subtle magnify cue on hover: a faint accent ring + a tiny inset
+   "magnify" glyph in the corner so the click target reads as actionable,
+   not just decorative. Only in the list (selection mode falls back to
+   row-toggle, handled in JS). */
+.clip .thumb-zoomable {
+  cursor: zoom-in;
+}
+
+.clip .thumb-zoomable::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--accent);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+
+.clip .thumb-zoomable:hover::after {
+  opacity: 0.7;
+}
+
 .clip .thumb .thumb-dims {
   position: absolute;
   left: 2px;
