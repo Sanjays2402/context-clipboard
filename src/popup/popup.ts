@@ -135,6 +135,7 @@ import {
   langControlTitle,
   langLabel,
   hasLangOverride,
+  exportFenceLang,
   LANG_OPTIONS,
   OVERRIDE_AUTO,
   OVERRIDE_NONE,
@@ -2012,8 +2013,13 @@ async function copyAsMarkdown(c: ClipItem) {
     md = `![${c.source.title || "image"}](${c.source.url || ""})`;
   } else if (c.kind === "link") {
     md = `[${c.preview || c.content}](${c.content})`;
-  } else if (c.tags.includes("code") || looksLikeCode(c.content)) {
-    const lang = detectCodeLang(c.content) ?? "";
+  } else if (markdownAsFence(c)) {
+    // The per-clip force-language override (if any) steers the fence
+    // language so the user's hand-correction rides along into the paste:
+    // a clip pinned to "rust" exports as ```rust even when detectCodeLang
+    // would have guessed wrong (or nothing). With no override we fall
+    // back to auto-detection exactly as before.
+    const lang = exportFenceLang(c.langOverride, detectCodeLang(c.content));
     md = "```" + lang + "\n" + c.content + "\n```";
   } else {
     const cite = c.source.url
@@ -2023,6 +2029,26 @@ async function copyAsMarkdown(c: ClipItem) {
   }
   await navigator.clipboard.writeText(md);
   toast("Copied as Markdown");
+}
+
+/**
+ * Decide whether a text clip's copy-as-Markdown should render as a
+ * fenced code block (vs a prose blockquote), honoring the per-clip
+ * force-language override:
+ *   - a forced LANGUAGE ("rust", "sql", ...) -> always a fence (the user
+ *     explicitly classified it as code in that language, so respect that
+ *     even if the looksLikeCode heuristic wouldn't have fired).
+ *   - the forced-OFF sentinel ("none")       -> never a fence (the user
+ *     said "this isn't code" — export it as a prose blockquote).
+ *   - no override (auto)                     -> the existing heuristic
+ *     (tag:code, or a code-shaped body).
+ */
+function markdownAsFence(c: ClipItem): boolean {
+  if (c.langOverride === OVERRIDE_NONE) return false;
+  if (typeof c.langOverride === "string" && c.langOverride !== OVERRIDE_AUTO && c.langOverride !== "") {
+    return true;
+  }
+  return c.tags.includes("code") || looksLikeCode(c.content);
 }
 
 // Detail view -----------------------------------------------------------
@@ -9754,6 +9780,10 @@ async function openSendMenu(): Promise<void> {
     // formatter; the row stays hidden when note is undefined /
     // empty / whitespace-only.
     note: c.note,
+    // Pass the force-language override so "Copy as fenced code" tags the
+    // fence with the user's pinned language (exportFenceLang) instead of
+    // re-running detectCodeLang and ignoring the correction.
+    langOverride: c.langOverride,
     full: c,
   });
   // Promote the user's most-recently-picked action to the top so
@@ -9875,6 +9905,9 @@ detailSendMenu.addEventListener("click", async (e) => {
     // call — keeps the "note-md" row's gate consistent between
     // render-time and dispatch-time.
     note: c.note,
+    // Same force-language pass-through as the menu-open call so the
+    // dispatched "Copy as fenced code" tags the fence identically.
+    langOverride: c.langOverride,
     full: c,
   });
   const action: SendAction | undefined = actions.find((a) => a.id === id);

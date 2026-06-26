@@ -13,6 +13,7 @@
 
 import type { ClipItem } from "./types";
 import { detectCodeLang } from "./util";
+import { exportFenceLang } from "./lang-override";
 import { tableRowForClip } from "./table-row";
 import { jsonLineEnvelopeForClip } from "./json-line";
 import { curlCommandForClip } from "./curl-command";
@@ -35,6 +36,16 @@ export interface SendableClip {
    * owns the gate + formatting via hasClipNote.
    */
   note?: string;
+  /**
+   * Optional per-clip force-language override (ClipItem.langOverride —
+   * a pinned syntax-tinting language id, or the "none" forced-off
+   * sentinel). When present it steers the "Copy as fenced code" send-to
+   * row's fence language so the user's hand-correction rides along into
+   * the paste, mirroring how copy-as-Markdown honors it. Resolved via
+   * lang-override.exportFenceLang; undefined falls back to detectCodeLang
+   * exactly as before.
+   */
+  langOverride?: string;
 }
 
 /**
@@ -167,7 +178,11 @@ export function fencedCodeForClip(c: SendableClip): string | undefined {
   if (c.kind === "image") return undefined;
   const body = (c.content || "").trim();
   if (!body) return undefined;
-  const lang = detectCodeLang(body) ?? "";
+  // Honor the per-clip force-language override (exportFenceLang) so a
+  // clip the user pinned to a language exports with that fence tag — and
+  // a clip forced "off" emits a bare ``` fence. No override falls back
+  // to detectCodeLang exactly as before.
+  const lang = exportFenceLang(c.langOverride, detectCodeLang(body));
   return "```" + lang + "\n" + body + "\n```";
 }
 

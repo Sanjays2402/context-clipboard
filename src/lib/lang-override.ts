@@ -204,3 +204,36 @@ export function langControlTitle(
     ? `Auto-detected ${langLabel(det)} \u2014 override the language for this clip`
     : "No code language detected \u2014 force one for this clip";
 }
+
+/**
+ * Resolve the language tag to use for a clip's FENCED-CODE EXPORT
+ * (copy-as-Markdown / bulk-Markdown), folding the per-clip override into
+ * the auto-detected language so the user's correction rides along into
+ * the pasted ```fence.
+ *
+ * Without this, copy-as-Markdown re-ran detectCodeLang and ignored the
+ * override — a Rust snippet the user pinned to "rust" in detail would
+ * still export as ```ts (or untagged) because the detector mis-guessed.
+ * Now the same `langOverride` that steers the on-screen tinting steers
+ * the export tag too, so what the user SEES tinted is what they GET in
+ * the fence.
+ *
+ * Precedence (mirrors effectiveLang's, but for the export STRING):
+ *   1. override === OVERRIDE_NONE -> "" (forced off — emit a bare ```
+ *      fence with no language tag; the user said "this isn't code").
+ *   2. override is a known lang   -> that language id.
+ *   3. otherwise (auto/undefined) -> the auto-`detected` language, or ""
+ *      when nothing was detected (a bare fence, exactly as before).
+ *
+ * Returns the bare language string (no backticks) the caller drops
+ * straight after the opening ```. Defensive: a nullish/garbage override
+ * falls through to the detected language.
+ */
+export function exportFenceLang(
+  override: string | null | undefined,
+  detected: string | null | undefined,
+): string {
+  if (override === OVERRIDE_NONE) return "";
+  if (typeof override === "string" && KNOWN.has(override)) return override;
+  return typeof detected === "string" && detected !== "" ? detected : "";
+}
