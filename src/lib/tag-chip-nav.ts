@@ -121,6 +121,48 @@ export function isChipNavKey(key: string): key is ChipNavKey {
   );
 }
 
+/**
+ * Resolve where a focused chip should MOVE to when the user reorders it
+ * with Ctrl/Cmd+ArrowLeft / Ctrl/Cmd+ArrowRight — the keyboard-only
+ * counterpart to drag-to-reorder on the chip row.
+ *
+ * Returns the destination index the chip at `current` should occupy
+ * after the move, given `count` chips total:
+ *   - Ctrl+ArrowLeft  -> current - 1 (one slot toward the start)
+ *   - Ctrl+ArrowRight -> current + 1 (one slot toward the end)
+ *
+ * CLAMPS at the ends (no wrap): a chip already at index 0 can't move
+ * further left, so the call is a no-op that returns the same index —
+ * the caller checks `to === from` and skips the write/re-render. This
+ * matches the arrow-navigation clamp + the WAI-ARIA reorder pattern
+ * (Home/End aren't reorder keys; only the single-step arrows move a
+ * chip, mirroring the drag's one-position-at-a-time feel is unnecessary
+ * — keyboard users can repeat the chord).
+ *
+ * Returns -1 when there's nothing to move (count <= 1: a single chip,
+ * or none). A non-finite / out-of-range `current` is clamped into
+ * [0, count-1] first so a stale cursor still moves sanely.
+ */
+export function reorderChipTargetIndex(
+  count: number,
+  current: number,
+  key: "ArrowLeft" | "ArrowRight",
+): number {
+  const n = safeCount(count);
+  if (n <= 1) return -1;
+  const cur = clampIndex(current, n);
+  if (key === "ArrowLeft") return Math.max(0, cur - 1);
+  if (key === "ArrowRight") return Math.min(n - 1, cur + 1);
+  return cur;
+}
+
+/** True when `key` is a single-step reorder arrow (ArrowLeft/ArrowRight). */
+export function isChipReorderKey(
+  key: string,
+): key is "ArrowLeft" | "ArrowRight" {
+  return key === "ArrowLeft" || key === "ArrowRight";
+}
+
 /** True when `key` should remove the focused chip (Backspace / Delete). */
 export function isChipRemoveKey(key: string): boolean {
   return key === "Backspace" || key === "Delete";

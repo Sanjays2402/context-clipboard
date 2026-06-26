@@ -126,6 +126,8 @@ import {
   focusIndexAfterRemove,
   isChipNavKey,
   isChipRemoveKey,
+  isChipReorderKey,
+  reorderChipTargetIndex,
 } from "../lib/tag-chip-nav";
 import { highlightCode } from "../lib/code-highlight";
 import { canZoom, lightboxCaption } from "../lib/lightbox";
@@ -1029,7 +1031,7 @@ function renderDetailTagChips(): void {
   detailTagChips.innerHTML = tags
     .map(
       (t, i) =>
-        `<span class="detail-tag-chip" role="listitem" draggable="true" data-tag="${escapeHtml(t)}" data-chip-idx="${i}" tabindex="${i === 0 ? "0" : "-1"}" aria-label="Tag ${escapeHtml(t)} \u2014 press Backspace to remove, drag to reorder">` +
+        `<span class="detail-tag-chip" role="listitem" draggable="true" data-tag="${escapeHtml(t)}" data-chip-idx="${i}" tabindex="${i === 0 ? "0" : "-1"}" aria-label="Tag ${escapeHtml(t)} \u2014 press Backspace to remove, Ctrl+arrow or drag to reorder">` +
         `<span class="detail-tag-label">${escapeHtml(t)}</span>` +
         `<button type="button" class="detail-tag-x" data-act="remove-tag" data-tag="${escapeHtml(t)}" tabindex="-1" title="Remove tag ${escapeHtml(t)}" aria-label="Remove tag ${escapeHtml(t)}">${icons.close()}</button>` +
         `</span>`,
@@ -1078,6 +1080,36 @@ async function removeDetailTag(tag: string): Promise<void> {
   paintNoteStripChip(detailNote.value);
   paintNotePromoteStripChip(detailNote.value, next);
   toast(`Removed ${tag}`);
+}
+
+/**
+ * Move the tag at `fromIdx` to `toIdx` on the clip currently open in
+ * detail, committing through the SAME reorderTags + updateTags + render
+ * path the drag-to-reorder drop uses so the two reorder surfaces (mouse
+ * drag, keyboard Ctrl+Arrow) can never drift. Returns the index the
+ * moved chip lands at (so the keyboard caller can keep focus on it), or
+ * -1 when the move was a no-op (clamped at an edge, or an unchanged
+ * list). Does NOT move focus — the caller decides.
+ */
+async function reorderDetailTag(fromIdx: number, toIdx: number): Promise<number> {
+  if (!detailId) return -1;
+  if (!Number.isInteger(fromIdx) || !Number.isInteger(toIdx) || fromIdx === toIdx) {
+    return -1;
+  }
+  const current = parseTags(detailTags.value);
+  // `before` is true when moving LEFT (insert ahead of the target),
+  // false when moving RIGHT (insert after) — matches how a single-step
+  // keyboard move reads against the drag's pointer-midpoint model.
+  const before = toIdx < fromIdx;
+  const next = reorderTags(current, fromIdx, toIdx, before);
+  if (serializeTags(next) === serializeTags(current)) return -1; // no-op
+  detailTags.value = serializeTags(next);
+  renderDetailTagChips();
+  await updateTags(detailId, next);
+  await render();
+  // The moved tag now sits at toIdx (single-step move within the
+  // cleaned list), the natural focus target for "keep nudging".
+  return toIdx;
 }
 
 /**
@@ -9145,6 +9177,23 @@ detailTagChips.addEventListener("keydown", async (e) => {
   const idx = Number(chip.dataset.chipIdx);
   if (!Number.isFinite(idx)) return;
   const count = detailTagChips.querySelectorAll(".detail-tag-chip").length;
+  // Ctrl/Cmd+Arrow REORDERS the focused chip (keyboard-only counterpart
+  // to drag-to-reorder). Checked BEFORE plain-arrow nav since both use
+  // ArrowLeft/ArrowRight — the modifier is what distinguishes "move the
+  // chip" from "move focus to the next chip". Commits through the same
+  // reorderDetailTag path the drag drop uses, then keeps focus on the
+  // moved chip so the user can keep nudging.
+  if ((e.metaKey || e.ctrlKey) && isChipReorderKey(e.key)) {
+    e.preventDefault();
+    const to = reorderChipTargetIndex(count, idx, e.key);
+    if (to < 0 || to === idx) return; // clamped at an edge — no-op
+    const landed = await reorderDetailTag(idx, to);
+    if (landed >= 0) {
+      focusDetailTagChip(landed);
+      toast("Reordered tags");
+    }
+    return;
+  }
   if (isChipNavKey(e.key)) {
     e.preventDefault();
     focusDetailTagChip(nextChipFocusIndex(count, idx, e.key));
