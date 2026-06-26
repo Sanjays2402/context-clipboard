@@ -118,6 +118,7 @@ import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip, linkPeekTooltip } from "../lib/list-peek";
 import { computeDayHeaderInfos } from "../lib/day-group";
+import { dayRunClipIds, dayRunToggleAction } from "../lib/day-run";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
 import { parseTags, removeTag, serializeTags, reorderTags } from "../lib/tag-chips";
 import {
@@ -1860,9 +1861,13 @@ async function render(): Promise<void> {
         const header = dayHeaders[i];
         // A run's size rides along as a "· N" volume badge so the user
         // sees the day's clip count at a glance ("Today · 6"). The count
-        // span is muted + non-bold so the label still reads first.
+        // span is muted + non-bold so the label still reads first. The
+        // divider is a button (data-run-start/-count) so clicking it
+        // selects the whole day's run in one tap — fast triage before a
+        // bulk pin/lock/tag/export. role=button + a tabindex make it
+        // keyboard-reachable; aria-label spells out the gesture.
         const headerHtml = header
-          ? `<div class="day-header" role="presentation">${escapeHtml(header.label)}<span class="day-header-count">\u00b7 ${header.count}</span></div>`
+          ? `<button type="button" class="day-header" data-run-start="${i}" data-run-count="${header.count}" title="Select all ${header.count} clip${header.count === 1 ? "" : "s"} in ${escapeHtml(header.label)}" aria-label="Select all ${header.count} clips under ${escapeHtml(header.label)}">${escapeHtml(header.label)}<span class="day-header-count">\u00b7 ${header.count}</span></button>`
           : "";
         return headerHtml + renderClip(c, i, i === activeIndex, currentNeedle);
       })
@@ -5284,6 +5289,32 @@ listEl.addEventListener("click", async (e) => {
     const raw = searchEl.value;
     searchEl.value = raw.replace(/(?:^|\s)is:archived(?:\s|$)/, " ").replace(/\s+/g, " ").trim();
     activeIndex = 0;
+    await render();
+    return;
+  }
+  // Day-group divider click — select (or, if already all-selected,
+  // deselect) the whole day's contiguous run in one tap. The header
+  // carries its run-start index + count as data attributes (computed
+  // by computeDayHeaderInfos at paint time), so dayRunClipIds replays
+  // exactly the rows under that divider. Toggle semantics mean a second
+  // tap on the same day clears it.
+  const dayHeaderEl = target.closest(".day-header") as HTMLElement | null;
+  if (dayHeaderEl) {
+    const start = Number(dayHeaderEl.dataset.runStart);
+    const count = Number(dayHeaderEl.dataset.runCount);
+    const runIds = dayRunClipIds(currentClips, start, count);
+    if (runIds.length === 0) return;
+    const action = dayRunToggleAction(runIds, selectedIds);
+    if (action === "deselect") {
+      for (const rid of runIds) selectedIds.delete(rid);
+      toast(`Deselected ${runIds.length}`);
+    } else {
+      for (const rid of runIds) selectedIds.add(rid);
+      // Anchor a subsequent Shift+Click range from the run's first row.
+      if (Number.isFinite(start)) selectionAnchor = start;
+      toast(`Selected ${runIds.length}`);
+    }
+    updateBulkBar();
     await render();
     return;
   }
