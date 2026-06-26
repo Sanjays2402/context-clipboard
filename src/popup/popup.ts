@@ -117,7 +117,7 @@ import { formatFocusPosition } from "../lib/focus-position";
 import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip, linkPeekTooltip } from "../lib/list-peek";
-import { computeDayHeaders } from "../lib/day-group";
+import { computeDayHeaderInfos } from "../lib/day-group";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
 import { parseTags, removeTag, serializeTags } from "../lib/tag-chips";
 import {
@@ -1832,13 +1832,16 @@ async function render(): Promise<void> {
     // (see lib/day-group) so a stale age label never lands at the top.
     const showDayHeaders = listSort === "recent" || listSort === "oldest";
     const dayHeaders = showDayHeaders
-      ? computeDayHeaders(currentClips)
+      ? computeDayHeaderInfos(currentClips)
       : [];
     listEl.innerHTML = currentClips
       .map((c, i) => {
         const header = dayHeaders[i];
+        // A run's size rides along as a "· N" volume badge so the user
+        // sees the day's clip count at a glance ("Today · 6"). The count
+        // span is muted + non-bold so the label still reads first.
         const headerHtml = header
-          ? `<div class="day-header" role="presentation">${escapeHtml(header)}</div>`
+          ? `<div class="day-header" role="presentation">${escapeHtml(header.label)}<span class="day-header-count">\u00b7 ${header.count}</span></div>`
           : "";
         return headerHtml + renderClip(c, i, i === activeIndex, currentNeedle);
       })

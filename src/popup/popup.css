@@ -1008,6 +1008,17 @@ main:focus {
   margin-top: 2px;
 }
 
+/* Per-day volume badge ("Today · 6") — the run size rides along after
+   the label, muted + lighter-weight so the day label still reads first.
+   A hair of left margin separates the middot from the label text. */
+.day-header-count {
+  margin-left: 5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
 /* Compact mode tightens the dividers to match the denser rows. */
 body.compact-rows .day-header {
   margin: 3px 2px 2px;

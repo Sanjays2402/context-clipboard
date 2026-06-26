@@ -56,6 +56,19 @@ export interface DayGroupClip {
   pinned?: boolean;
 }
 
+/**
+ * A day-group divider: the human `label` to paint plus the `count` of
+ * clips in the contiguous run this header leads. The count powers the
+ * "Today · 6" volume badge on the divider so the user can see how many
+ * clips landed in each day-bucket at a glance without scrolling the run.
+ */
+export interface DayHeaderInfo {
+  /** The human divider label ("Today", "Yesterday", "Pinned", ...). */
+  label: string;
+  /** How many clips belong to the run this header leads (>= 1). */
+  count: number;
+}
+
 /** Label used for the pinned run at the top of a time-sorted list. */
 export const PINNED_HEADER = "Pinned";
 /** Catch-all label for clips with an unusable timestamp. */
@@ -63,8 +76,64 @@ export const UNDATED_HEADER = "Earlier";
 
 const DAY_MS = 86_400_000;
 
+/** Resolve the group key + human label for a single clip. */
+function bucketOf(
+  c: DayGroupClip | null | undefined,
+  now: number,
+): { key: string; label: string } {
+  const pinned = !!c && c.pinned === true;
+  if (pinned) return { key: "pinned", label: PINNED_HEADER };
+  const ts = c && Number.isFinite(c.lastSeenAt) ? c.lastSeenAt : NaN;
+  if (!Number.isFinite(ts)) return { key: "undated", label: UNDATED_HEADER };
+  return { key: dayKey(ts), label: dayLabel(ts, now) };
+}
+
 /**
- * Compute the per-clip day-group headers for an ordered clip list.
+ * Compute the per-clip day-group headers WITH the size of each run, for
+ * an ordered clip list.
+ *
+ * Returns an array the same length as `clips`: element i is the header
+ * `{ label, count }` to render immediately BEFORE clip i, or null when
+ * clip i belongs to the same group as clip i-1 (so only the first row
+ * of each run carries a divider). `count` is the number of clips in the
+ * contiguous run the header leads — exactly what the "Today · 6" badge
+ * shows.
+ *
+ * The pinned tier (a leading run of `pinned` clips) collapses to a
+ * single `PINNED_HEADER` run; day bucketing begins at the first
+ * unpinned clip. A clip whose `lastSeenAt` is non-finite is grouped
+ * under `UNDATED_HEADER`. Same bucketing as `computeDayHeaders` (which
+ * is now a thin label-only projection of this) so the two never drift.
+ */
+export function computeDayHeaderInfos(
+  clips: ReadonlyArray<DayGroupClip | null | undefined> | null | undefined,
+  now: number = Date.now(),
+): (DayHeaderInfo | null)[] {
+  if (!Array.isArray(clips) || clips.length === 0) return [];
+  const buckets = clips.map((c) => bucketOf(c, now));
+  const out: (DayHeaderInfo | null)[] = [];
+  let prevKey: string | null = null;
+  for (let i = 0; i < buckets.length; i++) {
+    const { key, label } = buckets[i];
+    if (key === prevKey) {
+      out.push(null);
+    } else {
+      // First row of a new run: count forward until the key changes.
+      // The list is time-contiguous (this is only called for the
+      // recent/oldest sorts), so a run is one calendar day (or the
+      // single pinned/undated tier).
+      let count = 0;
+      for (let j = i; j < buckets.length && buckets[j].key === key; j++) count++;
+      out.push({ label, count });
+    }
+    prevKey = key;
+  }
+  return out;
+}
+
+/**
+ * Compute the per-clip day-group headers (label only) for an ordered
+ * clip list — the back-compat projection of `computeDayHeaderInfos`.
  *
  * Returns an array the same length as `clips`: element i is the header
  * string to render immediately BEFORE clip i, or null when clip i
@@ -80,33 +149,7 @@ export function computeDayHeaders(
   clips: ReadonlyArray<DayGroupClip | null | undefined> | null | undefined,
   now: number = Date.now(),
 ): (string | null)[] {
-  if (!Array.isArray(clips) || clips.length === 0) return [];
-  const headers: (string | null)[] = [];
-  // `prevKey` is the group key of the previous row: "pinned", a
-  // calendar-day key like "2026-176", or "undated". A header is
-  // emitted whenever the key changes.
-  let prevKey: string | null = null;
-  for (const c of clips) {
-    const pinned = !!c && c.pinned === true;
-    let key: string;
-    let label: string;
-    if (pinned) {
-      key = "pinned";
-      label = PINNED_HEADER;
-    } else {
-      const ts = c && Number.isFinite(c.lastSeenAt) ? c.lastSeenAt : NaN;
-      if (!Number.isFinite(ts)) {
-        key = "undated";
-        label = UNDATED_HEADER;
-      } else {
-        key = dayKey(ts);
-        label = dayLabel(ts, now);
-      }
-    }
-    headers.push(key === prevKey ? null : label);
-    prevKey = key;
-  }
-  return headers;
+  return computeDayHeaderInfos(clips, now).map((h) => (h ? h.label : null));
 }
 
 /**
