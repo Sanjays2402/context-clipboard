@@ -573,6 +573,18 @@
       </div>
     </div>
 
+    <!-- Image lightbox overlay. Opened by clicking an image clip's body in
+         detail; shows the captured image at full resolution over a dim
+         backdrop (data URL is local — no network). Esc / backdrop click /
+         the × close it. -->
+    <div id="lightbox" class="lightbox" hidden role="dialog" aria-modal="true" aria-label="Image preview">
+      <button id="lightbox-close" class="lightbox-close icon-btn" title="Close (Esc)" data-icon="close"></button>
+      <figure class="lightbox-figure">
+        <img id="lightbox-img" class="lightbox-img" alt="" />
+        <figcaption id="lightbox-caption" class="lightbox-caption"></figcaption>
+      </figure>
+    </div>
+
     <script type="module" src="popup.js"></script>
   </body>
 </html>

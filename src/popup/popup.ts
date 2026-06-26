@@ -127,6 +127,7 @@ import {
   isChipRemoveKey,
 } from "../lib/tag-chip-nav";
 import { highlightCode } from "../lib/code-highlight";
+import { canZoom, lightboxCaption } from "../lib/lightbox";
 import {
   effectiveLang,
   selectValueFor,
@@ -484,6 +485,10 @@ const toastEl = $("toast");
 const rowMenuEl = $("row-menu");
 const cheatsheetEl = $("cheatsheet");
 const cheatsheetClose = $<HTMLButtonElement>("cheatsheet-close");
+const lightboxEl = $("lightbox");
+const lightboxImg = $<HTMLImageElement>("lightbox-img");
+const lightboxCaptionEl = $("lightbox-caption");
+const lightboxClose = $<HTMLButtonElement>("lightbox-close");
 const paletteEl = $("palette");
 const paletteInput = $<HTMLInputElement>("palette-input");
 const paletteListEl = $("palette-list");
@@ -2036,7 +2041,14 @@ async function openDetail(id: string) {
   detailWrapClipOverride =
     typeof c.wrapOverride === "boolean" ? c.wrapOverride : undefined;
   if (c.kind === "image") {
-    detailBody.innerHTML = `<img src="${c.content}" alt="" />`;
+    // The thumbnail is capped at 200px in detail; clicking it opens the
+    // lightbox at full resolution (canZoom gates on a usable data URL).
+    // role=button + cursor-zoom telegraph the affordance; the click
+    // handler is delegated on detailBody so we don't rebind per open.
+    const zoomable = canZoom(c.kind, c.content);
+    detailBody.innerHTML = zoomable
+      ? `<img src="${c.content}" alt="" class="detail-img-zoomable" role="button" tabindex="0" title="Click to zoom" />`
+      : `<img src="${c.content}" alt="" />`;
     detailOcr.hidden = false;
     // Re-fetch is only meaningful when we have an http(s) source to
     // pull from. `nearbyText` is where context-menu image captures
@@ -2857,6 +2869,9 @@ function closeDetail() {
   // away via Back / Esc, drop the menu so it doesn't linger as a
   // ghost overlay over the main list.
   if (!detailSendMenu.hidden) closeSendMenu();
+  // Likewise drop the image lightbox if it's open — leaving detail with
+  // a stranded full-screen image over the list would be jarring.
+  closeLightbox();
   detailEl.hidden = true;
   detailId = null;
   // Exiting detail-view always drops similar-nav. The user can re-enter
@@ -6234,6 +6249,64 @@ cheatsheetEl
   .querySelector(".cheatsheet-card")
   ?.addEventListener("click", (e) => e.stopPropagation());
 
+// Image lightbox -------------------------------------------------------
+//
+// Clicking an image clip's detail body opens a full-resolution preview
+// over a dim backdrop. The data URL is already on the clip (local — no
+// network). Esc / backdrop click / the × close it. The caption mirrors
+// the detail image-info line (dims · bytes · mime) via lib/lightbox.
+
+function openLightbox(src: string, caption: string): void {
+  lightboxImg.src = src;
+  lightboxCaptionEl.textContent = caption;
+  lightboxEl.hidden = false;
+}
+
+function closeLightbox(): void {
+  if (lightboxEl.hidden) return;
+  lightboxEl.hidden = true;
+  // Drop the (potentially multi-MB) data URL so it isn't pinned in
+  // memory while the overlay is closed.
+  lightboxImg.removeAttribute("src");
+  lightboxCaptionEl.textContent = "";
+}
+
+// Open from a click on the zoomable image in the detail body. Delegated
+// on detailBody (re-rendered each open) so we bind once. Re-reads the
+// open clip for fresh metadata so the caption is always current.
+detailBody.addEventListener("click", async (e) => {
+  const img = (e.target as HTMLElement).closest(".detail-img-zoomable");
+  if (!img || !detailId) return;
+  const c = await getClip(detailId);
+  if (!c || !canZoom(c.kind, c.content)) return;
+  openLightbox(
+    c.content,
+    lightboxCaption({ width: c.width, height: c.height, bytes: c.bytes, mime: c.mime }),
+  );
+});
+
+// Keyboard: Enter / Space on the focused zoomable image opens the
+// lightbox (the role=button affordance), matching the click path.
+detailBody.addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const img = (e.target as HTMLElement).closest(".detail-img-zoomable");
+  if (!img || !detailId) return;
+  e.preventDefault();
+  const c = await getClip(detailId);
+  if (!c || !canZoom(c.kind, c.content)) return;
+  openLightbox(
+    c.content,
+    lightboxCaption({ width: c.width, height: c.height, bytes: c.bytes, mime: c.mime }),
+  );
+});
+
+lightboxClose.addEventListener("click", () => closeLightbox());
+lightboxEl.addEventListener("click", (e) => {
+  // Backdrop / figure-gap click closes; clicking the image itself does
+  // not (so the user can't accidentally dismiss while inspecting it).
+  if (e.target !== lightboxImg) closeLightbox();
+});
+
 // Command palette (Cmd+K) ----------------------------------------------
 //
 // Fuzzy-search every action in the popup. We build the action list on
@@ -8415,6 +8488,15 @@ document.addEventListener("keydown", async (e) => {
     // Esc + arrows + Enter are handled by the input listener; everything
     // else falls through to native input behavior. Stop here so the rest
     // of the global handler doesn't react to typing inside the palette.
+    return;
+  }
+  // Lightbox is the topmost overlay (z-index 50) — Esc closes it before
+  // anything underneath (detail/settings/cheatsheet) reacts to Esc.
+  if (!lightboxEl.hidden) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeLightbox();
+    }
     return;
   }
   // Cheatsheet is always the first thing we check so `?` works globally,
