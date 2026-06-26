@@ -184,6 +184,28 @@ export interface ClipItem {
    * import/export untouched (harmless UI hint; never affects content).
    */
   wrapOverride?: boolean;
+  /**
+   * Per-clip "force language" override for the detail-body code
+   * tinting.
+   *
+   * The popup auto-detects a code clip's language (lib/util.detect
+   * CodeLang) to drive syntax tinting + fenced-code export. That
+   * heuristic is conservative and occasionally guesses wrong (a Rust
+   * snippet read as TypeScript) or can't classify at all (a short
+   * config fragment), leaving the body un-tinted or mis-tinted. This
+   * field lets the user pin the language by hand from the detail view,
+   * winning over the auto-detection for THIS clip only.
+   *
+   * Resolution lives in `lib/lang-override.effectiveLang`: a non-empty
+   * string here wins; the sentinel `"none"` forces tinting OFF (for a
+   * clip detectCodeLang false-positives as code but the user knows is
+   * prose); `undefined` falls through to auto-detection as before.
+   *
+   * Additive optional field — undefined for every clip the user has
+   * never re-classified. Round-trips through import/export untouched
+   * (a harmless UI hint; never affects the clip content itself).
+   */
+  langOverride?: string;
 }
 
 export interface SearchQuery {

@@ -2528,6 +2528,62 @@ kbd {
   box-shadow: var(--shadow-md);
 }
 
+/* Per-clip force-language control (lib/lang-override) — a thin row
+   under the code body letting the user override the auto-detected
+   syntax-tinting language (or force it off). Sits between the body and
+   the content-stats line; mirrors the muted footnote register so it
+   reads as a control, not chrome. */
+.detail-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--glass);
+}
+
+.detail-lang-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.detail-lang-select {
+  background: var(--glass-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.detail-lang-select:hover {
+  border-color: var(--accent);
+}
+
+.detail-lang-select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.detail-lang-hint {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Content-stats breadcrumb — char/word/line counts under the body.
    Subtle, monospace-numerals, sits as a thin footnote between the
    body and the meta block. */

@@ -512,6 +512,44 @@ export async function setWrapOverride(
 }
 
 /**
+ * Set / clear the per-clip detail-body "force language" override.
+ *
+ *   - a language id (e.g. "rust") -> tint THIS clip as that language.
+ *   - the sentinel "none"         -> force tinting OFF for this clip.
+ *   - `undefined`                 -> clear the override; the clip
+ *     follows auto-detection again (the field is deleted so it doesn't
+ *     linger in the stored shape / export bundle).
+ *
+ * The caller normalises the raw <select> value via
+ * `lib/lang-override.normalizeLangChoice` BEFORE calling here, so this
+ * function only ever sees a valid language id, the "none" sentinel, or
+ * undefined. No-op fast path when the post-coercion value already
+ * matches the stored one (including both-undefined). Returns the
+ * resolved override (or undefined) on success, or `null` when the clip
+ * is gone.
+ */
+export async function setLangOverride(
+  id: string,
+  lang: string | undefined,
+): Promise<string | undefined | null> {
+  const item = await getClip(id);
+  if (!item) return null;
+  const want = typeof lang === "string" && lang !== "" ? lang : undefined;
+  const current =
+    typeof item.langOverride === "string" && item.langOverride !== ""
+      ? item.langOverride
+      : undefined;
+  if (current === want) return current; // no-op fast path
+  if (want === undefined) {
+    delete item.langOverride;
+  } else {
+    item.langOverride = want;
+  }
+  await putClip(item);
+  return want;
+}
+
+/**
  * Set / clear the free-form per-clip note. The note is sanitised at
  * the caller via `lib/clip-note.sanitizeClipNote(raw)`, which returns
  * `undefined` for empty/whitespace input — passing that through here

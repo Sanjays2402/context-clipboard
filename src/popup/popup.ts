@@ -28,6 +28,7 @@ import {
   getDetailWrap,
   setDetailWrap,
   setWrapOverride,
+  setLangOverride,
   mergeDuplicatesByHash,
   findDuplicateGroups,
   mergeDuplicateGroup,
@@ -126,6 +127,16 @@ import {
   isChipRemoveKey,
 } from "../lib/tag-chip-nav";
 import { highlightCode } from "../lib/code-highlight";
+import {
+  effectiveLang,
+  selectValueFor,
+  normalizeLangChoice,
+  langControlTitle,
+  langLabel,
+  LANG_OPTIONS,
+  OVERRIDE_AUTO,
+  OVERRIDE_NONE,
+} from "../lib/lang-override";
 import {
   resolveDensity,
   densityBodyClass,
@@ -332,6 +343,9 @@ const detailHistory = $<HTMLButtonElement>("detail-history");
 const detailLock = $<HTMLButtonElement>("detail-lock");
 const detailBody = $("detail-body");
 const detailStats = $("detail-stats");
+const detailLangRow = $("detail-lang-row");
+const detailLang = $<HTMLSelectElement>("detail-lang");
+const detailLangHint = $("detail-lang-hint");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
 const detailHits = $("detail-hits");
@@ -1047,6 +1061,54 @@ async function removeDetailTag(tag: string): Promise<void> {
   paintNoteStripChip(detailNote.value);
   paintNotePromoteStripChip(detailNote.value, next);
   toast(`Removed ${tag}`);
+}
+
+/**
+ * Build + sync the per-clip force-language control (lib/lang-override).
+ *
+ * Shows a dropdown under the body for text/link clips so the user can
+ * override the auto-detected tinting language (or force it off) when
+ * detectCodeLang guesses wrong or can't classify. Hidden for images
+ * (no code body) and while the user is actively searching (the
+ * search-match highlight wins over syntax tinting, so the control would
+ * have no visible effect). The <option> list is rendered once from
+ * LANG_OPTIONS; this just selects the right value + refreshes the hint
+ * each open. The clip's stored override drives the selected value via
+ * selectValueFor.
+ */
+function renderDetailLangControl(c: ClipItem): void {
+  const searching = currentNeedle.trim() !== "";
+  if (c.kind === "image" || searching) {
+    detailLangRow.hidden = true;
+    return;
+  }
+  detailLangRow.hidden = false;
+  // Populate the <option> list once (idempotent — only when empty).
+  if (detailLang.options.length === 0) {
+    const opts: string[] = [
+      `<option value="${OVERRIDE_AUTO}">Auto-detect</option>`,
+      `<option value="${OVERRIDE_NONE}">Plain text (no tint)</option>`,
+    ];
+    for (const o of LANG_OPTIONS) {
+      opts.push(`<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`);
+    }
+    detailLang.innerHTML = opts.join("");
+  }
+  const detected = detectCodeLang(c.content);
+  detailLang.value = selectValueFor(c.langOverride);
+  detailLang.title = langControlTitle(c.langOverride, detected);
+  // Hint tail tells the user what Auto WOULD pick, so "Auto-detect"
+  // isn't a black box: "auto → Rust" or "auto → not code".
+  const eff = effectiveLang(c.langOverride, detected);
+  if (eff.overridden) {
+    detailLangHint.textContent = detected
+      ? `forced \u00b7 auto would pick ${langLabel(detected)}`
+      : "forced \u00b7 auto finds no code";
+  } else {
+    detailLangHint.textContent = detected
+      ? `auto \u2192 ${langLabel(detected)}`
+      : "auto \u2192 not code";
+  }
 }
 
 function renderTagChips(allClips: ClipItem[]) {
@@ -1997,9 +2059,17 @@ async function openDetail(id: string) {
       bodyHtml = highlightHtml(c.content, currentNeedle);
       detailBody.classList.remove("code-tinted");
     } else {
-      const lang = detectCodeLang(c.content);
-      if (lang) {
-        bodyHtml = highlightCode(c.content, lang);
+      // Resolve the language to tint with: a per-clip force-language
+      // override (lib/lang-override) wins over auto-detection, and the
+      // explicit "none" override forces tinting off for a clip that
+      // detectCodeLang false-positives as code. effectiveLang folds
+      // both the language choice AND whether to tint at all into one
+      // verdict so the .code-tinted class + the highlightCode call can
+      // never disagree.
+      const detected = detectCodeLang(c.content);
+      const eff = effectiveLang(c.langOverride, detected);
+      if (eff.tint && eff.lang) {
+        bodyHtml = highlightCode(c.content, eff.lang);
         detailBody.classList.add("code-tinted");
       } else {
         bodyHtml = highlightHtml(c.content, "");
@@ -2010,6 +2080,7 @@ async function openDetail(id: string) {
     detailOcr.hidden = true;
     detailRefetch.hidden = true;
   }
+  renderDetailLangControl(c);
   renderContentStats(c);
   // Word-wrap toggle only applies to the text <pre> body — images
   // have no wrappable lines, so hide the button for image clips and
@@ -8691,6 +8762,28 @@ detailWrap.addEventListener("click", async (e) => {
     console.debug("[context-clipboard] persist wrap override failed", err);
   }
   toast(next ? "Wrap on for this clip" : "Wrap off for this clip");
+});
+
+// Per-clip force-language control (lib/lang-override) — override the
+// auto-detected syntax-tinting language, or force tinting off, when
+// detectCodeLang guesses wrong or can't classify. Persists on the
+// clip's langOverride field (db.setLangOverride; the normalizer maps
+// "Auto-detect" back to undefined so a cleared override doesn't linger
+// in the export). Re-opens the clip so the body re-tints with the new
+// language immediately + the hint refreshes.
+detailLang.addEventListener("change", async () => {
+  if (!detailId) return;
+  const stored = normalizeLangChoice(detailLang.value);
+  try {
+    await setLangOverride(detailId, stored);
+  } catch (err) {
+    console.debug("[context-clipboard] persist lang override failed", err);
+  }
+  // Re-render the open clip so the body re-tints + the control re-syncs.
+  await openDetail(detailId);
+  if (stored === OVERRIDE_NONE) toast("Syntax tinting off for this clip");
+  else if (stored) toast(`Tinting as ${langLabel(stored)}`);
+  else toast("Following auto-detection");
 });
 
 // Content-stats breadcrumb: click to copy the summary line itself
