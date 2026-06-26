@@ -529,20 +529,49 @@ Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2
 - [ ] Link hover-peek: surface the og:title vs the page `<title>` distinctly when both exist (capture stores one; a richer peek could show "title · og:title" when they differ)
 - [x] Detail: a "copy as `<lang>` fenced block" send-to row that uses the forced language — done as part of `dd7429a` (fencedCodeForClip now honors langOverride)
 - [x] List day-headers: a tiny per-group count badge ("Today · 6") on the divider so the user sees the day's volume at a glance — `0d61ca0`
-- [ ] Search: `is:wrapoverride:on` / `is:wrapoverride:off` direction-specific variants (current operator is presence-only; some users want "show me everything I forced to NOWRAP")
+- [x] Search: `is:wrapoverride:on` / `is:wrapoverride:off` direction-specific variants (current operator is presence-only; some users want "show me everything I forced to NOWRAP") — `e712cc4`
 
 ### Open follow-ups from this tick (2026-06-25 23:13 PT)
-- [ ] Tag chips: drag-to-reorder now exists (`d2a49c5`) — next gap is keyboard reorder (Ctrl+←/→ to move a focused chip) for keyboard-only users
+- [x] Tag chips: keyboard reorder (Ctrl+←/→ to move a focused chip) for keyboard-only users — `854d8e2`
+- [x] Lightbox: prev/next arrows to step through all image clips without closing (mirror detail `[`/`]` nav, image-filtered) — `aa5165e`
 - [ ] Lightbox: pinch / scroll-wheel zoom + pan beyond fit-to-viewport, for inspecting a corner of a huge screenshot (currently capped at fit-to-viewport)
-- [ ] Lightbox: prev/next arrows to step through all image clips without closing (mirror detail `[`/`]` nav, image-filtered)
 - [ ] Force-language: remember the LAST forced language per-host as a soft default suggestion (every clip from a SQL console host defaults the dropdown to SQL)
 - [ ] Bulk Copy-as-Markdown: also honor langOverride in the per-clip fence (bulk-markdown re-runs detectCodeLang — wire exportFenceLang in for full parity with single-clip)
-- [ ] Day-header count badge: make the count a click target that selects every clip in that day's run (one-tap "select today")
-- [ ] is:langoverride direction variants: `is:langoverride:off` to find only the forced-OFF clips (prose the detector false-positived) vs the forced-to-a-language set
+- [x] Day-header count badge: make the count a click target that selects every clip in that day's run (one-tap "select today") — `9c06700`
+- [x] is:langoverride direction variants — shipped the wrap twin instead: `is:wrapoverride:on` / `:off` (`e712cc4`); langoverride direction variant still open
+- [x] Bulk Copy-as-Markdown: a settings toggle for the clip separator (`---` rule vs bare blank line) — some doc targets dislike horizontal rules — `c967d7d`
+- [x] Quick-chips scroll-shadow / is:wrapoverride direction: `is:wrapoverride:on`/`:off` direction-specific variants shipped (`e712cc4`)
 
 
 
 
+### Open follow-ups from this tick (2026-06-26 04:52 PT)
+- [ ] Lightbox: scroll-wheel / pinch zoom + pan beyond fit-to-viewport (inspect a corner of a huge screenshot); current nav is fit-only
+- [ ] Lightbox: the "image N of M" position could become a clickable dot-strip (jump straight to image K) for runs of many screenshots
+- [ ] Day-run select: a modifier (Shift+click the divider) could ADD the run to the existing selection instead of toggle-replacing, for cross-day multi-select
+- [ ] Day-run select: surface the run-select affordance in the keyboard cheatsheet (`?`) so keyboard users discover Enter-on-divider
+- [ ] Tag-chip keyboard reorder: a brief highlight pulse on the moved chip so the eye tracks where it landed (currently focus-only)
+- [ ] Bulk Copy-as-Markdown: also honor langOverride in the per-clip fence (bulk re-runs detectCodeLang — wire exportFenceLang for single-clip parity)
+- [ ] Search: `is:langoverride:off` / `is:langoverride:<lang>` direction variants (mirror the wrap:on/off split that just shipped — forced-off vs forced-to-a-specific-language)
+
+### New (added this tick — 2026-06-26 04:52 PT refill, FRESH frontend)
+Deliberately orthogonal to the wrap/lang-override + note clusters of
+recent ticks. Image-viewer, list-selection, settings, and detail UX gaps.
+- [ ] Lightbox: keyboard `+` / `-` zoom steps with a reset-to-fit on `0` (pairs with the new prev/next nav for a full viewer)
+- [ ] Detail image: a "download / save image" affordance from the lightbox (Blob -> a[download], local data URL, no network)
+- [ ] List: a "jump to day" mini-strip — clicking a day label in a compact header rail scrolls that day's run into view (companion to day-run select)
+- [ ] Bulk-bar: "Copy selected as plain text + Markdown" disambiguation — a single split-button with a caret to pick the format, decluttering two adjacent copy buttons
+- [ ] Settings: a live PREVIEW swatch next to the bulk-md separator select (render two stub clips with the chosen seam) so the choice is concrete
+- [ ] Detail: per-clip "open in lightbox" should also work for the list-row image thumb (click the thumb in the row -> straight to lightbox, skipping detail)
+- [ ] Quick-chips: a "Today" chip that applies the same day-run filter the divider selects (filter, not select) for users who want to NARROW not select
+- [ ] Detail tag chips: drag-to-reorder should auto-scroll the chip row when dragging past its right edge (long tag lists overflow + clip)
+- [ ] Search: `is:imageonly` shorthand chip that pairs with the lightbox nav (filter to images, then the lightbox steps just those)
+- [ ] List day-headers: a settings toggle to disable the dividers entirely for users who prefer the pure flat stream (recurring — worth doing)
+- [ ] Lightbox: respect prefers-reduced-motion for the fade-in + nav transitions (a11y)
+- [ ] Detail: a "copy image to clipboard" button (navigator.clipboard.write with the image Blob) distinct from copy-as-Markdown
+- [ ] Bulk Copy: surface the joined char total in the post-copy toast ("Copied 3 clips · 1,240 chars") so the receipt matches the pre-commit hover
+- [ ] Settings: group the copy/export prefs (bulk-md separator, future image-copy format) under a "Copy & export" subheading so the panel stays scannable
+- [ ] Focus breadcrumb: when a day-run select is active, the footer could read "row N of M · day-run selected" to telegraph the bulk gesture's scope
 
 
 
@@ -701,12 +730,44 @@ Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2
 - [x] Detail: drag-to-reorder for the tag chips — HTML5 native DnD, same drop-edge model as saved-search/recent strips; new pure lib/tag-chips.reorderTags (move from->to with before/after, cleaning+dedupe, no-op guards); commits through the same updateTags+render path so the three tag-edit surfaces can't drift — `d2a49c5`
 - [x] Search: `is:langoverride` operator — surface clips with a hand-pinned force-language (or forced-off), gate = lang-override.hasLangOverride (same values selectValueFor treats as non-Auto), presence-only/direction-agnostic, parser+applyQuery+describeQuery + Cmd+K live-count command + empty-state hint — `11d804a`
 - [x] Export: force-language override drives the fenced-code export tag — new lang-override.exportFenceLang folds the override into copy-as-Markdown + send-to "Copy as fenced code" (forced lang wins, "none" -> bare fence/prose, auto -> detected); markdownAsFence decides fence-vs-prose; SendableClip.langOverride threaded through both buildSendActions sites — `dd7429a`
+- [x] Lightbox: prev/next traversal through image clips without closing — new pure lib/lightbox-nav (imageNavIds derives the zoomable-image subsequence in list order via the canZoom gate; stepLightbox resolves prev/next with wrap; lightboxPosition feeds an "image N of M" caption tail). Chevrons on each side + [ / ] + ←/→ step the image-only nav set; popup tracks the open clip id, swaps img+caption in place, hides chevrons for a lone image. Local data URLs only. 21/21 sanity — `aa5165e`
+- [x] List: click a day-group divider to select that whole day's run — new pure lib/day-run (dayRunClipIds slices the run window the header was counted over, clamping a stale count to the live list length; dayRunToggleAction decides select-vs-deselect from whether every run id is already selected). Divider is now a button carrying run-start+count data attrs, keyboard-reachable (focus ring), toggle semantics, anchors a following Shift+Click. 15/15 sanity — `9c06700`
+- [x] Detail: keyboard reorder for tag chips (Ctrl/Cmd+arrow) — new pure reorderChipTargetIndex + isChipReorderKey in lib/tag-chip-nav resolve the destination; popup commits through a shared reorderDetailTag helper reusing the EXACT reorderTags+updateTags+render path the drag drop uses (mouse + keyboard reorder can't drift), keeps focus on the moved chip, clamps at ends. Checked before plain-arrow focus-nav (modifier distinguishes move-chip vs move-focus). 16/16 sanity — `854d8e2`
+- [x] Settings: bulk Copy-as-Markdown clip separator (rule vs blank line) — planBulkMarkdown takes a separator arg (defaults "rule" so callers unchanged) via new pure bulkMarkdownSeparator; new additive Settings.bulkMarkdownSeparator + Settings-panel <select> wired through open/save with tamper-snapping; bulk-md click reads live preference before clipboard write. Block CONTENT identical across styles, only the seam changes. Sidesteps targets that treat `---` as a thematic break / front-matter fence / new-slide marker. 12/12 sanity — `c967d7d`
+- [x] Search: `is:wrapoverride:on` / `:off` direction-specific variants — new pure wrap-pref.wrapOverrideMatches (strict directional gate sharing the typeof-boolean check with hasWrapOverride); search.ts wrapOverrideDir field (parser sets presence+direction; applyQuery directional gate REPLACES presence when a direction is given); describeQuery reads wrap-on/nowrap; two new Cmd+K Filter commands with live split counts + empty-state hint. on+off partition the forced set exactly. 16/16 sanity (existing presence test 10/10 green) — `e712cc4`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-26 04:52 PT** — 5/5 shipped (frontend UX, fresh surfaces).
+  Spread across five DISTINCT surfaces (image-viewer / list-selection /
+  tag a11y / settings+export / search grammar), each closing an open
+  follow-up from the last few ticks. (1) `aa5165e` lightbox prev/next —
+  new pure lib/lightbox-nav steps the zoomable-image subsequence in list
+  order with wrap (chevrons + [ / ] + ←/→), "image N of M" caption tail,
+  chevrons hide for a lone image; 21/21. (2) `9c06700` click a day-group
+  divider to select that whole day's run — new pure lib/day-run slices
+  the header's run window (clamps a stale count) + toggle select/deselect;
+  divider is now a keyboard-reachable button anchoring a following
+  Shift+Click; 15/15. (3) `854d8e2` keyboard reorder for tag chips
+  (Ctrl/Cmd+arrow) — new pure reorderChipTargetIndex commits through the
+  SAME reorderTags+updateTags path the drag uses so mouse+kbd can't
+  drift, focus follows the moved chip; 16/16. (4) `c967d7d` bulk
+  Copy-as-Markdown clip separator setting (rule vs blank line) —
+  planBulkMarkdown gains a separator arg via pure bulkMarkdownSeparator,
+  additive Settings field + panel <select>; sidesteps targets that read
+  `---` as a thematic break / front-matter; 12/12. (5) `e712cc4`
+  is:wrapoverride:on / :off direction variants — new pure
+  wrap-pref.wrapOverrideMatches; parser sets presence+direction,
+  applyQuery directional gate replaces presence, two Cmd+K commands with
+  split counts; on+off partition the forced set; 16/16 (presence 10/10
+  still green). Gate: tsc --noEmit clean; chrome + firefox builds green
+  (popup 454.8KB, background 48.0KB, content 31.2KB); full sanity suite
+  112/112. Pushed a7f8443..e712cc4.
+
 
 - **2026-06-25 23:13 PT** — 5/5 shipped (frontend UX, fresh surfaces).
   Deliberately spread across five DISTINCT surfaces (list / image /
