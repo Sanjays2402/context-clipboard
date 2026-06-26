@@ -93,6 +93,60 @@ export function serializeTags(tags: ReadonlyArray<string> | null | undefined): s
   return sanitizeList(tags).join(", ");
 }
 
+/**
+ * Move the tag at `fromIndex` to sit before/after `toIndex`, returning a
+ * new cleaned array. Powers drag-to-reorder on the detail chip row: the
+ * chip order IS the comma-string order, so reordering chips lets the
+ * user rearrange a clip's tags without retyping the whole input.
+ *
+ * Semantics:
+ *   - The tag at `fromIndex` is spliced out, then re-inserted at the
+ *     position of `toIndex` (after the removal shifts indices). When
+ *     `before` is false the insert lands AFTER the target, matching the
+ *     drop-edge the popup computes from the pointer x vs the chip's
+ *     midpoint (same model as the saved-search / search-history DnD).
+ *   - Indices are taken against the CLEANED list (parse/dedupe first) so
+ *     the caller can pass raw chip dataset indices and they line up with
+ *     what's rendered.
+ *   - A no-op move (from === to, or an out-of-range index) returns the
+ *     cleaned list unchanged — the DnD drop handler can call this
+ *     unconditionally and only persist when the result differs.
+ *
+ * Never mutates the input; defensive against nullish / malformed lists
+ * (yields []) so a drop during a transient empty render can't throw.
+ */
+export function reorderTags(
+  tags: ReadonlyArray<string> | null | undefined,
+  fromIndex: number,
+  toIndex: number,
+  before: boolean,
+): string[] {
+  const list = sanitizeList(tags);
+  const n = list.length;
+  if (
+    !Number.isInteger(fromIndex) ||
+    !Number.isInteger(toIndex) ||
+    fromIndex < 0 ||
+    fromIndex >= n ||
+    toIndex < 0 ||
+    toIndex >= n
+  ) {
+    return list;
+  }
+  if (fromIndex === toIndex) return list;
+  const moved = list[fromIndex];
+  // Remove the source first; this shifts every index after it left by 1.
+  const without = list.slice(0, fromIndex).concat(list.slice(fromIndex + 1));
+  // Locate the target tag in the post-removal list to get a stable
+  // insertion anchor (its index may have shifted when fromIndex < toIndex).
+  const targetTag = list[toIndex];
+  let insertAt = without.indexOf(targetTag);
+  if (insertAt < 0) insertAt = without.length; // defensive: append
+  if (!before) insertAt += 1;
+  without.splice(insertAt, 0, moved);
+  return without;
+}
+
 /** Clean + dedupe an arbitrary tag array (drop blanks, case-fold dedupe). */
 function sanitizeList(tags: ReadonlyArray<string> | null | undefined): string[] {
   if (!Array.isArray(tags)) return [];

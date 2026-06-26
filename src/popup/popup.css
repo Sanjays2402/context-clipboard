@@ -3053,6 +3053,29 @@ kbd {
   white-space: nowrap;
 }
 
+/* Drag-to-reorder affordance (lib/tag-chips.reorderTags) — same model
+   as the saved-search / recent-search DnD strips: grab cursor on the
+   pill body, dim+tilt the chip in motion, and paint an inset accent bar
+   on the drop target's relevant edge so the user sees where it lands.
+   The × keeps a pointer cursor (remove is still its primary intent). */
+.detail-tag-chip[draggable="true"] {
+  cursor: grab;
+}
+.detail-tag-chip[draggable="true"] .detail-tag-x {
+  cursor: pointer;
+}
+.detail-tag-chip.dragging {
+  opacity: 0.4;
+  transform: scale(0.95) rotate(-1deg);
+  cursor: grabbing;
+}
+.detail-tag-chip.drop-before {
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+.detail-tag-chip.drop-after {
+  box-shadow: inset -3px 0 0 0 var(--accent);
+}
+
 .detail-tag-x {
   display: inline-flex;
   align-items: center;

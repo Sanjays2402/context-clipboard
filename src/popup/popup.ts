@@ -119,7 +119,7 @@ import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip, linkPeekTooltip } from "../lib/list-peek";
 import { computeDayHeaderInfos } from "../lib/day-group";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
-import { parseTags, removeTag, serializeTags } from "../lib/tag-chips";
+import { parseTags, removeTag, serializeTags, reorderTags } from "../lib/tag-chips";
 import {
   nextChipFocusIndex,
   focusIndexAfterRemove,
@@ -1017,7 +1017,7 @@ function renderDetailTagChips(): void {
   detailTagChips.innerHTML = tags
     .map(
       (t, i) =>
-        `<span class="detail-tag-chip" role="listitem" data-tag="${escapeHtml(t)}" data-chip-idx="${i}" tabindex="${i === 0 ? "0" : "-1"}" aria-label="Tag ${escapeHtml(t)} \u2014 press Backspace to remove">` +
+        `<span class="detail-tag-chip" role="listitem" draggable="true" data-tag="${escapeHtml(t)}" data-chip-idx="${i}" tabindex="${i === 0 ? "0" : "-1"}" aria-label="Tag ${escapeHtml(t)} \u2014 press Backspace to remove, drag to reorder">` +
         `<span class="detail-tag-label">${escapeHtml(t)}</span>` +
         `<button type="button" class="detail-tag-x" data-act="remove-tag" data-tag="${escapeHtml(t)}" tabindex="-1" title="Remove tag ${escapeHtml(t)}" aria-label="Remove tag ${escapeHtml(t)}">${icons.close()}</button>` +
         `</span>`,
@@ -8998,6 +8998,88 @@ detailTagChips.addEventListener("keydown", async (e) => {
     await removeDetailTag(tag);
     focusDetailTagChip(landing);
   }
+});
+
+// Tag chip drag-to-reorder (lib/tag-chips.reorderTags) — the chip order
+// IS the comma-string order, so dragging a chip lets the user rearrange
+// a clip's tags without retyping the whole input. Same drop-edge model
+// (pointer x vs chip midpoint) as the saved-search / search-history DnD
+// strips above, persisted via the SAME updateTags + render path the chip
+// × / raw input use, so the three surfaces can never drift.
+let detailTagDragIdx: number | null = null;
+
+detailTagChips.addEventListener("dragstart", (e) => {
+  const chip = (e.target as HTMLElement).closest<HTMLElement>(".detail-tag-chip");
+  if (!chip) return;
+  const idx = Number(chip.dataset.chipIdx);
+  if (!Number.isInteger(idx)) return;
+  detailTagDragIdx = idx;
+  chip.classList.add("dragging");
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+    // Firefox needs a payload to start the drag; we don't read it back.
+    try {
+      e.dataTransfer.setData("text/plain", chip.dataset.tag || "");
+    } catch {
+      /* harmless */
+    }
+  }
+});
+
+detailTagChips.addEventListener("dragover", (e) => {
+  if (detailTagDragIdx === null) return;
+  const chip = (e.target as HTMLElement).closest<HTMLElement>(".detail-tag-chip");
+  if (!chip) return;
+  if (Number(chip.dataset.chipIdx) === detailTagDragIdx) return;
+  e.preventDefault();
+  // Mark the insertion edge so the user sees WHERE the chip will land.
+  const rect = chip.getBoundingClientRect();
+  const before = e.clientX < rect.left + rect.width / 2;
+  detailTagChips
+    .querySelectorAll(".detail-tag-chip.drop-before, .detail-tag-chip.drop-after")
+    .forEach((el) => el.classList.remove("drop-before", "drop-after"));
+  chip.classList.add(before ? "drop-before" : "drop-after");
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+});
+
+detailTagChips.addEventListener("dragleave", (e) => {
+  const chip = (e.target as HTMLElement).closest<HTMLElement>(".detail-tag-chip");
+  if (!chip) return;
+  const into = e.relatedTarget as HTMLElement | null;
+  if (into && chip.contains(into)) return;
+  chip.classList.remove("drop-before", "drop-after");
+});
+
+detailTagChips.addEventListener("drop", async (e) => {
+  if (detailTagDragIdx === null || !detailId) return;
+  const chip = (e.target as HTMLElement).closest<HTMLElement>(".detail-tag-chip");
+  e.preventDefault();
+  const fromIdx = detailTagDragIdx;
+  detailTagChips
+    .querySelectorAll(".dragging, .drop-before, .drop-after")
+    .forEach((el) => el.classList.remove("dragging", "drop-before", "drop-after"));
+  detailTagDragIdx = null;
+  if (!chip) return;
+  const toIdx = Number(chip.dataset.chipIdx);
+  if (!Number.isInteger(toIdx) || toIdx === fromIdx) return;
+  const rect = chip.getBoundingClientRect();
+  const before = e.clientX < rect.left + rect.width / 2;
+  const current = parseTags(detailTags.value);
+  const next = reorderTags(current, fromIdx, toIdx, before);
+  // No-op move (reorderTags returns an unchanged list) — skip the write.
+  if (serializeTags(next) === serializeTags(current)) return;
+  detailTags.value = serializeTags(next);
+  renderDetailTagChips();
+  await updateTags(detailId, next);
+  await render();
+  toast("Reordered tags");
+});
+
+detailTagChips.addEventListener("dragend", () => {
+  detailTagChips
+    .querySelectorAll(".dragging, .drop-before, .drop-after")
+    .forEach((el) => el.classList.remove("dragging", "drop-before", "drop-after"));
+  detailTagDragIdx = null;
 });
 
 // Per-clip note — auto-save on blur + Cmd/Ctrl+Enter. Input event
