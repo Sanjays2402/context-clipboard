@@ -129,6 +129,12 @@ import {
 import { highlightCode } from "../lib/code-highlight";
 import { canZoom, lightboxCaption } from "../lib/lightbox";
 import {
+  imageNavIds,
+  stepLightbox,
+  lightboxPosition,
+  formatLightboxWrapToast,
+} from "../lib/lightbox-nav";
+import {
   effectiveLang,
   selectValueFor,
   normalizeLangChoice,
@@ -491,6 +497,8 @@ const lightboxEl = $("lightbox");
 const lightboxImg = $<HTMLImageElement>("lightbox-img");
 const lightboxCaptionEl = $("lightbox-caption");
 const lightboxClose = $<HTMLButtonElement>("lightbox-close");
+const lightboxPrev = $<HTMLButtonElement>("lightbox-prev");
+const lightboxNext = $<HTMLButtonElement>("lightbox-next");
 const paletteEl = $("palette");
 const paletteInput = $<HTMLInputElement>("palette-input");
 const paletteListEl = $("palette-list");
@@ -6288,20 +6296,79 @@ cheatsheetEl
 // over a dim backdrop. The data URL is already on the clip (local — no
 // network). Esc / backdrop click / the × close it. The caption mirrors
 // the detail image-info line (dims · bytes · mime) via lib/lightbox.
+//
+// Prev/next chevrons (and [ / ] keys) step through every OTHER image
+// clip in the current list WITHOUT leaving the zoom view — a photo-
+// viewer flow for reviewing a run of screenshots. The traversal set +
+// index math live in lib/lightbox-nav (pure); this just owns the <img>
+// swap, the caption, and the position pill.
 
-function openLightbox(src: string, caption: string): void {
-  lightboxImg.src = src;
-  lightboxCaptionEl.textContent = caption;
+// The clip id currently shown in the lightbox — drives the prev/next
+// traversal so we know where we are in the image-only nav set. Empty
+// when the lightbox is closed.
+let lightboxId = "";
+
+/** Open (or re-target) the lightbox to a specific image clip by id. */
+async function openLightboxClip(id: string): Promise<void> {
+  const c = await getClip(id);
+  if (!c || !canZoom(c.kind, c.content)) return;
+  lightboxId = c.id;
+  lightboxImg.src = c.content;
+  lightboxCaptionEl.textContent = composeLightboxCaption(c);
   lightboxEl.hidden = false;
+  syncLightboxNav();
+}
+
+/**
+ * Caption = the image-info line, with a "· image N of M" position tail
+ * appended when there's more than one image to step through (so the
+ * user knows where they are in the run). A lone image shows just the
+ * info line, no pointless "1 of 1".
+ */
+function composeLightboxCaption(c: ClipItem): string {
+  const base = lightboxCaption({
+    width: c.width,
+    height: c.height,
+    bytes: c.bytes,
+    mime: c.mime,
+  });
+  const pos = lightboxPosition(imageNavIds(currentClips), c.id);
+  return pos ? `${base} \u00b7 image ${pos.index} of ${pos.total}` : base;
 }
 
 function closeLightbox(): void {
   if (lightboxEl.hidden) return;
   lightboxEl.hidden = true;
+  lightboxId = "";
   // Drop the (potentially multi-MB) data URL so it isn't pinned in
   // memory while the overlay is closed.
   lightboxImg.removeAttribute("src");
   lightboxCaptionEl.textContent = "";
+  lightboxPrev.hidden = true;
+  lightboxNext.hidden = true;
+}
+
+/**
+ * Show/hide the prev/next chevrons based on whether there's more than
+ * one zoomable image in the current list. A lone image hides both (no
+ * traversal possible); 2+ shows both (the nav wraps, so neither end is
+ * ever a dead end).
+ */
+function syncLightboxNav(): void {
+  const ids = imageNavIds(currentClips);
+  const canStep = ids.length > 1 && ids.includes(lightboxId);
+  lightboxPrev.hidden = !canStep;
+  lightboxNext.hidden = !canStep;
+}
+
+/** Step the lightbox to the prev/next image clip (wrap-around). */
+async function stepLightboxBy(direction: -1 | 1): Promise<void> {
+  if (lightboxEl.hidden || !lightboxId) return;
+  const ids = imageNavIds(currentClips);
+  const step = stepLightbox(ids, lightboxId, direction, true);
+  if (!step) return;
+  await openLightboxClip(step.id);
+  if (step.wrapped) toast(formatLightboxWrapToast(direction));
 }
 
 // Open from a click on the zoomable image in the detail body. Delegated
@@ -6310,12 +6377,7 @@ function closeLightbox(): void {
 detailBody.addEventListener("click", async (e) => {
   const img = (e.target as HTMLElement).closest(".detail-img-zoomable");
   if (!img || !detailId) return;
-  const c = await getClip(detailId);
-  if (!c || !canZoom(c.kind, c.content)) return;
-  openLightbox(
-    c.content,
-    lightboxCaption({ width: c.width, height: c.height, bytes: c.bytes, mime: c.mime }),
-  );
+  await openLightboxClip(detailId);
 });
 
 // Keyboard: Enter / Space on the focused zoomable image opens the
@@ -6325,18 +6387,23 @@ detailBody.addEventListener("keydown", async (e) => {
   const img = (e.target as HTMLElement).closest(".detail-img-zoomable");
   if (!img || !detailId) return;
   e.preventDefault();
-  const c = await getClip(detailId);
-  if (!c || !canZoom(c.kind, c.content)) return;
-  openLightbox(
-    c.content,
-    lightboxCaption({ width: c.width, height: c.height, bytes: c.bytes, mime: c.mime }),
-  );
+  await openLightboxClip(detailId);
 });
 
 lightboxClose.addEventListener("click", () => closeLightbox());
+lightboxPrev.addEventListener("click", (e) => {
+  e.stopPropagation();
+  void stepLightboxBy(-1);
+});
+lightboxNext.addEventListener("click", (e) => {
+  e.stopPropagation();
+  void stepLightboxBy(1);
+});
 lightboxEl.addEventListener("click", (e) => {
   // Backdrop / figure-gap click closes; clicking the image itself does
   // not (so the user can't accidentally dismiss while inspecting it).
+  // The nav chevrons stopPropagation in their own handlers so a click
+  // on them steps rather than closes.
   if (e.target !== lightboxImg) closeLightbox();
 });
 
@@ -8548,11 +8615,19 @@ document.addEventListener("keydown", async (e) => {
     return;
   }
   // Lightbox is the topmost overlay (z-index 50) — Esc closes it before
-  // anything underneath (detail/settings/cheatsheet) reacts to Esc.
+  // anything underneath (detail/settings/cheatsheet) reacts to Esc, and
+  // [ / ] (plus ←/→) step through the image-only nav set without leaving
+  // the zoom view.
   if (!lightboxEl.hidden) {
     if (e.key === "Escape") {
       e.preventDefault();
       closeLightbox();
+    } else if (e.key === "[" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      await stepLightboxBy(-1);
+    } else if (e.key === "]" || e.key === "ArrowRight") {
+      e.preventDefault();
+      await stepLightboxBy(1);
     }
     return;
   }

@@ -2409,6 +2409,37 @@ kbd {
   box-shadow: var(--shadow-md);
 }
 
+/* Prev/next chevrons — vertically centred on each side of the backdrop,
+   sized large enough to be an easy click target while reviewing a run
+   of screenshots. They sit above the figure (z 51) and stop their own
+   click from bubbling to the backdrop (which would close the lightbox). */
+.lightbox-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 51;
+  width: 40px;
+  height: 40px;
+  background: var(--glass-elevated);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+  opacity: 0.82;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.lightbox-nav:hover {
+  opacity: 1;
+  background: var(--surface-hover, var(--glass-elevated));
+}
+
+.lightbox-prev {
+  left: 12px;
+}
+
+.lightbox-next {
+  right: 12px;
+}
+
 .lightbox-figure {
   margin: 0;
   display: flex;
