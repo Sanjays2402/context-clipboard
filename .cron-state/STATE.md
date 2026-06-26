@@ -522,14 +522,23 @@ Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2
 ### Open follow-ups from this tick (2026-06-25 18:59 PT)
 - [ ] Tag chips: drag-to-reorder so the chip order (and thus the comma string) can be rearranged without retyping — keyboard nav now exists, DnD is the next gap
 - [ ] Tag chips: when keyboard-focused, type-to-add — pressing a letter while a chip is focused jumps to the raw input with that char (so add + remove both work without a mouse reach)
-- [ ] Force-language: a quick-filter `is:langoverride` operator (mirror of is:wrapoverride) to find clips whose tinting language was hand-pinned
+- [x] Force-language: a quick-filter `is:langoverride` operator (mirror of is:wrapoverride) to find clips whose tinting language was hand-pinned — `11d804a`
 - [ ] Force-language: remember the LAST forced language per-host as a soft default suggestion (e.g. every clip from a SQL console host defaults the dropdown to SQL)
-- [ ] Code tinting: a per-clip "force language" should also drive the fenced-code export lang (copy-as-Markdown currently re-runs detectCodeLang, ignoring the override) — wire langOverride into the export path so the user's correction rides along
+- [x] Code tinting: a per-clip "force language" should also drive the fenced-code export lang (copy-as-Markdown currently re-runs detectCodeLang, ignoring the override) — wire langOverride into the export path so the user's correction rides along — `dd7429a`
 - [ ] tok-punct: a settings toggle to disable punctuation tinting for users who find it busy (keep strings/comments/keywords/numbers) — density-style radio or a checkbox
 - [ ] Link hover-peek: surface the og:title vs the page `<title>` distinctly when both exist (capture stores one; a richer peek could show "title · og:title" when they differ)
-- [ ] Detail: a "copy as `<lang>` fenced block" send-to row that uses the forced language (depends on the export-path wiring above)
-- [ ] List day-headers: a tiny per-group count badge ("Today · 6") on the divider so the user sees the day's volume at a glance
+- [x] Detail: a "copy as `<lang>` fenced block" send-to row that uses the forced language — done as part of `dd7429a` (fencedCodeForClip now honors langOverride)
+- [x] List day-headers: a tiny per-group count badge ("Today · 6") on the divider so the user sees the day's volume at a glance — `0d61ca0`
 - [ ] Search: `is:wrapoverride:on` / `is:wrapoverride:off` direction-specific variants (current operator is presence-only; some users want "show me everything I forced to NOWRAP")
+
+### Open follow-ups from this tick (2026-06-25 23:13 PT)
+- [ ] Tag chips: drag-to-reorder now exists (`d2a49c5`) — next gap is keyboard reorder (Ctrl+←/→ to move a focused chip) for keyboard-only users
+- [ ] Lightbox: pinch / scroll-wheel zoom + pan beyond fit-to-viewport, for inspecting a corner of a huge screenshot (currently capped at fit-to-viewport)
+- [ ] Lightbox: prev/next arrows to step through all image clips without closing (mirror detail `[`/`]` nav, image-filtered)
+- [ ] Force-language: remember the LAST forced language per-host as a soft default suggestion (every clip from a SQL console host defaults the dropdown to SQL)
+- [ ] Bulk Copy-as-Markdown: also honor langOverride in the per-clip fence (bulk-markdown re-runs detectCodeLang — wire exportFenceLang in for full parity with single-clip)
+- [ ] Day-header count badge: make the count a click target that selects every clip in that day's run (one-tap "select today")
+- [ ] is:langoverride direction variants: `is:langoverride:off` to find only the forced-OFF clips (prose the detector false-positived) vs the forced-to-a-language set
 
 
 
@@ -687,12 +696,48 @@ Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2
 - [x] List hover-peek: richer tooltip for LINK clips folding source title + full URL even when the body fits the row (disambiguate two same-host links in one hover), dedups against visible row text — `641e474`
 - [x] Code tinting: `tok-punct` token class — soft-tint structural glyphs `{ } ( ) [ ] ; ,` + arrows `=> ->`; only in plain-text gaps (never inside strings/comments), config langs opt out, XSS-safe — `ac18536`
 - [x] Detail: per-clip force-language override for code tinting — dropdown to override auto-detection or force tinting off, pure lib/lang-override (3-state effectiveLang) + additive ClipItem.langOverride + db.setLangOverride, live "auto → Rust" hint — `ca50138`
+- [x] List: per-day clip-count badge on the day-group dividers ("Today · 6") — new lib/day-group.computeDayHeaderInfos returns {label,count} per run-start; computeDayHeaders is now its label-only projection; muted lighter-weight count span — `0d61ca0`
+- [x] Detail: click-to-zoom lightbox for image clips — full-resolution preview over a dim backdrop (local data URL, no network); new pure lib/lightbox (canZoom gate + lightboxCaption mirroring the detail image-info line); Esc/backdrop/× close, closeDetail tears it down, never blurred under anti-shoulder-surf — `28ed7e7`
+- [x] Detail: drag-to-reorder for the tag chips — HTML5 native DnD, same drop-edge model as saved-search/recent strips; new pure lib/tag-chips.reorderTags (move from->to with before/after, cleaning+dedupe, no-op guards); commits through the same updateTags+render path so the three tag-edit surfaces can't drift — `d2a49c5`
+- [x] Search: `is:langoverride` operator — surface clips with a hand-pinned force-language (or forced-off), gate = lang-override.hasLangOverride (same values selectValueFor treats as non-Auto), presence-only/direction-agnostic, parser+applyQuery+describeQuery + Cmd+K live-count command + empty-state hint — `11d804a`
+- [x] Export: force-language override drives the fenced-code export tag — new lang-override.exportFenceLang folds the override into copy-as-Markdown + send-to "Copy as fenced code" (forced lang wins, "none" -> bare fence/prose, auto -> detected); markdownAsFence decides fence-vs-prose; SendableClip.langOverride threaded through both buildSendActions sites — `dd7429a`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-25 23:13 PT** — 5/5 shipped (frontend UX, fresh surfaces).
+  Deliberately spread across five DISTINCT surfaces (list / image /
+  tag-interaction / search / export) to avoid clustering on the recent
+  code-tinting work. (1) `0d61ca0` per-day clip-count badge on the
+  day-group dividers — new lib/day-group.computeDayHeaderInfos returns
+  {label,count} per run-start; computeDayHeaders is now its label-only
+  projection so the two can't drift; muted lighter-weight count span
+  (11/11 sanity). (2) `28ed7e7` click-to-zoom lightbox for image clips —
+  full-res preview over a dim backdrop, local data URL (no network);
+  new pure lib/lightbox (canZoom gate + lightboxCaption mirroring the
+  detail image-info line to the digit); top z-index, Esc/backdrop/×
+  close, closeDetail tears it down, src dropped from memory on close,
+  never blurred under anti-shoulder-surf (17/17 sanity). (3) `d2a49c5`
+  tag-chip drag-to-reorder — HTML5 DnD, same drop-edge model as the
+  saved-search/recent strips; new pure lib/tag-chips.reorderTags (move
+  from->to with before/after edge, cleaning+dedupe, no-op guards);
+  commits through the same updateTags+render path as the chip × and raw
+  input (14/14 sanity). (4) `11d804a` is:langoverride operator — find
+  clips with a hand-pinned (or forced-off) tinting language, gate =
+  lang-override.hasLangOverride, presence-only; parser+applyQuery+
+  describeQuery + Cmd+K live-count + empty-state (12/12 sanity). (5)
+  `dd7429a` force-language drives the fenced-code export — new
+  lang-override.exportFenceLang folds the override into copy-as-Markdown
+  + send-to "Copy as fenced code" so a Rust clip pinned to "rust"
+  exports ```rust instead of the detector's wrong guess; markdownAsFence
+  decides fence-vs-prose; SendableClip.langOverride threaded through both
+  buildSendActions sites (16/16 sanity). Gate: tsc --noEmit clean;
+  chrome + firefox builds green. 70 new sanity checks + lang-override
+  25/25 + is-wrapoverride 10/10 + detail-nav 31/31 regression clean.
+  Pushed c28f6e2..dd7429a.
 
 - **2026-06-25 18:59 PT** — 5/5 shipped. Theme: five orthogonal
   frontend slices across five distinct surfaces (detail-tags / search /
