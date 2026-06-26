@@ -32,14 +32,14 @@ function planBulkCopy(clips) {
 }
 
 function formatBulkCopyToast(plan) {
-  const { copied, skippedImages } = plan;
+  const { copied, skippedImages, chars } = plan;
   if (copied === 0) {
     if (skippedImages > 0) {
       return `Nothing to copy \u2014 ${skippedImages} image${skippedImages === 1 ? "" : "s"} skipped`;
     }
     return "Nothing to copy";
   }
-  const head = `Copied ${copied} clip${copied === 1 ? "" : "s"}`;
+  const head = `Copied ${copied} clip${copied === 1 ? "" : "s"} \u2014 ${groupThousandsLocal(chars)} char${chars === 1 ? "" : "s"}`;
   if (skippedImages > 0) {
     return `${head} \u2014 ${skippedImages} image${skippedImages === 1 ? "" : "s"} skipped`;
   }
@@ -120,13 +120,14 @@ check("non-string content skipped", planBulkCopy([{ kind: "text", content: null 
 check("empty array", planBulkCopy([]), { text: "", copied: 0, skippedImages: 0, hasContent: false, chars: 0 });
 
 // --- 8. toast grammar ----------------------------------------------------
-check("toast 1 clip singular", formatBulkCopyToast(planBulkCopy([T("a")])), "Copied 1 clip");
-check("toast 3 clips plural", formatBulkCopyToast(planBulkCopy([T("a"), T("b"), T("c")])), "Copied 3 clips");
-check("toast with image tail singular", formatBulkCopyToast(planBulkCopy([T("a"), I()])), "Copied 1 clip \u2014 1 image skipped");
-check("toast with image tail plural", formatBulkCopyToast(planBulkCopy([T("a"), I(), I()])), "Copied 1 clip \u2014 2 images skipped");
+check("toast 1 clip singular", formatBulkCopyToast(planBulkCopy([T("a")])), "Copied 1 clip \u2014 1 char");
+check("toast 3 clips plural", formatBulkCopyToast(planBulkCopy([T("a"), T("b"), T("c")])), "Copied 3 clips \u2014 7 chars");
+check("toast with image tail singular", formatBulkCopyToast(planBulkCopy([T("a"), I()])), "Copied 1 clip \u2014 1 char \u2014 1 image skipped");
+check("toast with image tail plural", formatBulkCopyToast(planBulkCopy([T("a"), I(), I()])), "Copied 1 clip \u2014 1 char \u2014 2 images skipped");
 check("toast nothing to copy", formatBulkCopyToast(planBulkCopy([])), "Nothing to copy");
 check("toast nothing but images", formatBulkCopyToast(planBulkCopy([I(), I()])), "Nothing to copy \u2014 2 images skipped");
 check("toast nothing one image", formatBulkCopyToast(planBulkCopy([I()])), "Nothing to copy \u2014 1 image skipped");
+check("toast groups thousands", formatBulkCopyToast(planBulkCopy([T("y".repeat(1500))])), "Copied 1 clip \u2014 1,500 chars");
 
 // --- 9. button title -----------------------------------------------------
 check("title default no content", formatBulkCopyButtonTitle(planBulkCopy([])), "Copy selected clips as text");
@@ -158,7 +159,7 @@ const selection = [
 const plan = planBulkCopy(selection);
 check("e2e copied 3", plan.copied, 3);
 check("e2e skipped 1 image", plan.skippedImages, 1);
-check("e2e toast", formatBulkCopyToast(plan), "Copied 3 clips \u2014 1 image skipped");
+check("e2e toast", formatBulkCopyToast(plan), `Copied 3 clips \u2014 ${groupThousandsLocal(plan.chars)} chars \u2014 1 image skipped`);
 check(
   "e2e joined text",
   plan.text,

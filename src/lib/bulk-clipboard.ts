@@ -104,24 +104,27 @@ export function planBulkCopy(clips: ReadonlyArray<BulkCopyClip | null | undefine
 
 /**
  * Human toast for a completed (or empty) bulk copy. Mirrors the
- * grammar style of the other bulk toasts: lead with the count,
- * append the skipped-images tail only when relevant.
+ * grammar style of the other bulk toasts: lead with the count, append
+ * the joined CHARACTER total so the completion receipt matches the
+ * button-hover preview (`formatBulkCopyButtonTitle`) — the user sees the
+ * same number before AND after the copy. The skipped-images tail trails
+ * when relevant.
  *
- *   3 copied, 0 skipped  -> "Copied 3 clips"
- *   1 copied, 0 skipped  -> "Copied 1 clip"
- *   3 copied, 2 skipped  -> "Copied 3 clips - 2 images skipped"
- *   0 copied, 2 skipped  -> "Nothing to copy - 2 images skipped"
- *   0 copied, 0 skipped  -> "Nothing to copy"
+ *   3 copied, 1240 chars, 0 skipped -> "Copied 3 clips - 1,240 chars"
+ *   1 copied, 12 chars, 0 skipped    -> "Copied 1 clip - 12 chars"
+ *   3 copied, 1240 chars, 2 skipped -> "Copied 3 clips - 1,240 chars - 2 images skipped"
+ *   0 copied, 2 skipped              -> "Nothing to copy - 2 images skipped"
+ *   0 copied, 0 skipped              -> "Nothing to copy"
  */
 export function formatBulkCopyToast(plan: BulkCopyPlan): string {
-  const { copied, skippedImages } = plan;
+  const { copied, skippedImages, chars } = plan;
   if (copied === 0) {
     if (skippedImages > 0) {
       return `Nothing to copy \u2014 ${skippedImages} image${skippedImages === 1 ? "" : "s"} skipped`;
     }
     return "Nothing to copy";
   }
-  const head = `Copied ${copied} clip${copied === 1 ? "" : "s"}`;
+  const head = `Copied ${copied} clip${copied === 1 ? "" : "s"} \u2014 ${groupThousandsLocal(chars)} char${chars === 1 ? "" : "s"}`;
   if (skippedImages > 0) {
     return `${head} \u2014 ${skippedImages} image${skippedImages === 1 ? "" : "s"} skipped`;
   }

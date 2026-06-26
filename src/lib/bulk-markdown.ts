@@ -70,6 +70,14 @@ export interface BulkMarkdownPlan {
   rendered: number;
   /** True when there's a document worth writing to the clipboard. */
   hasContent: boolean;
+  /**
+   * Code-point length of the joined `text` (separators included) — what
+   * actually lands on the clipboard. Surfaced in the completion toast so
+   * the Markdown receipt mirrors the plain bulk-copy receipt's
+   * "- N chars" tail. Counted by code point (spread iterator) so an
+   * emoji counts as one — same contract as the plain bulk-copy plan.
+   */
+  chars: number;
 }
 
 /**
@@ -193,20 +201,24 @@ export function planBulkMarkdown(
     text,
     rendered: blocks.length,
     hasContent: blocks.length > 0,
+    // Code-point length of exactly what hits the clipboard (separators
+    // included), so the toast receipt is byte-honest.
+    chars: [...text].length,
   };
 }
 
 /**
  * Human toast for a completed (or empty) bulk-Markdown copy. Mirrors
- * the grammar of the plain bulk-copy toast.
+ * the grammar of the plain bulk-copy toast, including the joined
+ * CHARACTER total tail so the Markdown receipt reads the same way.
  *
- *   3 rendered  -> "Copied 3 clips as Markdown"
- *   1 rendered  -> "Copied 1 clip as Markdown"
- *   0 rendered  -> "Nothing to copy as Markdown"
+ *   3 rendered, 1240 chars -> "Copied 3 clips as Markdown - 1,240 chars"
+ *   1 rendered, 80 chars   -> "Copied 1 clip as Markdown - 80 chars"
+ *   0 rendered             -> "Nothing to copy as Markdown"
  */
 export function formatBulkMarkdownToast(plan: BulkMarkdownPlan): string {
   if (plan.rendered === 0) return "Nothing to copy as Markdown";
-  return `Copied ${plan.rendered} clip${plan.rendered === 1 ? "" : "s"} as Markdown`;
+  return `Copied ${plan.rendered} clip${plan.rendered === 1 ? "" : "s"} as Markdown \u2014 ${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"}`;
 }
 
 /**
@@ -215,8 +227,22 @@ export function formatBulkMarkdownToast(plan: BulkMarkdownPlan): string {
  * synchronously). The click handler does its own authoritative read
  * over the FULL selection at fire time, so the toast count stays
  * truthful even when the selection extends past the filter window.
+ * Includes the joined CHARACTER total so the hover preview matches the
+ * completion receipt — same contract as the plain bulk-copy button.
  */
 export function formatBulkMarkdownButtonTitle(plan: BulkMarkdownPlan): string {
   if (!plan.hasContent) return "Copy selected clips as Markdown";
-  return `Copy ${plan.rendered} clip${plan.rendered === 1 ? "" : "s"} as Markdown`;
+  return `Copy ${plan.rendered} clip${plan.rendered === 1 ? "" : "s"} as Markdown (${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"})`;
+}
+
+/**
+ * Group an integer with commas: 1240 -> "1,240". Deterministic en-US.
+ * Local copy (the bulk-markdown module stays dependency-light) —
+ * mirrors the bulk-clipboard + content-stats grouping so every char
+ * readout across the UI reads identically.
+ */
+function groupThousandsLocal(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const digits = Math.abs(Math.trunc(n)).toString();
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
