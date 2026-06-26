@@ -15,12 +15,13 @@
  * wrappers the popup drops straight into the `<pre>`. No DOM, no deps.
  *
  * Design decisions:
- *   - CONSERVATIVE by construction. We only tint four high-signal,
- *     low-ambiguity token classes — strings, comments, numbers, and a
- *     curated keyword set — because mis-tinting reads worse than not
- *     tinting at all (the same rationale detectCodeLang documents for
- *     refusing to guess a language). Operators, identifiers, function
- *     names etc. stay plain text.
+ *   - CONSERVATIVE by construction. We tint a small set of high-signal,
+ *     low-ambiguity token classes — strings, comments, numbers, a
+ *     curated keyword set, and (for code-ish langs) structural
+ *     punctuation — because mis-tinting reads worse than not tinting at
+ *     all (the same rationale detectCodeLang documents for refusing to
+ *     guess a language). Operators beyond the structural set,
+ *     identifiers, function names etc. stay plain text.
  *   - Strings + comments are matched by a SINGLE master regex scanned
  *     left-to-right, so a keyword sitting INSIDE a string or comment is
  *     never falsely highlighted (the string/comment claims those bytes
@@ -66,6 +67,16 @@ interface LangSpec {
   keywords: Set<string>;
   /** True when keyword matching ignores case (SQL). */
   caseInsensitive?: boolean;
+  /**
+   * Whether to softly tint structural punctuation (brackets / braces /
+   * parens / arrows / statement separators). Helps the eye trace nesting
+   * + call structure in code. Off for config-ish langs (yaml/toml/ini)
+   * where `{ } [ ] :` are rare-or-meaningful and a punctuation tint
+   * reads as noise rather than structure. Defaults to on for the
+   * C-family + scripting langs where braces + arrows carry real
+   * structural weight.
+   */
+  punct?: boolean;
 }
 
 // Broad C-family keyword union — covers JS/TS/Java/C/C++/Go/Rust/etc.
@@ -111,22 +122,24 @@ const SQL_KW = new Set([
 function specFor(lang: string | undefined): LangSpec {
   switch (lang) {
     case "python":
-      return { comment: "hash", keywords: PYTHON_KW };
+      return { comment: "hash", keywords: PYTHON_KW, punct: true };
     case "bash":
     case "shell":
     case "sh":
-      return { comment: "hash", keywords: SHELL_KW };
+      return { comment: "hash", keywords: SHELL_KW, punct: true };
     case "yaml":
     case "toml":
     case "ini":
-      return { comment: "hash", keywords: new Set() };
+      // Config langs: punctuation is sparse/semantic (a `:` is a
+      // key/value separator, not structure), so tinting it adds noise.
+      return { comment: "hash", keywords: new Set(), punct: false };
     case "sql":
-      return { comment: "sql", keywords: SQL_KW, caseInsensitive: true };
+      return { comment: "sql", keywords: SQL_KW, caseInsensitive: true, punct: true };
     case "lua":
-      return { comment: "lua", keywords: C_FAMILY };
+      return { comment: "lua", keywords: C_FAMILY, punct: true };
     default:
       // js / ts / json / go / rust / java / c / cpp / diff / markdown / ...
-      return { comment: "c", keywords: C_FAMILY };
+      return { comment: "c", keywords: C_FAMILY, punct: true };
   }
 }
 
@@ -185,23 +198,41 @@ function tintGap(raw: string, spec: LangSpec): string {
   // whichever comes first. Simpler: do words first into a marker map is
   // overkill — instead scan numbers and words separately would risk
   // double-wrapping. So we tokenise the gap with a combined regex.
-  const combined = /([A-Za-z_]\w*)|(\b(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b)/g;
+  //
+  // When the language tints punctuation (spec.punct), a third
+  // alternation claims structural glyphs — arrows (`=> ->`), brackets/
+  // braces/parens, and statement separators (`; ,`). Multi-char arrows
+  // come first in the alternation so `=>` isn't split into `=` + `>`.
+  // The punct group only ever matches in these plain-text gaps (strings
+  // + comments are already claimed by the master regex), so a `;` inside
+  // a string is never tinted. When punct is off the group is omitted
+  // entirely and the regex behaves exactly as before.
+  const combined = spec.punct
+    ? /(=>|->|[{}()[\];,])|([A-Za-z_]\w*)|(\b(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b)/g
+    : /()([A-Za-z_]\w*)|(\b(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b)/g;
   let m: RegExpExecArray | null;
   while ((m = combined.exec(raw)) !== null) {
     if (m.index > last) out += esc(raw.slice(last, m.index));
-    if (m[1] != null) {
+    if (m[1] != null && m[1] !== "") {
+      // Structural punctuation — soft tint to trace nesting/calls.
+      out += `<span class="tok-punct">${esc(m[1])}</span>`;
+    } else if (m[2] != null) {
       // Word — keyword?
-      const word = m[1];
+      const word = m[2];
       const key = spec.caseInsensitive ? word.toLowerCase() : word;
       if (spec.keywords.has(key)) {
         out += `<span class="tok-keyword">${esc(word)}</span>`;
       } else {
         out += esc(word);
       }
-    } else if (m[2] != null) {
-      out += `<span class="tok-number">${esc(m[2])}</span>`;
+    } else if (m[3] != null) {
+      out += `<span class="tok-number">${esc(m[3])}</span>`;
     }
     last = m.index + m[0].length;
+    // Guard against a zero-width match (the empty `()` capture group in
+    // the punct-off branch can't produce one because the alternation
+    // always consumes a word/number, but be defensive).
+    if (m[0] === "") combined.lastIndex++;
   }
   if (last < raw.length) out += esc(raw.slice(last));
   // reset lastIndex defensively (combined is local, but be tidy)
@@ -216,7 +247,7 @@ function tintGap(raw: string, spec: LangSpec): string {
  * result straight inside the detail `<pre>`.
  *
  * Token classes emitted: `tok-comment`, `tok-string`, `tok-keyword`,
- * `tok-number`. Everything else is plain escaped text.
+ * `tok-number`, `tok-punct`. Everything else is plain escaped text.
  *
  * Defensive: empty / nullish input returns "" / escaped text so the
  * caller can invoke it unconditionally.

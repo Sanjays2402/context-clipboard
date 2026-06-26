@@ -39,6 +39,10 @@
   --tok-string: #9ccc8f;
   --tok-comment: #6f6f7c;
   --tok-number: #f5b66b;
+  /* Structural punctuation (brackets / braces / arrows / separators).
+     Dimmer than text so the glyphs recede into a faint scaffold the eye
+     can trace, without competing with keywords/strings. */
+  --tok-punct: #8a8a99;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.45);
@@ -91,6 +95,9 @@ body[data-theme="light"] {
   --tok-string: #3f7d3a;
   --tok-comment: #a1a1aa;
   --tok-number: #b4530a;
+  /* Structural punctuation (light) — a muted slate that recedes on the
+     pale body without disappearing. */
+  --tok-punct: #9595a3;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.08);
@@ -2507,6 +2514,9 @@ kbd {
 }
 .detail-body.code-tinted .tok-number {
   color: var(--tok-number);
+}
+.detail-body.code-tinted .tok-punct {
+  color: var(--tok-punct);
 }
 
 .detail-body img {
