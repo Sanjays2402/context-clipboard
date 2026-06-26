@@ -511,13 +511,25 @@ Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2
 ### Open follow-ups from this tick (2026-06-25 13:50 PT)
 - [ ] Day-group headers: also honor the "hits/size/alpha" sorts with a different grouping axis (e.g. host-group headers for non-chronological sorts) instead of a flat list
 - [ ] Day-group headers: a settings toggle to disable the dividers for users who prefer the pure flat stream
-- [ ] Wrap override: surface an `is:wrapoverride` search operator (or a quick way to find clips pinned to their own wrap) for the "what did I override?" review pass
-- [ ] Tag chips: keyboard support — focus a chip + Backspace/Delete removes it (currently mouse-only ×); arrow-key between chips
+- [x] Wrap override: surface an `is:wrapoverride` search operator (or a quick way to find clips pinned to their own wrap) for the "what did I override?" review pass — `fcc4316`
+- [x] Tag chips: keyboard support — focus a chip + Backspace/Delete removes it (currently mouse-only ×); arrow-key between chips — `4f427bd`
 - [ ] Tag chips: drag-to-reorder so the chip order (and thus the comma string) can be rearranged without retyping
-- [ ] Code tinting: add an operator/punctuation token class (currently only strings/comments/keywords/numbers) — a soft tint on `=> { } ( )` would help scan structure
-- [ ] Code tinting: a per-clip "force language" override (detail dropdown) for clips detectCodeLang guesses wrong or can't classify
+- [x] Code tinting: add an operator/punctuation token class (currently only strings/comments/keywords/numbers) — a soft tint on `=> { } ( )` would help scan structure — `ac18536`
+- [x] Code tinting: a per-clip "force language" override (detail dropdown) for clips detectCodeLang guesses wrong or can't classify — `ca50138`
 - [ ] Density: remember a per-window density (some users want compact in the side panel, comfortable in the popup) — needs a context probe
 - [ ] Density: a `density` keyboard shortcut binding (the cycle command exists in Cmd+K; a bare keypress would be faster)
+
+### Open follow-ups from this tick (2026-06-25 18:59 PT)
+- [ ] Tag chips: drag-to-reorder so the chip order (and thus the comma string) can be rearranged without retyping — keyboard nav now exists, DnD is the next gap
+- [ ] Tag chips: when keyboard-focused, type-to-add — pressing a letter while a chip is focused jumps to the raw input with that char (so add + remove both work without a mouse reach)
+- [ ] Force-language: a quick-filter `is:langoverride` operator (mirror of is:wrapoverride) to find clips whose tinting language was hand-pinned
+- [ ] Force-language: remember the LAST forced language per-host as a soft default suggestion (e.g. every clip from a SQL console host defaults the dropdown to SQL)
+- [ ] Code tinting: a per-clip "force language" should also drive the fenced-code export lang (copy-as-Markdown currently re-runs detectCodeLang, ignoring the override) — wire langOverride into the export path so the user's correction rides along
+- [ ] tok-punct: a settings toggle to disable punctuation tinting for users who find it busy (keep strings/comments/keywords/numbers) — density-style radio or a checkbox
+- [ ] Link hover-peek: surface the og:title vs the page `<title>` distinctly when both exist (capture stores one; a richer peek could show "title · og:title" when they differ)
+- [ ] Detail: a "copy as `<lang>` fenced block" send-to row that uses the forced language (depends on the export-path wiring above)
+- [ ] List day-headers: a tiny per-group count badge ("Today · 6") on the divider so the user sees the day's volume at a glance
+- [ ] Search: `is:wrapoverride:on` / `is:wrapoverride:off` direction-specific variants (current operator is presence-only; some users want "show me everything I forced to NOWRAP")
 
 
 
@@ -670,12 +682,54 @@ Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2
 - [x] Detail-view per-clip "Promote N #tags" chip — note-row foot surfaces an accent-tinted chip when current note text contains #hashtag tokens NOT already in the structured tag list. Click promotes inline using same db.updateTags path the bulk-bar uses (byte-identical merged-tag lists across single + bulk via shared note-hashtag-promote module composing extractHashtagsFromNote + mergedTagsForClip). Live refresh on textarea input + detailTags input/change so chip appears the moment user finishes typing `#staging` and hides the moment they manually structure a matching tag. dataset.merged stash so click acts on plan the user SAW, with defensive re-plan as tie-break. 4-shape grammar (empty / 1 / 2-3 list / 4+ count), tooltip surfaces full pending list + alreadyTagged tail — `45e8681`
 - [x] Bulk-bar "Tag from notes + clear notes" combo — eraser-icon button next to standalone Tag-from-notes. Promotes #hashtags AND wipes the source note text on every clip where promotion happened (targeted: clip with no hashtags keeps note, all-already-tagged keeps note). Pre-prompt destructive confirm surfaces "Add #X to N clips AND clear N notes?" so misclick doesn't surprise-wipe. Pure tag-from-notes-clear module composes existing primitives (extractHashtagsFromNote + mergedTagsForClip + sanitizeClipNote contract). 5-shape toast grammar with destructive variant ("Added #x · cleared 1 note" / "Added N tags across M clips · cleared M notes"). Cmd+K mirror distinct from standalone palette row so keyboard discovery surfaces destructive variant separately — `491bf7f`
 - [x] Detail send-to "Copy as cURL with note comment" — for any clip with BOTH a curlable URL AND a non-empty note, emit `curl 'url' # note`. Composition: byte-identical to standalone curl row on URL half (delegates to curlCommandForClip). Critical safety: multi-line notes collapsed to single line (newline in shell `#` comment would TERMINATE the comment and execute note text). sanitiseForShellComment helper strips C0 controls + caps at 200 chars with word-boundary truncation. New send-to row id=curl-note slots between curl and fenced-code, count bumped 16→17. End-of-line `# note` form survives single-line paste in chat/PR/terminal — newline-prefixed comment forms would be stripped by paste-mangling tools — `901c2f5`
+- [x] Detail tag chips: roving-tabindex keyboard nav (←/→/Home/End between chips) + Backspace/Delete removal that lands focus on a neighbour — pure lib/tag-chip-nav, click + keyboard share one removeDetailTag helper, focus-visible ring — `4f427bd`
+- [x] Search: `is:wrapoverride` operator — surface clips pinned to their own detail-body wrap, gate = wrap-pref.hasWrapOverride (same predicate the toggle badges), parser + applyQuery + describeQuery + Cmd+K live-count command + empty-state hint — `fcc4316`
+- [x] List hover-peek: richer tooltip for LINK clips folding source title + full URL even when the body fits the row (disambiguate two same-host links in one hover), dedups against visible row text — `641e474`
+- [x] Code tinting: `tok-punct` token class — soft-tint structural glyphs `{ } ( ) [ ] ; ,` + arrows `=> ->`; only in plain-text gaps (never inside strings/comments), config langs opt out, XSS-safe — `ac18536`
+- [x] Detail: per-clip force-language override for code tinting — dropdown to override auto-detection or force tinting off, pure lib/lang-override (3-state effectiveLang) + additive ClipItem.langOverride + db.setLangOverride, live "auto → Rust" hint — `ca50138`
 
 ## Tick log
 
 (One line per tick. Newest at top.)
 
 <!-- TICKS BELOW -->
+
+- **2026-06-25 18:59 PT** — 5/5 shipped. Theme: five orthogonal
+  frontend slices across five distinct surfaces (detail-tags / search /
+  list / detail-code visual / detail-code interaction), four of them
+  direct follow-ups blessed in last tick's open list. (1) `4f427bd`
+  detail tag chips become a roving-tabindex toolbar — ←/→/Home/End move
+  focus between chips, Backspace/Delete removes the focused chip AND
+  lands focus on a sensible neighbour (the slid-in tag, the new last, or
+  the raw input when emptied) so keyboard-only users keep deleting
+  without the mouse. New pure lib/tag-chip-nav (nextChipFocusIndex
+  clamps at ends; focusIndexAfterRemove resolves the landing); click +
+  keyboard both route through one removeDetailTag helper so they can't
+  drift. focus-visible ring, 23/23. (2) `fcc4316` `is:wrapoverride`
+  search operator — surfaces clips pinned to their own detail-body wrap
+  (the "what did I override?" review pass that the per-clip wrap feature
+  had no entry point for). Gate is wrap-pref.hasWrapOverride, the SAME
+  predicate the detail toggle badges with, so filter + paint agree.
+  Parser + applyQuery + describeQuery + Cmd+K command (live count, greys
+  at 0) + empty-state hint. 8/8. (3) `641e474` richer list hover-peek
+  for LINK clips — folds source title + full URL into the tooltip even
+  when the body fits the row, so two same-host links disambiguate in one
+  hover. New lib/linkPeekTooltip dedups against what's already visible +
+  collapses title/url/body duplicates. 11/11. (4) `ac18536` code-body
+  tok-punct token class — soft-tints structural glyphs `{ } ( ) [ ] ; ,`
+  + arrows `=> ->` so nesting/call structure is scannable. Only runs in
+  plain-text gaps (strings/comments claimed first → never mis-tinted),
+  arrows lead the alternation so `=>` is one span, config langs opt out,
+  XSS-safe. 18/18. (5) `ca50138` per-clip force-language override —
+  detail dropdown to override the auto-detected tinting language or
+  force it off when detectCodeLang guesses wrong / can't classify. New
+  pure lib/lang-override (three-state effectiveLang, normalizers,
+  options) + additive ClipItem.langOverride + db.setLangOverride
+  (mirrors wrapOverride). Live "auto → Rust" hint. 25/25. Gate: tsc
+  --noEmit clean; chrome + firefox builds green (popup 437.5kb). Pushed
+  367e972..a76c8bb. 83 sanity checks across 5 new bundler-free suites.
+  No new lib touched the network or weakened local-only / MV3.
+
 
 - **2026-06-25 08:41 PT** — 5/5 shipped. Theme: frontend UX papercuts,
   all five orthogonal. (1) `25d7fa7` list hover-peek tooltip for previews
