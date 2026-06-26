@@ -499,6 +499,17 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [ ] Detail wrap-around: a settings toggle to opt OUT of wrap (restore the dead-end) for users who rely on the disabled-button edge cue
 - [ ] Focus breadcrumb selection tail: when selection extends beyond the visible filter window, distinguish "N selected (M visible)" so the keyboard user knows the off-screen overflow
 
+### TICK LOG 2026-06-26 15:32 PT — 5/5 shipped (frontend UX, fresh surfaces)
+Image-viewer, bulk-copy receipts, settings preview, and a calendar-day
+filter — orthogonal to the lang/wrap-override cluster of recent ticks.
+- `2e17924` Lightbox: "Save image" control (+ `s` key) — saves the local data URL via a[download], zero network/permissions. Pure lib/image-download owns the filesystem-safe filename (product stem + host slug + dims + mime extension). 26/26 sanity.
+- `59bf03c` Lightbox: clickable carousel dot-strip under the caption — one dot per image, current one filled+widened, click to jump straight to image K. Hidden for a lone image, wraps for long runs, reduced-motion aware. Pure lib/lightbox-dots. 26/26 sanity.
+- `7079856` Bulk-bar: char-total receipt on Copy + Copy-as-Markdown completion toasts ("Copied 3 clips — 1,240 chars"), matching the button-hover preview. Added chars accounting to the Markdown plan + a "(N chars)" title for full parity. 51/51 bulk-clipboard + 15/15 bulk-md-chars sanity.
+- `611f682` Settings: live preview swatch for the bulk-md separator — two stub clips joined by the chosen seam + a caption, repainting on change. Seam read from the SAME resolver the live join uses (no drift). Pure lib/bulk-separator-preview. 14/14 sanity.
+- `4303709` Search: `is:today` operator + "Today" quick-chip (with live count) — the LOCAL calendar day since midnight, distinct from the rolling after:24h, matching the day-group dividers. DST-correct midnight math. + Cmd+K command + empty-state hint. Pure lib/today-filter. 20/20 + 13/13 sanity.
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 468.3KB). 122/122 sanity suites pass. Pushed 563aaa8..4303709.
+Deferred: "copy image to clipboard" detail button — copyToClipboard already writes images as a Blob, so a separate button would be redundant filler.
+
 ### TICK LOG 2026-06-25 13:50 PT — 5/5 shipped (frontend UX, fresh surfaces)
 Steered away from the recent papercut cluster onto five orthogonal UX gaps.
 - `67a410a` List: sticky day-group headers (Today / Yesterday / weekday / dated) for time-ordered sorts; pinned tier collapses to one "Pinned" header. Pure lib/day-group, local-time DST-safe bucketing.
@@ -558,24 +569,38 @@ Gate: tsc --noEmit clean; chrome + firefox builds green. Pushed 64a13d2..138c3a2
 Deliberately orthogonal to the wrap/lang-override + note clusters of
 recent ticks. Image-viewer, list-selection, settings, and detail UX gaps.
 - [x] Lightbox: keyboard `+` / `-` zoom steps with a reset-to-fit on `0` (pairs with the new prev/next nav for a full viewer) — `861c954`
-- [ ] Detail image: a "download / save image" affordance from the lightbox (Blob -> a[download], local data URL, no network)
+- [x] Detail image: a "download / save image" affordance from the lightbox (Blob -> a[download], local data URL, no network) — `2e17924`
 - [ ] List: a "jump to day" mini-strip — clicking a day label in a compact header rail scrolls that day's run into view (companion to day-run select)
 - [ ] Bulk-bar: "Copy selected as plain text + Markdown" disambiguation — a single split-button with a caret to pick the format, decluttering two adjacent copy buttons
-- [ ] Settings: a live PREVIEW swatch next to the bulk-md separator select (render two stub clips with the chosen seam) so the choice is concrete
+- [x] Settings: a live PREVIEW swatch next to the bulk-md separator select (render two stub clips with the chosen seam) so the choice is concrete — `611f682`
 - [x] Detail: per-clip "open in lightbox" should also work for the list-row image thumb (click the thumb in the row -> straight to lightbox, skipping detail) — `af97a90`
-- [ ] Quick-chips: a "Today" chip that applies the same day-run filter the divider selects (filter, not select) for users who want to NARROW not select
+- [x] Quick-chips: a "Today" chip that applies the same day-run filter the divider selects (filter, not select) for users who want to NARROW not select — `4303709` (shipped as is:today calendar-day filter)
 - [ ] Detail tag chips: drag-to-reorder should auto-scroll the chip row when dragging past its right edge (long tag lists overflow + clip)
 - [ ] Search: `is:imageonly` shorthand chip that pairs with the lightbox nav (filter to images, then the lightbox steps just those)
 - [ ] List day-headers: a settings toggle to disable the dividers entirely for users who prefer the pure flat stream (recurring — worth doing)
 - [x] Lightbox: respect prefers-reduced-motion for the fade-in + nav transitions (a11y) — `861c954` (folded into the zoom slice)
-- [ ] Detail: a "copy image to clipboard" button (navigator.clipboard.write with the image Blob) distinct from copy-as-Markdown
-- [ ] Bulk Copy: surface the joined char total in the post-copy toast ("Copied 3 clips · 1,240 chars") so the receipt matches the pre-commit hover
+- [ ] Detail: a "copy image to clipboard" button (navigator.clipboard.write with the image Blob) distinct from copy-as-Markdown — SKIPPED: copyToClipboard already writes images as a Blob; a separate button would be redundant
+- [x] Bulk Copy: surface the joined char total in the post-copy toast ("Copied 3 clips · 1,240 chars") so the receipt matches the pre-commit hover — `7079856` (both plain + Markdown paths)
 - [ ] Settings: group the copy/export prefs (bulk-md separator, future image-copy format) under a "Copy & export" subheading so the panel stays scannable
 - [ ] Focus breadcrumb: when a day-run select is active, the footer could read "row N of M · day-run selected" to telegraph the bulk gesture's scope
+
+### Open follow-ups from this tick (2026-06-26 15:32 PT)
+- [ ] Lightbox dot-strip: for very long runs (30+ screenshots) collapse to a windowed "… 9 of 40 …" strip so the dots don't wrap into a wall
+- [ ] Lightbox download: a settings toggle for the filename stem (some users want a bare timestamp `2026-06-26-1532.png` over the product-prefixed name)
+- [ ] Lightbox download: keyboard `s` is bound; surface it in the `?` cheatsheet's image section so it's discoverable
+- [ ] is:today: a companion `is:yesterday` operator (the next-most-asked calendar bucket after today) — same local-midnight math, shifted one day
+- [ ] Quick-chip "Today": when active, the day-group "Today" divider is redundant (the whole list IS today) — could suppress it to save a row
+- [ ] Bulk char-receipt: the bulk-export (JSON) toast could carry the byte total for the same pre/post parity the copy paths now have
+- [ ] Settings preview swatch: extend the same live-preview pattern to the density radio (render 3 stub rows at the chosen density)
 
 
 
 ### Shipped (autoship)
+- [x] Lightbox: "Save image" to disk (local data URL, no network) + `s` key — `2e17924`
+- [x] Lightbox: clickable carousel dot-strip — jump straight to image K — `59bf03c`
+- [x] Bulk-bar: char-total receipt on Copy + Copy-as-Markdown toasts — `7079856`
+- [x] Settings: live preview swatch for the bulk-Markdown separator — `611f682`
+- [x] Search: `is:today` operator + "Today" quick-chip (local calendar day) — `4303709`
 - [x] Lightbox: +/-/0 zoom stepper (clamped [fit,5x], 0.5 steps, round-% readout) with reduced-motion a11y — `861c954`
 - [x] List: click an image-row thumb to open the lightbox directly (selection always wins) — `af97a90`
 - [x] Search: `is:langoverride:off` / `is:langoverride:<lang>` direction variants + forced-off Cmd+K command — `5cf3385`
