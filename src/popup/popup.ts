@@ -115,7 +115,7 @@ import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast,
 import { formatFocusPosition } from "../lib/focus-position";
 import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
-import { peekTooltip } from "../lib/list-peek";
+import { peekTooltip, linkPeekTooltip } from "../lib/list-peek";
 import { computeDayHeaders } from "../lib/day-group";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
 import { parseTags, removeTag, serializeTags } from "../lib/tag-chips";
@@ -836,7 +836,22 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
   // (flattened, capped) slice as a native `title` so the user can read more
   // context on hover / focus without opening the detail view. Images never
   // get a peek — their "preview" is a placeholder label, not real text.
-  const peek = c.kind === "image" ? null : peekTooltip(previewText, { rowSliceLength: 140 });
+  // Link clips get a RICHER peek (lib/linkPeekTooltip) that folds in the
+  // source title + full URL even when the body itself fits — that's the
+  // case where two same-host links ("github.com/a/b" vs ".../c/d") need
+  // one hover to disambiguate without opening detail.
+  let peek: string | null;
+  if (c.kind === "image") {
+    peek = null;
+  } else if (c.kind === "link") {
+    peek = linkPeekTooltip(
+      previewText,
+      { title: c.source.title, url: c.source.url },
+      { rowSliceLength: 140 },
+    );
+  } else {
+    peek = peekTooltip(previewText, { rowSliceLength: 140 });
+  }
   const previewTitle = peek ? ` title="${escapeHtml(peek)}"` : "";
   return `
     <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}${c.archived ? " archived" : ""}" data-id="${c.id}" data-idx="${idx}">
