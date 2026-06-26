@@ -23,7 +23,7 @@ import { hostFrom } from "./util";
 import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
-import { hasLangOverride } from "./lang-override";
+import { hasLangOverride, langOverrideMatches, isLangOverrideDir } from "./lang-override";
 
 export interface ParsedQuery {
   freeText: string;
@@ -383,6 +383,26 @@ export interface ParsedQuery {
    * "did I override the detector?", not "to what?").
    */
   langOverrideOnly: boolean;
+  /**
+   * Directional narrowings of `is:langoverride` — surface only the clips
+   * forced to a SPECIFIC state, not just "has any override". Richer than
+   * the wrap on/off split because a language override can name any one of
+   * the supported tinting languages:
+   *   - `is:langoverride:off`  -> langOverride === OVERRIDE_NONE
+   *     (forced-off — "this isn't code, leave it alone")
+   *   - `is:langoverride:rust` -> langOverride === "rust"
+   *     (pinned to a specific language)
+   *
+   * The bare operator stays presence-only (either kind of override). The
+   * stored direction is the normalised value (OVERRIDE_NONE for "off", or
+   * the lowercased language id); a clip following auto-detection matches
+   * neither. Undefined when no directional form was typed. Gated via
+   * lang-override.langOverrideMatches so the filter and the detail control
+   * agree on what each direction means. A direction token that names no
+   * forced state (a typo / unknown language) is REJECTED by the parser
+   * (falls through to free-text) rather than silently matching nothing.
+   */
+  langOverrideDir?: string;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -487,6 +507,28 @@ export function parseQuery(raw: string): ParsedQuery {
         out.wrapOverrideDir = v.endsWith(":on") ? "on" : "off";
       }
       else if (v === "langoverride") out.langOverrideOnly = true;
+      else if (v.startsWith("langoverride:")) {
+        // Directional variant `is:langoverride:<dir>` — `off` (forced
+        // tinting off) or a language id (`rust`, `sql`, ...). Set the
+        // presence flag too so describeQuery + any presence-only reader
+        // still sees "this is a lang-override filter"; the direction does
+        // the extra narrowing in applyQuery. A direction token that names
+        // no forced state (a typo / unknown language) is REJECTED — the
+        // whole token falls through to free-text so the user sees their
+        // mistake rather than getting a silently-empty result.
+        const dir = v.slice("langoverride:".length);
+        if (isLangOverrideDir(dir)) {
+          out.langOverrideOnly = true;
+          // Store the normalised direction: "off"/"none" both map to the
+          // forced-off sentinel here so applyQuery compares against the
+          // stored value directly. We keep the raw (lowercased) token and
+          // let langOverrideMatches normalise, so "off" and "none" are
+          // interchangeable without a second mapping in the parser.
+          out.langOverrideDir = dir;
+        } else {
+          leftover.push(tok);
+        }
+      }
       else if (v.startsWith("notelonger:") || v.startsWith("noteshorter:")) {
         // `is:notelonger:N` / `is:noteshorter:N` — parse N as a
         // non-negative integer. Bad numerics (NaN, decimals, sign,
@@ -658,7 +700,19 @@ export function applyQuery(
     // Presence-only (direction-agnostic): both forced-to-a-language and
     // forced-off clips match. A clip following auto-detection (undefined
     // langOverride) never surfaces.
-    if (q.langOverrideOnly && !hasLangOverride(c.langOverride)) return false;
+    //
+    // `is:langoverride:off` / `is:langoverride:<lang>` narrow it to a
+    // forced direction via langOverrideMatches (off = forced-off sentinel,
+    // a lang id = pinned to that language); when langOverrideDir is set the
+    // directional gate REPLACES the presence gate (a clip forced the other
+    // way correctly drops out).
+    if (q.langOverrideOnly) {
+      if (q.langOverrideDir) {
+        if (!langOverrideMatches(c.langOverride, q.langOverrideDir)) return false;
+      } else if (!hasLangOverride(c.langOverride)) {
+        return false;
+      }
+    }
     // `is:noted` — predicate gate via hasClipNote(). Mirrors the
     // detail-view note-row's Clear-button visibility predicate so
     // the filter + the paint can never disagree. Pure type-check +
@@ -830,7 +884,15 @@ export function describeQuery(q: ParsedQuery): string {
           : "wrap-override",
     );
   }
-  if (q.langOverrideOnly) bits.push("lang-override");
+  if (q.langOverrideOnly) {
+    bits.push(
+      q.langOverrideDir
+        ? q.langOverrideDir.toLowerCase() === "off" || q.langOverrideDir.toLowerCase() === "none"
+          ? "lang-off"
+          : `lang:${q.langOverrideDir.toLowerCase()}`
+        : "lang-override",
+    );
+  }
   if (q.noteLongerThan != null) bits.push(`note>${q.noteLongerThan}`);
   if (q.noteShorterThan != null) bits.push(`note<${q.noteShorterThan}`);
   if (q.noteNewerThan != null) bits.push("note-recent");

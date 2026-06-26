@@ -603,6 +603,9 @@ let wrapOverrideCount = 0;
 let wrapOverrideOnCount = 0;
 let wrapOverrideOffCount = 0;
 let langOverrideCount = 0;
+// Forced-OFF subset of langOverrideCount for the is:langoverride:off
+// Cmd+K command — clips where the user told the tinter "this isn't code".
+let langOverrideOffCount = 0;
 /**
  * Active-tab host cache for the Cmd+K "Pin every clip from this host"
  * command. Three layers:
@@ -1803,7 +1806,15 @@ async function render(): Promise<void> {
   // language"). Same predicate the search filter + detail control use
   // (hasLangOverride) so the count, the filter, and the dropdown agree.
   langOverrideCount = 0;
-  for (const c of wide) if (hasLangOverride(c.langOverride)) langOverrideCount++;
+  langOverrideOffCount = 0;
+  for (const c of wide) {
+    if (hasLangOverride(c.langOverride)) {
+      langOverrideCount++;
+      // Forced-OFF subset (langOverride === "none") drives the directional
+      // is:langoverride:off Cmd+K command — the "leave it alone" clips.
+      if (c.langOverride === OVERRIDE_NONE) langOverrideOffCount++;
+    }
+  }
   // Refresh the active-host pin cache so the Cmd+K "Pin every clip
   // from this host" command knows whether it's available + how many
   // it'd pin. Tab read is fire-and-forget — first render after open
@@ -1900,7 +1911,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -7137,6 +7148,31 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:langoverride");
+      },
+    },
+    {
+      // `is:langoverride:off` — direction-specific narrowing: surface
+      // only clips the user forced tinting OFF on (langOverride ===
+      // "none" — "this isn't code, leave it grey"). The language twin of
+      // is:wrapoverride:off: after telling the tinter to back off on a
+      // few prose clips it false-positived as code, this answers "which
+      // ones did I silence?" Greys when nothing's forced-off. (Per-
+      // language directional filters — is:langoverride:rust etc — are
+      // typed directly in the search box rather than enumerated here, to
+      // keep the palette from sprouting 18 near-identical rows.)
+      id: "filter-lang-override-off",
+      label: "Show clips with tinting forced off",
+      hint:
+        langOverrideOffCount > 0
+          ? `is:langoverride:off — ${langOverrideOffCount} clip${langOverrideOffCount === 1 ? "" : "s"} with syntax tinting silenced`
+          : "is:langoverride:off — no clips have tinting forced off yet",
+      group: "Filter",
+      keywords:
+        "is:langoverride:off language override forced off none silence tint syntax not code prose per-clip",
+      available: langOverrideOffCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:langoverride:off");
       },
     },
     {

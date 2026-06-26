@@ -113,6 +113,72 @@ export function langLabel(lang: string | null | undefined): string {
   return hit ? hit.label : lang;
 }
 
+/**
+ * Directional language-override match for the `is:langoverride:off` /
+ * `is:langoverride:<lang>` search variants.
+ *
+ * The bare `is:langoverride` operator is presence-only (any override —
+ * a forced language OR the forced-off sentinel). These variants narrow
+ * it to a SPECIFIC forced state, which for force-language is RICHER than
+ * the wrap on/off split because the override can name any one of the
+ * supported languages:
+ *   - dir "off"        -> matches only clips forced OFF (langOverride ===
+ *                         OVERRIDE_NONE) — "show me the clips I told the
+ *                         tinter to leave alone".
+ *   - dir = a lang id  -> matches only clips pinned to THAT language
+ *                         (e.g. "rust" -> langOverride === "rust") — "show
+ *                         me everything I hand-classified as Rust".
+ *
+ * The dir is normalised the same way a stored override is: a known
+ * language id stays itself, OVERRIDE_NONE / "off" maps to the forced-off
+ * state, and anything else (auto, garbage, an unknown language) matches
+ * NOTHING — there's no forced state to point at, so the operator yields
+ * an empty set rather than silently widening. A clip following
+ * auto-detection (undefined override) matches neither direction. Strict
+ * equality throughout so a stray value never reads as a forced state.
+ *
+ * Defensive against a nullish clip override (no override -> no match).
+ */
+export function langOverrideMatches(
+  override: string | null | undefined,
+  dir: string | null | undefined,
+): boolean {
+  // Normalise the requested direction to the value it would be STORED
+  // as, so "off" and the OVERRIDE_NONE sentinel are interchangeable and
+  // a language id is validated against the known set.
+  const wanted = normalizeDirection(dir);
+  if (wanted == null) return false; // unrecognised direction matches nothing
+  return override === wanted;
+}
+
+/**
+ * Map a directional token (from `is:langoverride:<dir>`) to the stored
+ * override value it should match, or null when the token names no
+ * forced state:
+ *   - "off" / OVERRIDE_NONE -> OVERRIDE_NONE (the forced-off state)
+ *   - a known language id   -> that id
+ *   - anything else         -> null (auto / unknown / garbage -> no match)
+ */
+function normalizeDirection(dir: string | null | undefined): string | null {
+  if (typeof dir !== "string") return null;
+  const d = dir.toLowerCase();
+  if (d === OVERRIDE_NONE || d === "off") return OVERRIDE_NONE;
+  if (KNOWN.has(d)) return d;
+  return null;
+}
+
+/**
+ * True when `dir` is a usable `is:langoverride:<dir>` direction token —
+ * either the forced-off keyword ("off"/"none") or a known language id.
+ * The parser uses this to decide whether to accept the directional form
+ * or fall the whole token through to free-text (so a typo like
+ * `is:langoverride:rast` shows up as plain text rather than silently
+ * matching nothing). Mirrors normalizeDirection's accept set.
+ */
+export function isLangOverrideDir(dir: string | null | undefined): boolean {
+  return normalizeDirection(dir) != null;
+}
+
 export interface EffectiveLang {
   /** The language id to pass to highlightCode (undefined when not tinting). */
   lang: string | undefined;
