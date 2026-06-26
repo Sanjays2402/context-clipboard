@@ -35,10 +35,15 @@
  *
  * Pure — no clipboard, no DOM. The popup does the clipboard write +
  * toast. Imports detectCodeLang (itself a pure util) for the fenced-
- * block language tag, mirroring the single-clip path exactly.
+ * block language tag, mirroring the single-clip path exactly. The
+ * per-clip force-language override (lib/lang-override) is honored too,
+ * so a clip the user pinned to "rust" (or forced OFF) renders the SAME
+ * fence the single-clip "Copy as Markdown" produces — bulk + single
+ * stay byte-identical on the fence.
  */
 
 import { detectCodeLang } from "./util";
+import { exportFenceLang, OVERRIDE_NONE, OVERRIDE_AUTO } from "./lang-override";
 
 export interface BulkMarkdownClip {
   id: string;
@@ -47,6 +52,15 @@ export interface BulkMarkdownClip {
   preview?: string;
   tags?: string[];
   source?: { url?: string; title?: string };
+  /**
+   * Per-clip force-language override (lib/lang-override): a pinned
+   * tinting language id, the OVERRIDE_NONE ("none") forced-off sentinel,
+   * or undefined to follow auto-detection. Steers BOTH whether a text
+   * clip renders as a fenced block AND the fence's language tag, so the
+   * user's hand-classification rides along into the batch paste exactly
+   * as it does for the single-clip copy.
+   */
+  langOverride?: string;
 }
 
 export interface BulkMarkdownPlan {
@@ -96,6 +110,29 @@ function looksLikeCode(s: string): boolean {
 }
 
 /**
+ * Decide whether a text clip renders as a fenced code block (vs a prose
+ * blockquote), honoring the per-clip force-language override — mirrors
+ * the popup's private markdownAsFence so bulk + single agree:
+ *   - a forced LANGUAGE ("rust", "sql", ...) -> always a fence (the user
+ *     classified it as code, even if looksLikeCode wouldn't have fired).
+ *   - the forced-OFF sentinel ("none")       -> never a fence (the user
+ *     said "this isn't code" — render a prose blockquote).
+ *   - no override (auto)                     -> the existing heuristic
+ *     (tag:code, or a code-shaped body).
+ */
+function bulkMarkdownAsFence(c: BulkMarkdownClip, content: string, tags: string[]): boolean {
+  if (c.langOverride === OVERRIDE_NONE) return false;
+  if (
+    typeof c.langOverride === "string" &&
+    c.langOverride !== OVERRIDE_AUTO &&
+    c.langOverride !== ""
+  ) {
+    return true;
+  }
+  return tags.includes("code") || looksLikeCode(content);
+}
+
+/**
  * Render a single clip to its Markdown block. Returns null when the
  * clip carries nothing renderable (defensive against malformed records).
  */
@@ -123,8 +160,12 @@ export function clipToMarkdown(c: BulkMarkdownClip | null | undefined): string |
   // text
   if (content.trim() === "") return null;
   const tags = Array.isArray(c.tags) ? c.tags : [];
-  if (tags.includes("code") || looksLikeCode(content)) {
-    const lang = detectCodeLang(content) ?? "";
+  if (bulkMarkdownAsFence(c, content, tags)) {
+    // exportFenceLang folds the per-clip override into auto-detection so a
+    // clip pinned to "rust" exports ```rust even when detectCodeLang would
+    // have guessed wrong; a forced-OFF clip never reaches here (the fence
+    // decision returned false above). Identical to the single-clip path.
+    const lang = exportFenceLang(c.langOverride, detectCodeLang(content) ?? "");
     return "```" + lang + "\n" + content + "\n```";
   }
   const cite = url ? `\n\n\u2014 [${title || url}](${url})` : "";
