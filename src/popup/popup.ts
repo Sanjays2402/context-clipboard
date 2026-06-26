@@ -119,6 +119,12 @@ import { peekTooltip } from "../lib/list-peek";
 import { computeDayHeaders } from "../lib/day-group";
 import { effectiveWrap, hasWrapOverride, wrapButtonTitle } from "../lib/wrap-pref";
 import { parseTags, removeTag, serializeTags } from "../lib/tag-chips";
+import {
+  nextChipFocusIndex,
+  focusIndexAfterRemove,
+  isChipNavKey,
+  isChipRemoveKey,
+} from "../lib/tag-chip-nav";
 import { highlightCode } from "../lib/code-highlight";
 import {
   resolveDensity,
@@ -963,15 +969,63 @@ function renderDetailTagChips(): void {
     return;
   }
   detailTagChips.hidden = false;
+  // Roving-tabindex toolbar (WAI-ARIA pattern): the row itself is one
+  // Tab stop; ←/→/Home/End move focus BETWEEN chips (handled by the
+  // keydown listener), and Backspace/Delete removes the focused chip
+  // and re-lands focus on a neighbour. Only one chip is tabbable at a
+  // time (index 0 by default); the rest are reachable via arrows.
   detailTagChips.innerHTML = tags
     .map(
-      (t) =>
-        `<span class="detail-tag-chip" data-tag="${escapeHtml(t)}">` +
+      (t, i) =>
+        `<span class="detail-tag-chip" role="listitem" data-tag="${escapeHtml(t)}" data-chip-idx="${i}" tabindex="${i === 0 ? "0" : "-1"}" aria-label="Tag ${escapeHtml(t)} \u2014 press Backspace to remove">` +
         `<span class="detail-tag-label">${escapeHtml(t)}</span>` +
-        `<button type="button" class="detail-tag-x" data-act="remove-tag" data-tag="${escapeHtml(t)}" title="Remove tag ${escapeHtml(t)}" aria-label="Remove tag ${escapeHtml(t)}">${icons.close()}</button>` +
+        `<button type="button" class="detail-tag-x" data-act="remove-tag" data-tag="${escapeHtml(t)}" tabindex="-1" title="Remove tag ${escapeHtml(t)}" aria-label="Remove tag ${escapeHtml(t)}">${icons.close()}</button>` +
         `</span>`,
     )
     .join("");
+}
+
+/**
+ * Move keyboard focus to the chip at `idx` in the detail tag row,
+ * making it the roving-tabindex member (the others go to -1). When
+ * `idx` is -1 (or out of range — e.g. the row just emptied), focus
+ * falls back to the raw tag input, the only thing left to interact
+ * with. Shared by the arrow-nav + post-remove paths so "where does
+ * focus land" lives in one place.
+ */
+function focusDetailTagChip(idx: number): void {
+  const chips = Array.from(
+    detailTagChips.querySelectorAll<HTMLElement>(".detail-tag-chip"),
+  );
+  chips.forEach((el, i) => {
+    el.tabIndex = i === idx ? 0 : -1;
+  });
+  const target = idx >= 0 ? chips[idx] : null;
+  if (target) target.focus();
+  else detailTags.focus();
+}
+
+/**
+ * Remove a single tag from the clip currently open in detail, shared by
+ * both the chip × click and the keyboard Backspace/Delete path so the
+ * two can never drift. Rewrites the raw input from the pruned list
+ * (lib/tag-chips owns the set math), commits via the same updateTags +
+ * render path the input's change handler uses, refreshes the note chips
+ * (removing a structured tag can re-reveal a promotable hashtag), and
+ * toasts a receipt. Does NOT move focus — the caller decides where
+ * focus lands (the keyboard path restores it to a neighbour chip).
+ */
+async function removeDetailTag(tag: string): Promise<void> {
+  if (!detailId) return;
+  const next = removeTag(parseTags(detailTags.value), tag);
+  detailTags.value = serializeTags(next);
+  renderDetailTagChips();
+  await updateTags(detailId, next);
+  await render();
+  paintNotePromoteChip(detailNote.value, next);
+  paintNoteStripChip(detailNote.value);
+  paintNotePromoteStripChip(detailNote.value, next);
+  toast(`Removed ${tag}`);
 }
 
 function renderTagChips(allClips: ClipItem[]) {
@@ -8684,17 +8738,39 @@ detailTagChips.addEventListener("click", async (e) => {
   if (!btn || !detailId) return;
   const tag = btn.dataset.tag || "";
   if (!tag) return;
-  const next = removeTag(parseTags(detailTags.value), tag);
-  detailTags.value = serializeTags(next);
-  renderDetailTagChips();
-  await updateTags(detailId, next);
-  await render();
-  // Keep the note chips honest — removing a structured tag can reveal
-  // a promotable hashtag again (same refresh the input change does).
-  paintNotePromoteChip(detailNote.value, next);
-  paintNoteStripChip(detailNote.value);
-  paintNotePromoteStripChip(detailNote.value, next);
-  toast(`Removed ${tag}`);
+  await removeDetailTag(tag);
+});
+
+// Tag chip keyboard UX (lib/tag-chip-nav) — the row is a roving-tabindex
+// toolbar. ←/→/Home/End move focus between chips; Backspace/Delete on a
+// focused chip removes it AND lands focus on a sensible neighbour so the
+// user can keep deleting without reaching for the mouse. Mirrors the
+// click-remove path exactly (same removeDetailTag), so keyboard + mouse
+// removal can never drift.
+detailTagChips.addEventListener("keydown", async (e) => {
+  const chip = (e.target as HTMLElement).closest<HTMLElement>(
+    ".detail-tag-chip",
+  );
+  if (!chip) return;
+  const idx = Number(chip.dataset.chipIdx);
+  if (!Number.isFinite(idx)) return;
+  const count = detailTagChips.querySelectorAll(".detail-tag-chip").length;
+  if (isChipNavKey(e.key)) {
+    e.preventDefault();
+    focusDetailTagChip(nextChipFocusIndex(count, idx, e.key));
+    return;
+  }
+  if (isChipRemoveKey(e.key)) {
+    if (!detailId) return;
+    e.preventDefault();
+    const tag = chip.dataset.tag || "";
+    if (!tag) return;
+    // Compute where focus should land BEFORE the row re-renders, then
+    // restore it after removeDetailTag repaints the chips.
+    const landing = focusIndexAfterRemove(count, idx);
+    await removeDetailTag(tag);
+    focusDetailTagChip(landing);
+  }
 });
 
 // Per-clip note — auto-save on blur + Cmd/Ctrl+Enter. Input event

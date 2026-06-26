@@ -2869,6 +2869,20 @@ kbd {
   max-width: 100%;
 }
 
+/* Keyboard focus ring for the roving-tabindex chip toolbar
+   (lib/tag-chip-nav): ←/→/Home/End move between chips, Backspace/Delete
+   removes. The chip itself is the focus target (its × is tabindex=-1),
+   so the ring lands on the whole pill. :focus-visible keeps the ring
+   keyboard-only — a mouse click on the × never paints it. */
+.detail-tag-chip:focus {
+  outline: none;
+}
+.detail-tag-chip:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
 .detail-tag-label {
   overflow: hidden;
   text-overflow: ellipsis;
