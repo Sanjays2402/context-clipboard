@@ -58,7 +58,29 @@ export interface BulkMarkdownPlan {
   hasContent: boolean;
 }
 
-const CLIP_SEPARATOR = "\n\n---\n\n";
+/**
+ * Clip-separator style for the joined Markdown document.
+ *   - "rule"  -> a horizontal rule with blank lines around it
+ *     ("\n\n---\n\n"). Visually unambiguous when rendered — each clip
+ *     reads as its own section. The historical default.
+ *   - "blank" -> a bare blank line ("\n\n"). Some doc targets (certain
+ *     wikis, chat composers, slide importers) render a `---` as a
+ *     thematic break / front-matter fence / new slide, which is NOT what
+ *     the user wants between snippets; the blank-line join sidesteps that.
+ */
+export type BulkMarkdownSeparator = "rule" | "blank";
+
+const SEPARATORS: Record<BulkMarkdownSeparator, string> = {
+  rule: "\n\n---\n\n",
+  blank: "\n\n",
+};
+
+/** The clip-join string for a separator style; defaults to the rule. */
+export function bulkMarkdownSeparator(
+  style: BulkMarkdownSeparator | null | undefined,
+): string {
+  return style === "blank" ? SEPARATORS.blank : SEPARATORS.rule;
+}
 
 /**
  * Heuristic: does this text body LOOK like code? Mirrors the popup's
@@ -112,17 +134,20 @@ export function clipToMarkdown(c: BulkMarkdownClip | null | undefined): string |
 /**
  * Build the bulk-Markdown plan from an ordered selection. Pure — the
  * caller handles the clipboard write + toast. Skips clips with nothing
- * renderable; joins the rest with a horizontal-rule separator.
+ * renderable; joins the rest with the chosen clip separator (default:
+ * the horizontal rule). Pass "blank" for a bare blank-line join when the
+ * paste target treats `---` as a thematic break / front-matter fence.
  */
 export function planBulkMarkdown(
   clips: ReadonlyArray<BulkMarkdownClip | null | undefined>,
+  separator: BulkMarkdownSeparator | null | undefined = "rule",
 ): BulkMarkdownPlan {
   const blocks: string[] = [];
   for (const c of clips) {
     const md = clipToMarkdown(c);
     if (md != null && md !== "") blocks.push(md);
   }
-  const text = blocks.join(CLIP_SEPARATOR);
+  const text = blocks.join(bulkMarkdownSeparator(separator));
   return {
     text,
     rendered: blocks.length,

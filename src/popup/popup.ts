@@ -408,6 +408,7 @@ const sAutoRedact = $<HTMLInputElement>("s-autoredact");
 const retroRedactBtn = $<HTMLButtonElement>("retro-redact-btn");
 const sBlurPreviews = $<HTMLInputElement>("s-blur");
 const sDensity = $<HTMLSelectElement>("s-density");
+const sBulkMdSep = $<HTMLSelectElement>("s-bulk-md-sep");
 const sBlock = $<HTMLTextAreaElement>("s-block");
 const sAllow = $<HTMLTextAreaElement>("s-allow");
 const sTheme = $<HTMLSelectElement>("s-theme");
@@ -2982,6 +2983,7 @@ async function openSettings() {
   sAutoRedact.checked = s.autoRedactPii;
   sBlurPreviews.checked = !!s.blurPreviews;
   sDensity.value = resolveDensity(s);
+  sBulkMdSep.value = s.bulkMarkdownSeparator === "blank" ? "blank" : "rule";
   // Privacy audit retention — defaults to 30 if the stored value
   // is missing or junk (a freshly imported settings shape from an
   // older version won't have this field).
@@ -3049,6 +3051,9 @@ async function saveSettingsFromForm() {
     blockList: sBlock.value.split("\n").map((s) => s.trim()).filter(Boolean),
     allowList: sAllow.value.split("\n").map((s) => s.trim()).filter(Boolean),
     theme: (sTheme.value as Settings["theme"]) || "auto",
+    // Bulk Copy-as-Markdown clip separator — snap a tampered value back
+    // to the rule default so a bad DOM can't store an unknown style.
+    bulkMarkdownSeparator: sBulkMdSep.value === "blank" ? "blank" : "rule",
   };
   const saved = await saveSettings(next);
   document.body.dataset.theme = saved.theme;
@@ -11095,7 +11100,10 @@ bulkCopyMd.addEventListener("click", async () => {
     return ia - ib;
   });
   const items = await Promise.all(orderedIds.map((id) => getClip(id)));
-  const plan = planBulkMarkdown(items);
+  // Honor the user's clip-separator preference (rule vs blank line) so
+  // the join matches what their paste target renders cleanly.
+  const sep = (await getSettings()).bulkMarkdownSeparator === "blank" ? "blank" : "rule";
+  const plan = planBulkMarkdown(items, sep);
   if (!plan.hasContent) {
     toast(formatBulkMarkdownToast(plan), "error");
     return;

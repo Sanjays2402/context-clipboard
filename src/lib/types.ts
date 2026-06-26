@@ -288,6 +288,19 @@ export interface Settings {
    * back-fill — past actions stay gone once they fall off).
    */
   privacyAuditRetention: 10 | 30 | 60 | 100;
+  /**
+   * Clip separator for the bulk "Copy selected as Markdown" action.
+   *   - "rule"  -> join clips with a horizontal rule (`---`) between
+   *     blank lines (the default — each clip reads as its own section).
+   *   - "blank" -> join with a bare blank line. Some doc / wiki / slide
+   *     targets render a standalone `---` as a thematic break,
+   *     front-matter fence, or new-slide marker, which mangles a
+   *     multi-clip paste; the blank-line join sidesteps that.
+   *
+   * Additive optional field — undefined on settings saved before this
+   * shipped; the bulk path defaults to "rule" (the historical behavior).
+   */
+  bulkMarkdownSeparator?: "rule" | "blank";
   /** Hostnames where capture is disabled. */
   blockList: string[];
   /** If non-empty, capture ONLY on these hostnames. */
@@ -310,6 +323,7 @@ export const DEFAULT_SETTINGS: Settings = {
   compactRows: false,
   density: "comfortable",
   privacyAuditRetention: 30,
+  bulkMarkdownSeparator: "rule",
   blockList: [],
   allowList: [],
   theme: "auto",
