@@ -2590,6 +2590,55 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
+/* Position dot-strip — one clickable dot per image in the run, so the
+   user can jump straight to image K instead of stepping prev/next
+   through a long screenshot run. Sits under the caption, centred, wraps
+   for very long runs. The active dot (current image) is filled + wider;
+   the rest are hollow and brighten on hover. */
+.lightbox-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  max-width: min(560px, 90vw);
+  padding: 2px 0;
+}
+
+.lightbox-dot {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease,
+    width 0.12s ease;
+}
+
+.lightbox-dot:hover {
+  background: var(--text-secondary);
+  border-color: var(--text-secondary);
+  transform: scale(1.2);
+}
+
+.lightbox-dot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lightbox-dot.active {
+  /* Pill-widen + fill the current image's dot so the position reads at
+     a glance, mirroring a carousel's active indicator. */
+  width: 20px;
+  border-radius: 5px;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 /* Accessibility: honour the user's reduced-motion preference. The
    lightbox backdrop fade-in and the zoom scale transition are pure
    decoration — drop them so the overlay opens and the image enlarges
@@ -2601,6 +2650,12 @@ kbd {
   }
   .lightbox-img {
     transition: none;
+  }
+  .lightbox-dot {
+    transition: none;
+  }
+  .lightbox-dot:hover {
+    transform: none;
   }
 }
 

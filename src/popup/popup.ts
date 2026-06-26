@@ -152,6 +152,7 @@ import {
 } from "../lib/lightbox-zoom";
 import { shouldZoomThumb } from "../lib/thumb-zoom";
 import { imageDownloadName } from "../lib/image-download";
+import { lightboxDots, dotStripVisible, dotLabel } from "../lib/lightbox-dots";
 import {
   effectiveLang,
   selectValueFor,
@@ -515,6 +516,7 @@ const cheatsheetClose = $<HTMLButtonElement>("cheatsheet-close");
 const lightboxEl = $("lightbox");
 const lightboxImg = $<HTMLImageElement>("lightbox-img");
 const lightboxCaptionEl = $("lightbox-caption");
+const lightboxDotsEl = $("lightbox-dots");
 const lightboxClose = $<HTMLButtonElement>("lightbox-close");
 const lightboxDownload = $<HTMLButtonElement>("lightbox-download");
 const lightboxPrev = $<HTMLButtonElement>("lightbox-prev");
@@ -6496,6 +6498,9 @@ function closeLightbox(): void {
   lightboxCaptionEl.textContent = "";
   lightboxPrev.hidden = true;
   lightboxNext.hidden = true;
+  // Clear the jump dot-strip so a stale set can't flash on next open.
+  lightboxDotsEl.hidden = true;
+  lightboxDotsEl.innerHTML = "";
   // Snap back to fit so the next open starts clean (and clear the
   // transform off the <img> so a stale scale() can't linger).
   lightboxZoom = resetZoom();
@@ -6551,6 +6556,32 @@ function syncLightboxNav(): void {
   const canStep = ids.length > 1 && ids.includes(lightboxId);
   lightboxPrev.hidden = !canStep;
   lightboxNext.hidden = !canStep;
+  renderLightboxDots(ids);
+}
+
+/**
+ * Paint the clickable position dot-strip under the caption: one dot per
+ * image in the run, the current image's dot filled + widened. Clicking
+ * a dot jumps straight to that image (no prev/next stepping). Hidden for
+ * a lone image (nothing to jump between). The dot model + visibility
+ * gate live in lib/lightbox-dots (pure); this owns the DOM + the click
+ * binding (delegated on the strip, so re-rendering doesn't leak
+ * listeners).
+ */
+function renderLightboxDots(ids: ReadonlyArray<string>): void {
+  if (!dotStripVisible(ids)) {
+    lightboxDotsEl.hidden = true;
+    lightboxDotsEl.innerHTML = "";
+    return;
+  }
+  const dots = lightboxDots(ids, lightboxId);
+  lightboxDotsEl.hidden = false;
+  lightboxDotsEl.innerHTML = dots
+    .map((d) => {
+      const label = escapeHtml(dotLabel(d));
+      return `<button type="button" class="lightbox-dot${d.active ? " active" : ""}" role="tab" data-dot-id="${escapeHtml(d.id)}" aria-selected="${d.active ? "true" : "false"}" aria-label="${label}" title="${label}"></button>`;
+    })
+    .join("");
 }
 
 /** Step the lightbox to the prev/next image clip (wrap-around). */
@@ -6614,6 +6645,16 @@ async function downloadLightboxImage(): Promise<void> {
 lightboxDownload.addEventListener("click", (e) => {
   e.stopPropagation();
   void downloadLightboxImage();
+});
+// Dot-strip: delegated click → jump straight to that image. stopPropagation
+// so the click doesn't bubble to the backdrop (which would close the
+// lightbox). A no-op when the dot is the current image.
+lightboxDotsEl.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const dot = (e.target as HTMLElement).closest(".lightbox-dot") as HTMLElement | null;
+  const id = dot?.dataset.dotId;
+  if (!id || id === lightboxId) return;
+  void openLightboxClip(id);
 });
 lightboxPrev.addEventListener("click", (e) => {
   e.stopPropagation();
