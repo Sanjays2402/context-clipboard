@@ -134,6 +134,7 @@ import {
   normalizeLangChoice,
   langControlTitle,
   langLabel,
+  hasLangOverride,
   LANG_OPTIONS,
   OVERRIDE_AUTO,
   OVERRIDE_NONE,
@@ -570,6 +571,7 @@ let archivedCount = 0;
 // tally is current without a per-palette-open IDB read; zero hides the
 // command via `available: false`.
 let wrapOverrideCount = 0;
+let langOverrideCount = 0;
 /**
  * Active-tab host cache for the Cmd+K "Pin every clip from this host"
  * command. Three layers:
@@ -1728,6 +1730,11 @@ async function render(): Promise<void> {
   // (hasWrapOverride) so the count, the filter, and the badge agree.
   wrapOverrideCount = 0;
   for (const c of wide) if (hasWrapOverride(c)) wrapOverrideCount++;
+  // Refresh the lang-override count (Cmd+K "Show clips with a forced
+  // language"). Same predicate the search filter + detail control use
+  // (hasLangOverride) so the count, the filter, and the dropdown agree.
+  langOverrideCount = 0;
+  for (const c of wide) if (hasLangOverride(c.langOverride)) langOverrideCount++;
   // Refresh the active-host pin cache so the Cmd+K "Pin every clip
   // from this host" command knows whether it's available + how many
   // it'd pin. Tab read is fire-and-forget — first render after open
@@ -1824,7 +1831,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:langoverride</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -6791,6 +6798,30 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:wrapoverride");
+      },
+    },
+    {
+      // `is:langoverride` — surface every clip with an explicit per-clip
+      // force-language override (a pinned syntax-tinting language, or the
+      // "none" forced-off sentinel). The review pass for the force-
+      // language feature, mirroring "Show clips with a wrap override":
+      // after hand-classifying a few mis-detected code clips, this
+      // answers "which ones did I override?" without opening each to
+      // check the dropdown. Live count in the hint; greys when nothing's
+      // overridden so the palette doesn't offer an empty filter.
+      id: "filter-lang-override",
+      label: "Show clips with a forced language",
+      hint:
+        langOverrideCount > 0
+          ? `is:langoverride — ${langOverrideCount} clip${langOverrideCount === 1 ? "" : "s"} with a hand-picked tinting language`
+          : "is:langoverride — no clips override the detected language yet",
+      group: "Filter",
+      keywords:
+        "is:langoverride language override force tint syntax detect code per-clip classify",
+      available: langOverrideCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:langoverride");
       },
     },
     {

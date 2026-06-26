@@ -86,6 +86,26 @@ export function isKnownLang(lang: string | null | undefined): boolean {
   return typeof lang === "string" && KNOWN.has(lang);
 }
 
+/**
+ * True when a clip carries an explicit per-clip force-language override
+ * (i.e. it is NOT following auto-detection). Strict gate: the stored
+ * `langOverride` must be a non-empty string — either a known language
+ * id OR the OVERRIDE_NONE ("none") sentinel (forced-off counts as an
+ * override; the user pinned it on purpose). A clip following
+ * auto-detection (undefined / empty / non-string) returns false.
+ *
+ * Mirrors the read path: `selectValueFor` shows the dropdown as "Auto"
+ * for exactly the values this returns false for, so the `is:langoverride`
+ * search filter and the detail control's "is this pinned?" state can
+ * never disagree.
+ */
+export function hasLangOverride(override: string | null | undefined): boolean {
+  return (
+    override === OVERRIDE_NONE ||
+    (typeof override === "string" && KNOWN.has(override))
+  );
+}
+
 /** Human label for a language id (falls back to the raw id). */
 export function langLabel(lang: string | null | undefined): string {
   if (typeof lang !== "string") return "";

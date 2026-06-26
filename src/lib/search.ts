@@ -23,6 +23,7 @@ import { hostFrom } from "./util";
 import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride } from "./wrap-pref";
+import { hasLangOverride } from "./lang-override";
 
 export interface ParsedQuery {
   freeText: string;
@@ -350,6 +351,23 @@ export interface ParsedQuery {
    * match, since the question is "did I deviate from the global?".
    */
   wrapOverrideOnly: boolean;
+  /**
+   * Surface clips carrying an explicit per-clip force-language override
+   * (the detail-body `langOverride` field — a pinned syntax-tinting
+   * language, or the "none" forced-off sentinel). Joins the `is:` family
+   * so the user can answer "which clips did I hand-classify?" in one
+   * keystroke — the review pass for the force-language feature, the same
+   * way `is:wrapoverride` reviews wrap overrides. Without it there's no
+   * way to FIND a language override after setting it.
+   *
+   * Strict gate via lang-override.hasLangOverride: the stored value must
+   * be a known language id OR the OVERRIDE_NONE sentinel. A clip
+   * following auto-detection (undefined override) never surfaces. Gates
+   * on the PRESENCE of an override, not which language — both a
+   * forced-to-Rust clip and a forced-off clip match (the question is
+   * "did I override the detector?", not "to what?").
+   */
+  langOverrideOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -400,6 +418,7 @@ export function parseQuery(raw: string): ParsedQuery {
     hostRedactedOnly: false,
     hostScrubbedOnly: false,
     wrapOverrideOnly: false,
+    langOverrideOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -444,6 +463,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "hostredacted") out.hostRedactedOnly = true;
       else if (v === "hostscrubbed") out.hostScrubbedOnly = true;
       else if (v === "wrapoverride") out.wrapOverrideOnly = true;
+      else if (v === "langoverride") out.langOverrideOnly = true;
       else if (v.startsWith("notelonger:") || v.startsWith("noteshorter:")) {
         // `is:notelonger:N` / `is:noteshorter:N` — parse N as a
         // non-negative integer. Bad numerics (NaN, decimals, sign,
@@ -596,6 +616,15 @@ export function applyQuery(
     // deviate?", not "which way?"). A clip following the global default
     // (undefined override) never surfaces.
     if (q.wrapOverrideOnly && !hasWrapOverride(c)) return false;
+    // `is:langoverride` — surface clips with an explicit per-clip
+    // force-language override (a pinned tinting language, or the "none"
+    // forced-off sentinel). Gate via hasLangOverride, the SAME predicate
+    // the detail control uses to decide whether the dropdown reads "Auto"
+    // vs a pinned choice, so the filter and the control can't disagree.
+    // Presence-only (direction-agnostic): both forced-to-a-language and
+    // forced-off clips match. A clip following auto-detection (undefined
+    // langOverride) never surfaces.
+    if (q.langOverrideOnly && !hasLangOverride(c.langOverride)) return false;
     // `is:noted` — predicate gate via hasClipNote(). Mirrors the
     // detail-view note-row's Clear-button visibility predicate so
     // the filter + the paint can never disagree. Pure type-check +
@@ -759,6 +788,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.hostRedactedOnly) bits.push("hostredacted");
   if (q.hostScrubbedOnly) bits.push("hostscrubbed");
   if (q.wrapOverrideOnly) bits.push("wrap-override");
+  if (q.langOverrideOnly) bits.push("lang-override");
   if (q.noteLongerThan != null) bits.push(`note>${q.noteLongerThan}`);
   if (q.noteShorterThan != null) bits.push(`note<${q.noteShorterThan}`);
   if (q.noteNewerThan != null) bits.push("note-recent");
