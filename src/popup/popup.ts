@@ -545,6 +545,12 @@ let lastForgottenHost: import("../lib/last-forgotten-host").ForgottenHostInfo | 
 // always current without a per-palette-open IDB read. Zero hides
 // the command from the palette via `available: false`.
 let archivedCount = 0;
+// Cached count of clips carrying a per-clip detail-body wrap override,
+// for the Cmd+K "Show clips with a wrap override" command label.
+// Refreshed every render() over the already-loaded clip set so the live
+// tally is current without a per-palette-open IDB read; zero hides the
+// command via `available: false`.
+let wrapOverrideCount = 0;
 /**
  * Active-tab host cache for the Cmd+K "Pin every clip from this host"
  * command. Three layers:
@@ -1635,6 +1641,11 @@ async function render(): Promise<void> {
   // no extra IDB read.
   archivedCount = 0;
   for (const c of wide) if (c.archived === true) archivedCount++;
+  // Refresh the wrap-override count (Cmd+K "Show clips with a wrap
+  // override"). Same predicate the search filter + detail toggle use
+  // (hasWrapOverride) so the count, the filter, and the badge agree.
+  wrapOverrideCount = 0;
+  for (const c of wide) if (hasWrapOverride(c)) wrapOverrideCount++;
   // Refresh the active-host pin cache so the Cmd+K "Pin every clip
   // from this host" command knows whether it's available + how many
   // it'd pin. Tab read is fire-and-forget — first render after open
@@ -1731,7 +1742,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -6595,6 +6606,29 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:unlocked");
+      },
+    },
+    {
+      // `is:wrapoverride` — surface every clip pinned to its own
+      // detail-body wrap state (deviating from the global default).
+      // The review pass for the per-clip wrap feature: after pinning a
+      // few wide TSV/log clips to nowrap, this answers "which ones did
+      // I override?" without opening each to check the toggle dot. Live
+      // count in the hint; greys (available:false) when nothing's
+      // overridden so the palette doesn't offer an empty filter.
+      id: "filter-wrap-override",
+      label: "Show clips with a wrap override",
+      hint:
+        wrapOverrideCount > 0
+          ? `is:wrapoverride — ${wrapOverrideCount} clip${wrapOverrideCount === 1 ? "" : "s"} pinned to their own wrap`
+          : "is:wrapoverride — no clips override the global wrap yet",
+      group: "Filter",
+      keywords:
+        "is:wrapoverride wrap nowrap override per-clip pinned deviate detail body lines",
+      available: wrapOverrideCount > 0,
+      run: () => {
+        closePalette();
+        appendSearchOp("is:wrapoverride");
       },
     },
     {

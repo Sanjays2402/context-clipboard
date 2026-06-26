@@ -22,6 +22,7 @@ import type { ClipItem, ClipKind } from "./types";
 import { hostFrom } from "./util";
 import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
+import { hasWrapOverride } from "./wrap-pref";
 
 export interface ParsedQuery {
   freeText: string;
@@ -330,6 +331,25 @@ export interface ParsedQuery {
    * notes can't satisfy "older than Nd" because we can't tell WHEN.
    */
   noteOlderThan?: number;
+  /**
+   * Surface clips carrying an explicit per-clip word-wrap override
+   * (the detail-body `wrapOverride` field, set true/false to pin a
+   * clip's wrap state against the global default). Joins the `is:`
+   * family so the user can answer "which clips did I pin to their own
+   * wrap?" in one keystroke — the review pass for the per-clip wrap
+   * feature. Without it there's no way to FIND an override after you
+   * set it; you'd have to open every clip and check the toggle's
+   * accent dot.
+   *
+   * Strict gate: `typeof c.wrapOverride === "boolean"` (matches
+   * wrap-pref.hasWrapOverride exactly, so the search filter and the
+   * detail-view "overridden" affordance can never disagree). A clip
+   * following the global default (undefined wrapOverride) never
+   * surfaces here. Note this gates on the PRESENCE of an override, not
+   * its direction — both wrap-on-override and wrap-off-override clips
+   * match, since the question is "did I deviate from the global?".
+   */
+  wrapOverrideOnly: boolean;
   /** Unix ms — only clips older than this. */
   before?: number;
   /** Unix ms — only clips newer than this. */
@@ -379,6 +399,7 @@ export function parseQuery(raw: string): ParsedQuery {
     hostPinnedOnly: false,
     hostRedactedOnly: false,
     hostScrubbedOnly: false,
+    wrapOverrideOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -422,6 +443,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "hostpinned") out.hostPinnedOnly = true;
       else if (v === "hostredacted") out.hostRedactedOnly = true;
       else if (v === "hostscrubbed") out.hostScrubbedOnly = true;
+      else if (v === "wrapoverride") out.wrapOverrideOnly = true;
       else if (v.startsWith("notelonger:") || v.startsWith("noteshorter:")) {
         // `is:notelonger:N` / `is:noteshorter:N` — parse N as a
         // non-negative integer. Bad numerics (NaN, decimals, sign,
@@ -565,6 +587,15 @@ export function applyQuery(
     // by AND-semantics — same intent contract as `is:template
     // is:notemplate`, surfacing the user's contradiction explicitly.
     if (q.unlockedOnly && c.locked === true) return false;
+    // `is:wrapoverride` — surface clips that carry an explicit per-clip
+    // word-wrap override (deviating from the global default). Gate via
+    // hasWrapOverride (typeof === "boolean"), the SAME predicate the
+    // detail-view uses to badge the toggle as "overridden", so the
+    // search filter and the paint can never disagree. Direction-agnostic:
+    // both wrap-on and wrap-off overrides match (the question is "did I
+    // deviate?", not "which way?"). A clip following the global default
+    // (undefined override) never surfaces.
+    if (q.wrapOverrideOnly && !hasWrapOverride(c)) return false;
     // `is:noted` — predicate gate via hasClipNote(). Mirrors the
     // detail-view note-row's Clear-button visibility predicate so
     // the filter + the paint can never disagree. Pure type-check +
@@ -727,6 +758,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.hostPinnedOnly) bits.push("hostpinned");
   if (q.hostRedactedOnly) bits.push("hostredacted");
   if (q.hostScrubbedOnly) bits.push("hostscrubbed");
+  if (q.wrapOverrideOnly) bits.push("wrap-override");
   if (q.noteLongerThan != null) bits.push(`note>${q.noteLongerThan}`);
   if (q.noteShorterThan != null) bits.push(`note<${q.noteShorterThan}`);
   if (q.noteNewerThan != null) bits.push("note-recent");
