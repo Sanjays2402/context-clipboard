@@ -3819,6 +3819,37 @@ kbd {
   border-radius: 6px;
 }
 
+/* Pinned-tier stub row — mirrors the live list's `.clip.pinned`: the
+   accent-soft sweep gradient (left-weighted, fading to transparent) plus
+   a filled accent pin glyph leading the row. The pinned run floats to the
+   top of every real list, so this row leads the preview to mirror that
+   position. Its gradient + glyph read very differently as rows tighten,
+   which is exactly the contrast the density preview exists to surface. */
+.density-preview-row--pinned {
+  background: linear-gradient(
+    100deg,
+    var(--accent-soft) 0%,
+    transparent 50%
+  );
+}
+.density-preview-pin {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+.density-preview-pin svg {
+  width: 14px;
+  height: 14px;
+}
+/* Compact tightens the pin glyph alongside the row, so the swatch shows
+   the pinned indicator shrinking with everything else. */
+.density-preview--compact .density-preview-pin svg {
+  width: 12px;
+  height: 12px;
+}
+
 /* Cozy — trim the padding + gap, keep the tag chip + meta line. The
    thumb stays at its base 42px (cozy keeps the full thumb, like the
    real list). */

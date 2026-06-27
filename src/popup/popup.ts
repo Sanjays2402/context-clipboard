@@ -3239,13 +3239,25 @@ function renderDensityPreview(): void {
       // One row carries the selected/active accent so the swatch shows how
       // the highlight (accent fill + outline) reads at the chosen density,
       // not just the resting rows. Mirrors the live list's .clip.selected.
+      // The leading row carries the pinned-tier styling (accent sweep +
+      // filled pin glyph) so the swatch also covers how the pinned run —
+      // the first thing the eye lands on in every real list — reads as
+      // rows tighten. A row is at most one of selected / pinned.
       const rowClass =
         `density-preview-row` +
         (r.image ? " density-preview-row--image" : "") +
-        (r.selected ? " density-preview-row--selected" : "");
+        (r.selected ? " density-preview-row--selected" : "") +
+        (r.pinned ? " density-preview-row--pinned" : "");
+      // The pinned row leads with a small filled pin glyph (mirroring the
+      // real list's pinned-tier indicator) so the swatch telegraphs the
+      // pin affordance, not just the gradient. Non-pinned rows omit it.
+      const pin = r.pinned
+        ? `<span class="density-preview-pin" aria-hidden="true">${icons.pinFilled()}</span>`
+        : "";
       return (
         `<div class="${rowClass}">` +
         thumb +
+        pin +
         `<span class="density-preview-title">${escapeHtml(r.title)}</span>` +
         `<span class="density-preview-meta">${escapeHtml(r.meta)}</span>` +
         `<span class="density-preview-tag">${escapeHtml(r.tag)}</span>` +

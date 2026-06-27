@@ -68,6 +68,20 @@ export interface DensityPreviewRow {
    * that, so one row carries the accent. Exactly one row sets this.
    */
   selected?: boolean;
+  /**
+   * True for the one stub row that renders in the PINNED tier styling
+   * (mirroring the real list's `.clip.pinned`: the accent-soft sweep
+   * gradient + a filled pin glyph). The pinned run floats to the very top
+   * of every list, so its styling is the FIRST thing the eye lands on —
+   * yet the swatch previously only showed resting + selected + image
+   * rows, never the pinned look. Its gradient + glyph read very
+   * differently as rows tighten (the sweep has less room to breathe at
+   * compact, the glyph shrinks with the row), which is exactly what a
+   * user weighing density wants to preview. Exactly one row sets this,
+   * and it leads the list so the preview mirrors the real pinned-tier
+   * position. Distinct from `selected` — a row is at most one of them.
+   */
+  pinned?: boolean;
 }
 
 /**
@@ -76,18 +90,26 @@ export interface DensityPreviewRow {
  * AND the image thumb-shrink) are visible. Same rows regardless of
  * density — only the layout the CSS applies changes.
  *
- * The 4th row is an IMAGE clip: at comfortable/cozy it shows a 42px
- * thumb, at compact the CSS drops it to 28px, so a user weighing compact
- * sees what happens to their screenshot-heavy history, not just the text
- * rows.
+ * The IMAGE clip row: at comfortable/cozy it shows a 42px thumb, at
+ * compact the CSS drops it to 28px, so a user weighing compact sees what
+ * happens to their screenshot-heavy history, not just the text rows.
  *
  * The 2nd row carries the `selected` accent so the swatch also shows how
  * the active/selected highlight (accent fill + outline) reads at each
  * density — its contrast against a tightening row is exactly what
  * keyboard-nav / multi-select users care about.
+ *
+ * The LEADING row carries `pinned` so the swatch covers the pinned-tier
+ * styling (the accent-soft sweep gradient + a filled pin glyph) at each
+ * density too. The pinned run floats to the top of every real list, so
+ * leading the preview with it mirrors that position — and its gradient +
+ * glyph read very differently as rows tighten, which is exactly what the
+ * preview is for. No row is both pinned and selected (they're distinct
+ * highlight states).
  */
 export function densityPreviewRows(): DensityPreviewRow[] {
   return [
+    { title: "API base URL - staging", meta: "vercel.app - pinned", tag: "env", pinned: true },
     { title: "useEffect cleanup pattern", meta: "github.com - 2m ago", tag: "code" },
     { title: "Standup notes - shipping Friday", meta: "notion.so - 1h ago", tag: "work", selected: true },
     { title: "https://news.ycombinator.com", meta: "link - yesterday", tag: "read" },
