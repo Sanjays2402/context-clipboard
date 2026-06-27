@@ -142,6 +142,64 @@ export function bulkExportFilename(opts: { count: number; now?: Date }): string 
 }
 
 /**
+ * Group an integer with commas: 1240 -> "1,240". Deterministic en-US.
+ * Local copy (this leaf module stays dependency-free). Used for the
+ * clip count in the export toasts.
+ */
+function groupThousandsLocal(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const digits = Math.abs(Math.trunc(n)).toString();
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/**
+ * Byte formatter for the export receipt — mirrors the storage panel +
+ * bulk-storage-delta grammar so "4.2 MB" reads identically across the
+ * UI. The bulk-export JSON is UTF-8, so the caller measures the byte
+ * length of the serialized string (not its code-point length) and hands
+ * it here.
+ *
+ *   < 1 KB  -> "742 B"
+ *   < 1 MB  -> "12.3 KB"
+ *   < 1 GB  -> "4.2 MB"
+ *   >= 1 GB -> "1.07 GB"
+ *
+ * Defensive: a non-finite / negative byte count reads "0 B".
+ */
+export function formatExportBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "0 B";
+  if (n < 1024) return `${Math.floor(n)} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+/**
+ * UTF-8 byte length of a string — the on-disk size of the exported
+ * JSON. Uses TextEncoder when available (it always is in the extension
+ * runtime + Node), with a defensive fallback that counts code units for
+ * the rare environment without it. A nullish input is 0 bytes.
+ */
+export function utf8ByteLength(s: string | null | undefined): number {
+  if (typeof s !== "string" || s.length === 0) return 0;
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(s).length;
+  }
+  // Fallback: manual UTF-8 byte tally (surrogate-pair aware).
+  let bytes = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4; // high surrogate — the pair encodes to 4 bytes
+      i++; // skip the low surrogate
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/**
  * Compose the post-export toast message. Singular/plural noun
  * grammar matches the rest of the popup ("Exported 1 clip" /
  * "Exported 3 clips").
@@ -152,6 +210,13 @@ export function bulkExportFilename(opts: { count: number; now?: Date }): string 
  *   - clean: "Exported N clips"
  *   - partial: "Exported N of M clips (M-N skipped)"
  *
+ * When a positive `bytes` is supplied (the UTF-8 size of the JSON that
+ * was actually written), a " - <size>" receipt tail is appended so the
+ * completion toast carries the same on-disk weight the user can verify
+ * in their Downloads folder — the same pre/post parity the bulk COPY
+ * toasts give with their char total. Omitted (no tail) when bytes is 0 /
+ * absent so the zero-clip + legacy callers read unchanged.
+ *
  * In practice the partial case should never fire — the bulk-bar
  * selection is constrained to live store ids — but the honest
  * reporting matters when it does.
@@ -159,16 +224,28 @@ export function bulkExportFilename(opts: { count: number; now?: Date }): string 
 export function formatBulkExportToast(opts: {
   exported: number;
   selected: number;
+  bytes?: number;
 }): string {
   const exported = Math.max(0, Math.floor(Number(opts.exported) || 0));
   const selected = Math.max(0, Math.floor(Number(opts.selected) || 0));
   if (exported === 0) return "Nothing to export";
   const noun = exported === 1 ? "clip" : "clips";
-  if (exported === selected || selected === 0) {
-    return `Exported ${exported} ${noun}`;
-  }
-  const skipped = Math.max(0, selected - exported);
-  return `Exported ${exported} of ${selected} ${noun} (${skipped} skipped)`;
+  const head =
+    exported === selected || selected === 0
+      ? `Exported ${groupThousandsLocal(exported)} ${noun}`
+      : `Exported ${groupThousandsLocal(exported)} of ${groupThousandsLocal(selected)} ${noun} (${groupThousandsLocal(Math.max(0, selected - exported))} skipped)`;
+  return appendBytesTail(head, opts.bytes);
+}
+
+/**
+ * Append a " \u2014 <size>" byte-receipt tail to an export toast when a
+ * positive byte count is supplied. Shared by both export toast paths so
+ * the tag-filtered and unfiltered receipts read identically. A nullish /
+ * zero / non-finite byte count yields the head unchanged.
+ */
+function appendBytesTail(head: string, bytes: number | undefined): string {
+  if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes <= 0) return head;
+  return `${head} \u2014 ${formatExportBytes(bytes)}`;
 }
 
 /**
@@ -238,20 +315,22 @@ export function formatBulkExportTagToast(opts: {
   exported: number;
   selected: number;
   tag: string;
+  bytes?: number;
 }): string {
   const exported = Math.max(0, Math.floor(Number(opts.exported) || 0));
   const selected = Math.max(0, Math.floor(Number(opts.selected) || 0));
   const tag = (typeof opts.tag === "string" ? opts.tag : "").trim();
   if (!tag) {
     // Caller fell through to the tag path with no tag — be honest.
-    return formatBulkExportToast({ exported, selected });
+    return formatBulkExportToast({ exported, selected, bytes: opts.bytes });
   }
   if (exported === 0) {
     return `No selected clips tagged "${tag}"`;
   }
   const noun = exported === 1 ? "clip" : "clips";
-  if (exported === selected) {
-    return `Exported ${exported} ${noun} (tag: ${tag})`;
-  }
-  return `Exported ${exported} of ${selected} selected ${noun} (tag: ${tag})`;
+  const head =
+    exported === selected
+      ? `Exported ${groupThousandsLocal(exported)} ${noun} (tag: ${tag})`
+      : `Exported ${groupThousandsLocal(exported)} of ${groupThousandsLocal(selected)} selected ${noun} (tag: ${tag})`;
+  return appendBytesTail(head, opts.bytes);
 }

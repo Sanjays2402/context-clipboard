@@ -18,7 +18,15 @@ await build({
   sourcemap: false,
 });
 const mod = await import("file://" + join(dir, "bulk-export.mjs"));
-const { buildBulkExportEnvelope, bulkExportJson, bulkExportFilename, formatBulkExportToast } = mod;
+const {
+  buildBulkExportEnvelope,
+  bulkExportJson,
+  bulkExportFilename,
+  formatBulkExportToast,
+  formatBulkExportTagToast,
+  formatExportBytes,
+  utf8ByteLength,
+} = mod;
 
 let pass = 0;
 let total = 0;
@@ -238,6 +246,60 @@ check("realistic: filename surfaces count + bulk marker",
   fnR, "context-clipboard-2026-06-22-5clips-bulk.json");
 const toastR = formatBulkExportToast({ exported: 5, selected: 5 });
 check("realistic: clean toast", toastR, "Exported 5 clips");
+
+// --- 9. Byte-receipt tail (formatExportBytes + utf8ByteLength + toasts) ---
+// formatExportBytes — mirrors the storage-panel grammar.
+check("bytes: <1KB reads B", formatExportBytes(742), "742 B");
+check("bytes: 1024 reads 1.0 KB", formatExportBytes(1024), "1.0 KB");
+check("bytes: KB tier", formatExportBytes(12_595), "12.3 KB");
+check("bytes: MB tier", formatExportBytes(4_404_019), "4.2 MB");
+check("bytes: GB tier 2dp", formatExportBytes(1_148_903_751), "1.07 GB");
+check("bytes: 0 reads 0 B", formatExportBytes(0), "0 B");
+check("bytes: negative reads 0 B", formatExportBytes(-5), "0 B");
+check("bytes: NaN reads 0 B", formatExportBytes(NaN), "0 B");
+
+// utf8ByteLength — ASCII = 1 byte/char, multibyte counts UTF-8 bytes.
+check("utf8: ascii 1 byte/char", utf8ByteLength("hello"), 5);
+check("utf8: empty string 0", utf8ByteLength(""), 0);
+check("utf8: null 0", utf8ByteLength(null), 0);
+check("utf8: 2-byte char (e-acute)", utf8ByteLength("\u00e9"), 2);
+check("utf8: 3-byte char (CJK)", utf8ByteLength("\u4e2d"), 3);
+check("utf8: 4-byte char (emoji surrogate pair)", utf8ByteLength("\u{1f600}"), 4);
+// The actual export JSON byte length should match what TextEncoder sees.
+checkTrue("utf8: matches TextEncoder on real JSON",
+  utf8ByteLength(jsonR) === new TextEncoder().encode(jsonR).length);
+
+// Toast receipt tail — bytes>0 appends " — <size>"; absent/0 omits it.
+check("toast: clean + bytes appends receipt",
+  formatBulkExportToast({ exported: 3, selected: 3, bytes: 4_404_019 }),
+  "Exported 3 clips \u2014 4.2 MB");
+check("toast: partial + bytes appends receipt",
+  formatBulkExportToast({ exported: 3, selected: 5, bytes: 12_595 }),
+  "Exported 3 of 5 clips (2 skipped) \u2014 12.3 KB");
+check("toast: bytes=0 omits tail (legacy-identical)",
+  formatBulkExportToast({ exported: 3, selected: 3, bytes: 0 }),
+  "Exported 3 clips");
+check("toast: bytes absent omits tail (legacy-identical)",
+  formatBulkExportToast({ exported: 3, selected: 3 }),
+  "Exported 3 clips");
+check("toast: nothing-to-export ignores bytes",
+  formatBulkExportToast({ exported: 0, selected: 0, bytes: 9999 }),
+  "Nothing to export");
+// Large counts now group with commas in the toast head.
+check("toast: count grouping with commas",
+  formatBulkExportToast({ exported: 1234, selected: 1234 }),
+  "Exported 1,234 clips");
+
+// Tag toast carries the same receipt tail.
+check("tag-toast: clean + bytes appends receipt",
+  formatBulkExportTagToast({ exported: 2, selected: 5, tag: "secrets", bytes: 742 }),
+  "Exported 2 of 5 selected clips (tag: secrets) \u2014 742 B");
+check("tag-toast: all-selected + bytes",
+  formatBulkExportTagToast({ exported: 3, selected: 3, tag: "code", bytes: 1024 }),
+  "Exported 3 clips (tag: code) \u2014 1.0 KB");
+check("tag-toast: zero-match ignores bytes",
+  formatBulkExportTagToast({ exported: 0, selected: 5, tag: "nope", bytes: 9999 }),
+  "No selected clips tagged \"nope\"");
 
 console.log(`bulk-export sanity: ${pass}/${total} pass`);
 if (pass !== total) process.exit(1);

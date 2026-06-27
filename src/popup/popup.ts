@@ -222,6 +222,7 @@ import {
   formatBulkExportToast,
   filterClipsByTag,
   formatBulkExportTagToast,
+  utf8ByteLength,
 } from "../lib/bulk-export";
 import {
   idsToPinForHost,
@@ -11558,6 +11559,11 @@ bulkExport.addEventListener("click", async () => {
     toast("Nothing to export", "error");
     return;
   }
+  // UTF-8 byte size of exactly what gets written to disk — surfaced in
+  // the toast so the completion receipt carries the same weight the user
+  // can verify in their Downloads folder (pre/post parity with the bulk
+  // COPY toasts' char total).
+  const exportBytes = utf8ByteLength(json);
   try {
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -11572,8 +11578,9 @@ bulkExport.addEventListener("click", async () => {
             exported: filtered.length,
             selected: present.length,
             tag: tagFilter,
+            bytes: exportBytes,
           })
-        : formatBulkExportToast({ exported: filtered.length, selected: ids.length }),
+        : formatBulkExportToast({ exported: filtered.length, selected: ids.length, bytes: exportBytes }),
     );
   } catch (e) {
     console.error(e);
