@@ -2348,6 +2348,51 @@ footer button:hover {
   letter-spacing: -0.01em;
 }
 
+/* Live shortcut filter — a slim search field under the header that hides
+   non-matching rows as the user types. Mirrors #search's visual language
+   (glass field, accent focus ring) so it reads as a first-class search
+   affordance, not an afterthought. */
+.cheatsheet-filter {
+  padding: 10px 14px 0 14px;
+}
+
+.cheatsheet-filter-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  background: var(--glass);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-inset);
+}
+
+.cheatsheet-filter-input::placeholder {
+  color: var(--muted);
+}
+
+.cheatsheet-filter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--glass-elevated);
+  box-shadow:
+    0 0 0 3px var(--accent-glow),
+    var(--shadow-inset);
+}
+
+/* "No shortcuts match" note — only shown when a non-empty filter clears
+   the whole sheet. Spans both grid columns so it centres under the rows. */
+.cheatsheet-no-match {
+  grid-column: 1 / -1;
+  padding: 8px 2px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
 .cheatsheet-body {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -195,6 +195,10 @@ import {
 import { isToday, isYesterday, isThisWeek, isLastWeek } from "../lib/today-filter";
 import { widenSuggestion } from "../lib/widen-bucket";
 import {
+  cheatsheetRowMatches,
+  normaliseCheatFilter,
+} from "../lib/cheatsheet-filter";
+import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
 } from "../lib/url-quick-capture";
@@ -529,6 +533,8 @@ const toastEl = $("toast");
 const rowMenuEl = $("row-menu");
 const cheatsheetEl = $("cheatsheet");
 const cheatsheetClose = $<HTMLButtonElement>("cheatsheet-close");
+const cheatsheetFilterInput = $<HTMLInputElement>("cheatsheet-filter-input");
+const cheatsheetNoMatch = $("cheatsheet-no-match");
 const lightboxEl = $("lightbox");
 const lightboxImg = $<HTMLImageElement>("lightbox-img");
 const lightboxCaptionEl = $("lightbox-caption");
@@ -6562,10 +6568,46 @@ linkUrlInput.addEventListener("keydown", (e) => {
 
 function openCheatsheet(): void {
   cheatsheetEl.hidden = false;
+  // Open with a clean filter so the full sheet is always the first thing
+  // the user sees (a stale filter from a previous open would hide rows
+  // with no obvious cause). Reset, repaint, then focus the input so a
+  // user can start typing to narrow immediately.
+  cheatsheetFilterInput.value = "";
+  applyCheatsheetFilter();
+  // Defer focus a frame so the dialog is laid out before we move focus
+  // into it (focusing a display:none-ancestor input is a no-op).
+  requestAnimationFrame(() => cheatsheetFilterInput.focus());
 }
 
 function closeCheatsheet(): void {
   cheatsheetEl.hidden = true;
+}
+
+/**
+ * Apply the cheatsheet filter input to the rendered rows: hide rows that
+ * don't match, hide any group whose rows are now all hidden, and show
+ * the "no matches" note when nothing survives. Pure matching lives in
+ * lib/cheatsheet-filter; this is the DOM walk. Called on open (cleared)
+ * and on every keystroke in the filter input.
+ */
+function applyCheatsheetFilter(): void {
+  const q = normaliseCheatFilter(cheatsheetFilterInput.value);
+  const groups = cheatsheetEl.querySelectorAll<HTMLElement>(".cheatsheet-group");
+  let anyVisible = false;
+  groups.forEach((group) => {
+    const rows = group.querySelectorAll<HTMLElement>(".cheatsheet-row");
+    let groupHasMatch = false;
+    rows.forEach((row) => {
+      const match = cheatsheetRowMatches(row.textContent, q);
+      row.hidden = !match;
+      if (match) groupHasMatch = true;
+    });
+    // Hide the whole group (incl. its <h4> heading) when no row in it
+    // matches, so the user never stares at a lone heading with no rows.
+    group.hidden = !groupHasMatch;
+    if (groupHasMatch) anyVisible = true;
+  });
+  cheatsheetNoMatch.hidden = anyVisible || !q;
 }
 
 function toggleCheatsheet(): void {
@@ -6574,6 +6616,7 @@ function toggleCheatsheet(): void {
 }
 
 cheatsheetClose.addEventListener("click", () => closeCheatsheet());
+cheatsheetFilterInput.addEventListener("input", () => applyCheatsheetFilter());
 cheatsheetEl.addEventListener("click", (e) => {
   // Backdrop click (the dim layer is the dialog root itself; the card stops
   // propagation via its own listener).
@@ -9208,7 +9251,15 @@ document.addEventListener("keydown", async (e) => {
   // Cheatsheet is always the first thing we check so `?` works globally,
   // and Esc closes it before any other panel reacts to Esc.
   if (!cheatsheetEl.hidden) {
-    if (e.key === "Escape" || e.key === "?") {
+    const inFilter = document.activeElement === cheatsheetFilterInput;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeCheatsheet();
+    } else if (e.key === "?" && !inFilter) {
+      // `?` toggles the sheet shut — but only when focus is OUTSIDE the
+      // filter input. With the input focused, `?` is a legitimate
+      // character to type (hunting the "press ? to open" row), so we let
+      // it through to the field instead of closing.
       e.preventDefault();
       closeCheatsheet();
     }

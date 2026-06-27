@@ -541,6 +541,17 @@
           <span id="cheatsheet-title" class="cheatsheet-title">Keyboard shortcuts</span>
           <button id="cheatsheet-close" class="icon-btn" title="Close (Esc)" data-icon="close"></button>
         </div>
+        <div class="cheatsheet-filter">
+          <input
+            id="cheatsheet-filter-input"
+            type="text"
+            class="cheatsheet-filter-input"
+            placeholder="Filter shortcuts… (e.g. lock, image, is:)"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Filter the shortcut list"
+          />
+        </div>
         <div class="cheatsheet-body">
           <div class="cheatsheet-group">
             <h4>Navigate</h4>
@@ -593,6 +604,7 @@
             <div class="cheatsheet-row"><kbd>before:7d</kbd><span>older than 7d</span></div>
             <div class="cheatsheet-row"><kbd>g github</kbd><span>jump to first github clip (Enter)</span></div>
           </div>
+          <div id="cheatsheet-no-match" class="cheatsheet-no-match" hidden>No shortcuts match that filter.</div>
         </div>
         <div class="cheatsheet-foot">Press <kbd>?</kbd> anytime to open · <kbd>Esc</kbd> to close</div>
       </div>
