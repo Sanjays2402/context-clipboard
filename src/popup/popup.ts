@@ -118,6 +118,7 @@ import { computeScrollEdges } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip, linkPeekTooltip } from "../lib/list-peek";
 import { computeDayHeaderInfos } from "../lib/day-group";
+import { isRedundantDayDivider } from "../lib/redundant-divider";
 import {
   dayRunClipIds,
   dayRunModifierAction,
@@ -2076,9 +2077,19 @@ async function render(): Promise<void> {
     const dayHeaders = showDayHeaders
       ? computeDayHeaderInfos(currentClips)
       : [];
+    // When the user has filtered to EXACTLY a lone day bucket (is:today /
+    // is:yesterday), the whole list IS that day — so the single "Today" /
+    // "Yesterday" divider that would lead the list is pure noise. Suppress
+    // just that first divider (the label is checked against day-group's
+    // own constants so it can't drift from the renderer; a pinned tier on
+    // top has a "Pinned" divider that won't match, so it's left alone).
+    const suppressFirstDivider =
+      dayHeaders.length > 0 &&
+      !!dayHeaders[0] &&
+      isRedundantDayDivider(searchEl.value, dayHeaders[0]!.label);
     listEl.innerHTML = currentClips
       .map((c, i) => {
-        const header = dayHeaders[i];
+        const header = i === 0 && suppressFirstDivider ? null : dayHeaders[i];
         // A run's size rides along as a "· N" volume badge so the user
         // sees the day's clip count at a glance ("Today · 6"). The count
         // span is muted + non-bold so the label still reads first. The

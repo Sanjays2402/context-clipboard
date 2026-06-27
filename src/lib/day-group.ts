@@ -73,6 +73,15 @@ export interface DayHeaderInfo {
 export const PINNED_HEADER = "Pinned";
 /** Catch-all label for clips with an unusable timestamp. */
 export const UNDATED_HEADER = "Earlier";
+/**
+ * Label for the current local calendar day. Exported so the redundant-
+ * divider suppressor (lib/redundant-divider) can compare against the same
+ * string `dayLabel` emits — the suppress-label can never drift from the
+ * render-label.
+ */
+export const TODAY_HEADER = "Today";
+/** Label for the previous local calendar day (see `TODAY_HEADER`). */
+export const YESTERDAY_HEADER = "Yesterday";
 
 const DAY_MS = 86_400_000;
 
@@ -181,8 +190,8 @@ export function dayLabel(ts: number, now: number = Date.now()): string {
   const then = new Date(ts);
   const today = new Date(now);
   const dayDiff = calendarDayDiff(then, today);
-  if (dayDiff === 0) return "Today";
-  if (dayDiff === 1) return "Yesterday";
+  if (dayDiff === 0) return TODAY_HEADER;
+  if (dayDiff === 1) return YESTERDAY_HEADER;
   if (dayDiff > 1 && dayDiff < 7) {
     return then.toLocaleDateString(undefined, { weekday: "long" });
   }
