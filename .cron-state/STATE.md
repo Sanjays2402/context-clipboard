@@ -499,6 +499,18 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [ ] Detail wrap-around: a settings toggle to opt OUT of wrap (restore the dead-end) for users who rely on the disabled-button edge cue
 - [ ] Focus breadcrumb selection tail: when selection extends beyond the visible filter window, distinguish "N selected (M visible)" so the keyboard user knows the off-screen overflow
 
+### TICK LOG 2026-06-26 20:16 PT — 5/5 shipped (frontend UX, fresh surfaces)
+Calendar buckets, long-run viewer polish, an export receipt, a settings
+preview, and viewer discoverability — orthogonal to recent ticks.
+- `0cfc3eb` Search: `is:yesterday` operator + "Yesterday" quick-chip (live count) — the previous LOCAL calendar day, bounded both ends so it tiles against is:today with no overlap. lib/today-filter localYesterdayStart (DST-safe) + isYesterday; parser window computed at parse time; Cmd+K + empty-state. 20/20 yesterday-filter sanity.
+- `1f574c8` Lightbox: window the position dot-strip for long image runs — 30-40 screenshots wrapped into a wall; now a sliding ~15-dot band centred on the current image + "…" edge cues + an "N of M" count. Short runs render every dot unchanged. Pure windowLightboxDots (active always inside, clamped to range). 27/27 lightbox-dots-window sanity.
+- `e204cb1` Bulk-bar: byte-size receipt on the Export-selected JSON toast ("Exported 3 clips — 4.2 MB") — pre/post parity with the copy receipts. lib/bulk-export formatExportBytes + utf8ByteLength (TextEncoder + surrogate-aware fallback); both toast paths take optional bytes, absent/0 omits the tail. 87/87 bulk-export sanity.
+- `4994bc1` Settings: live preview for the Row-density control — three stub clip rows render at the chosen density (SCOPED class so the live list isn't touched; compact hides the tag chip like the real list). Pure lib/density-preview. Extends last tick's separator-preview pattern. 17/17 density-preview sanity.
+- `d071cfa` Cheatsheet: "Image viewer" key group (Enter/Space open, [ ]/←→ step, +/- zoom, 0 reset, S save, Esc close) — six previously-undiscoverable keys; + is:today/is:yesterday row in Search operators. HTML/CSS only; overlay already scrolls.
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 474.2KB). 125/125 sanity suites pass. Pushed 2d185da..d071cfa.
+Deferred: none — all 5 are solid, demoable user-facing slices.
+
+
 ### TICK LOG 2026-06-26 15:32 PT — 5/5 shipped (frontend UX, fresh surfaces)
 Image-viewer, bulk-copy receipts, settings preview, and a calendar-day
 filter — orthogonal to the lang/wrap-override cluster of recent ticks.
@@ -585,17 +597,41 @@ recent ticks. Image-viewer, list-selection, settings, and detail UX gaps.
 - [ ] Focus breadcrumb: when a day-run select is active, the footer could read "row N of M · day-run selected" to telegraph the bulk gesture's scope
 
 ### Open follow-ups from this tick (2026-06-26 15:32 PT)
-- [ ] Lightbox dot-strip: for very long runs (30+ screenshots) collapse to a windowed "… 9 of 40 …" strip so the dots don't wrap into a wall
+- [x] Lightbox dot-strip: for very long runs (30+ screenshots) collapse to a windowed "… 9 of 40 …" strip so the dots don't wrap into a wall — `1f574c8`
 - [ ] Lightbox download: a settings toggle for the filename stem (some users want a bare timestamp `2026-06-26-1532.png` over the product-prefixed name)
-- [ ] Lightbox download: keyboard `s` is bound; surface it in the `?` cheatsheet's image section so it's discoverable
-- [ ] is:today: a companion `is:yesterday` operator (the next-most-asked calendar bucket after today) — same local-midnight math, shifted one day
+- [x] Lightbox download: keyboard `s` is bound; surface it in the `?` cheatsheet's image section so it's discoverable — `d071cfa`
+- [x] is:today: a companion `is:yesterday` operator (the next-most-asked calendar bucket after today) — same local-midnight math, shifted one day — `0cfc3eb`
 - [ ] Quick-chip "Today": when active, the day-group "Today" divider is redundant (the whole list IS today) — could suppress it to save a row
-- [ ] Bulk char-receipt: the bulk-export (JSON) toast could carry the byte total for the same pre/post parity the copy paths now have
-- [ ] Settings preview swatch: extend the same live-preview pattern to the density radio (render 3 stub rows at the chosen density)
+- [x] Bulk char-receipt: the bulk-export (JSON) toast could carry the byte total for the same pre/post parity the copy paths now have — `e204cb1`
+- [x] Settings preview swatch: extend the same live-preview pattern to the density radio (render 3 stub rows at the chosen density) — `4994bc1`
+
+### New (added this tick — 2026-06-26 20:16 PT refill, FRESH frontend)
+Deliberately orthogonal to the calendar/lightbox/note clusters of recent
+ticks where possible. Image-viewer, list, settings, search, detail UX gaps.
+- [ ] Quick-chip "Today" active: suppress the redundant "Today" day-group divider (the whole list IS today) to save a row
+- [ ] Lightbox dot-strip windowed: clicking a "…" edge cue pages the band one window in that direction (currently the ellipsis is a passive cue)
+- [ ] Lightbox download: settings toggle for the filename stem (bare timestamp vs product-prefixed name)
+- [ ] Search: `is:thisweek` / `is:lastweek` calendar buckets (local week, Monday or Sunday start per locale) — the next grain up from today/yesterday
+- [ ] Day-group dividers: a "This week" / "Last week" / "Earlier" coarse grouping option for the older tail (currently every older day gets its own divider)
+- [ ] Bulk-bar: byte-total on the "Copy selected" pre-commit hover too (the toast has chars; the export now has bytes — unify so copy hover shows both char + byte weight)
+- [ ] Settings: group copy/export prefs (bulk-md separator, density preview) under a "Display & export" subheading so the panel stays scannable as previews accrue
+- [ ] Settings density preview: a 4th stub row that's an IMAGE clip (thumb) so the compact thumb-shrink (42->28px) is visible in the swatch, not just the text-row tightening
+- [ ] Detail: "Copy line N" gutter affordance for multi-line clips — click a line number to copy just that line (long-standing open item, real workflow)
+- [ ] Search: recent-searches dropdown on focus (show last 5 even before typing, like a browser address bar) — long-standing open item
+- [ ] Lightbox: a thin filmstrip of actual thumbnails (not just dots) for image runs, windowed the same way — richer than dots for picking a specific screenshot
+- [ ] Empty-state: when `is:yesterday` (or any calendar bucket) matches nothing, offer a one-tap "widen to this week" chip instead of the generic operator list
+- [ ] Cheatsheet: a live "search operator" filter input at the top so a user can type "lock" and see only the matching shortcut rows (the group is getting long)
+- [ ] Detail tag chips: drag-to-reorder auto-scroll when dragging past the row's right edge (long tag lists overflow + clip) — recurring real gap
+- [ ] Quick-chips: clicking a faded scroll-shadow edge (or a chevron) scrolls the strip one page in that direction — recurring
 
 
 
 ### Shipped (autoship)
+- [x] Search: `is:yesterday` operator + "Yesterday" quick-chip (previous local calendar day, tiles against is:today) — `0cfc3eb`
+- [x] Lightbox: window the position dot-strip for long runs (sliding ~15-dot band + "…" edges + "N of M" count) — `1f574c8`
+- [x] Bulk-bar: byte-size receipt on the Export-selected JSON toast (pre/post parity with copy receipts) — `e204cb1`
+- [x] Settings: live preview for the Row-density control (3 stub rows at the chosen density, scoped) — `4994bc1`
+- [x] Cheatsheet: "Image viewer" key group + is:today/is:yesterday operators row — `d071cfa`
 - [x] Lightbox: "Save image" to disk (local data URL, no network) + `s` key — `2e17924`
 - [x] Lightbox: clickable carousel dot-strip — jump straight to image K — `59bf03c`
 - [x] Bulk-bar: char-total receipt on Copy + Copy-as-Markdown toasts — `7079856`
