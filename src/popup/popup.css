@@ -5560,6 +5560,36 @@ button.audit-row.jumpable:focus-visible {
   user-select: none;
 }
 
+/* Live caution-warning banner under the note textarea. Appears when the
+ * draft carries a caution keyword (prod / staging / "do not" / secret /
+ * …) that the in-page palette would tint warm-red at paste time — a
+ * heads-up at authoring time so the downstream behaviour is visible the
+ * moment you write the note. Warm-red to match the palette tint's
+ * semantics (caution, not error); informational only, never blocks save.
+ * [hidden] on the row when the draft is plain, so the common case shows
+ * no UI. */
+.note-warn-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 0 6px;
+  margin-top: -2px;
+}
+.note-warn-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(229, 83, 75, 0.1);
+  border: 1px solid rgba(229, 83, 75, 0.42);
+  border-left-width: 3px;
+  color: var(--danger);
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
 /* Link composer — quick-capture for a URL. Reuses the .note-composer
  * card shell. The inline input is sized for typical URL lengths, and
  * the status row paints green when valid, red when invalid. */

@@ -196,6 +196,7 @@ import {
 } from "../lib/bulk-separator-preview";
 import { isToday, isYesterday, isThisWeek, isLastWeek, isThisMonth, isLastMonth } from "../lib/today-filter";
 import { widenSuggestion } from "../lib/widen-bucket";
+import { noteWarnBanner } from "../lib/note-warn-banner";
 import {
   cheatsheetRowMatches,
   cheatsheetMatchLabel,
@@ -576,6 +577,8 @@ const linkStatusEl = $("link-status");
 const linkSaveBtn = $<HTMLButtonElement>("link-save");
 const linkCancelBtn = $<HTMLButtonElement>("link-cancel");
 const noteTemplatePill = $("note-template-pill");
+const noteWarnRow = $("note-warn-row");
+const noteWarnBannerEl = $("note-warn-banner");
 
 // State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
@@ -6216,6 +6219,7 @@ async function openNoteComposer(): Promise<void> {
   }
   await renderNoteTagSuggestions();
   refreshTemplateTokenPill();
+  refreshNoteWarnBanner();
   noteComposer.hidden = false;
   // After the panel paints — focus the textarea so typing lands there
   // instead of stealing focus from whatever the user just clicked.
@@ -6251,6 +6255,31 @@ function refreshTemplateTokenPill(): void {
   noteTemplatePill.textContent = label;
   const tip = formatTokenPillTooltip(count) || label;
   noteTemplatePill.title = tip;
+}
+
+/**
+ * Repaint the live caution-warning banner under the textarea.
+ *
+ * Reuses the EXACT detection the in-page palette's row-tint runs on
+ * (lib/note-warn-banner -> lib/note-warning), so the authoring-time
+ * preview and the paste-time tint can never disagree on what counts as
+ * a caution. When the draft carries a keyword (prod / staging / "do
+ * not" / secret / …) the banner appears, naming the matched word so the
+ * heads-up is specific. Plain notes (the common case) show nothing.
+ *
+ * Informational only — a flagged note still saves exactly as before.
+ * Runs on every textarea `input` event plus once at openNoteComposer
+ * time so paste / undo / programmatic reset all stay in sync.
+ */
+function refreshNoteWarnBanner(): void {
+  const banner = noteWarnBanner(noteText.value);
+  if (!banner.flagged) {
+    noteWarnRow.hidden = true;
+    noteWarnBannerEl.textContent = "";
+    return;
+  }
+  noteWarnRow.hidden = false;
+  noteWarnBannerEl.textContent = banner.text;
 }
 
 /**
@@ -6431,6 +6460,7 @@ noteText.addEventListener("keydown", (e) => {
 // textarea value. Pure + synchronous so no debounce needed — the
 // regex scan is microseconds on a 5-row textarea.
 noteText.addEventListener("input", refreshTemplateTokenPill);
+noteText.addEventListener("input", refreshNoteWarnBanner);
 noteTagsInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
