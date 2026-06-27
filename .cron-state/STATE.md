@@ -499,6 +499,40 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [ ] Detail wrap-around: a settings toggle to opt OUT of wrap (restore the dead-end) for users who rely on the disabled-button edge cue
 - [ ] Focus breadcrumb selection tail: when selection extends beyond the visible filter window, distinguish "N selected (M visible)" so the keyboard user knows the off-screen overflow
 
+### New (added this tick — 2026-06-27 15:36 PT refill, FRESH frontend)
+Deliberately orthogonal to the calendar/lightbox cluster. Spread across
+note-composer, bulk-bar, trash, search, detail, settings — the surfaces
+this tick's slices opened or touched, plus untouched long-standing gaps.
+- [ ] Note-composer: when the warning banner shows, also tint the textarea border soft-red (the banner names the keyword; a border echo reinforces "this note is flagged" without re-reading)
+- [ ] Note-composer: the warning keyword list editable per-host (extends note-warning with a per-site-rule field — recurring, now strongly motivated by the new authoring banner that surfaces it)
+- [ ] Bulk-bar: byte weight on the Copy-as-Markdown hover + toast too (the plain Copy path now shows char+byte; the MD path still shows char-only — unify so both batch-copy buttons read the same)
+- [ ] Bulk-bar: byte weight on the "Export selected" hover (the toast shows bytes post-export; the pre-commit hover doesn't — close the pre/post loop the copy path now has)
+- [ ] Trash: sort the trash list by remaining-runway (imminent/expired first) so the about-to-purge rows float to the top, not just tint in place — pairs with lib/trash-ttl's remainingMs
+- [ ] Trash: a "Purge expired-TTL clips" quick action (mirror of Purge >24h) — clips whose own TTL already lapsed are a distinct bucket from old-trash
+- [ ] Search: `is:expired` empty-state — when it matches nothing, a "nothing past due" reassurance instead of the generic operator wall (parity with the widen-bucket calendar escape)
+- [ ] Detail: surface the is:expired state in the TTL banner copy ("Expired N ago — restore by pinning" actionable hint) when an expired clip is opened
+- [ ] Settings: a live preview of the note caution-keyword tint (show a stub note row with a keyword + its warm tint) so users see what triggers it before writing one
+- [ ] Bulk-bar: "Copy selected" should also offer a byte-budget warning toast when the payload exceeds ~1MB (some paste targets choke) — uses the new bytes field
+- [ ] Detail "Send to": a "Copy weight (chars + bytes)" row mirroring the bulk receipt for a single clip (the detail content-stats shows chars/words/lines but not bytes)
+- [ ] Cheatsheet: a "Bulk actions" group documenting the selection model (Copy / Copy-MD / Export / Tag / Note / Lock+Pin) now that the bulk bar has grown
+- [ ] Trash row: a relative "purges <when>" tooltip on the urgency tail (the tail shows "4h left"; the title could read the absolute clock time it'll GC)
+- [ ] Quick-chip "Expired": when active and it equals the whole list, suppress the per-day dividers (the list IS the expired set, dividers are noise — parallel to the lone-day suppression)
+- [ ] Note-composer: a char-count tail like the detail note editor has (the composer has the token pill + warn banner but no length readout vs the 2,000 cap)
+
+
+### TICK LOG 2026-06-27 15:36 PT — 5/5 shipped (frontend UX, fresh surfaces)
+Deliberately steered AWAY from the calendar/lightbox cluster that dominated
+the last several ticks onto five orthogonal surfaces: note-composer, bulk-bar,
+trash, search, cheatsheet. Each closes a real loop a prior tick left open.
+- `86f5e47` Note-composer: live caution-warning banner while typing. The in-page palette already tints a clip's row warm-red when its note carries a caution keyword (prod/staging/"do not"/secret); but the loop was open at the AUTHORING end. New lib/note-warn-banner DELEGATES to lib/note-warning (the exact hasNoteWarning + firstWarningKeyword the palette tint runs on) so authoring-preview + paste-time-tint can't drift; banner names the matched keyword, informational only (never blocks save), hidden for plain notes. Wired into openNoteComposer + textarea input. 27/27 sanity-note-warn-banner.
+- `14d1228` Bulk-bar: byte weight alongside chars on Copy hover + toast. The copy path showed CHARS, the export path showed BYTES — no parity. planBulkCopy now also computes UTF-8 bytes of the exact joined payload; hover reads "Copy 3 clips as text (1,240 chars . 1.2 KB)", toast "Copied 3 clips - 1,240 chars - 1.2 KB". New utf8ByteLength + formatCopyBytes mirror lib/bulk-export byte-for-byte. No popup wiring change (plan already passed whole). 64/64 sanity-bulk-clipboard (was 51): emoji 4B/CJK 3B > chars, formatCopyBytes tiers.
+- `fc200a6` Trash: retention-urgency tint on the "X left" countdown. The row showed a flat muted "Xd left" whether the clip had 6 days or 4 hours before permanent purge. New lib/trash-ttl tiers it (mirrors the detail TTL banner): normal (>= 2d, unchanged muted "Xd left") / soon (< 48h, amber) / imminent (< 24h, soft-red, HOUR grain "4h left" so the real runway shows) / expired ("Purges any moment"). Tail wraps in a tier-classed span; imminent/expired rows get a whisper of warm bg. Day grain byte-identical to the old ceil math. 31/31 sanity-trash-ttl.
+- `9ef3172` Search: `is:expired` operator + danger quick chip + Cmd+K. is:expiring surfaces any TTL; is:expired is the strict already-past-due subset (expiresAt <= now) the GC will sweep — a "rescue or let go" pass. Parser bit + applyQuery predicate against an injectable `now` (rolling Date.now() live); describeQuery; new tone-danger quick-chip style (soft-red resting, solid-red active) showing "Expired (N)" only when something's past due; Cmd+K command + empty-state hint + cheatsheet row. 26/26 sanity-is-expired.
+- `e602a2d` Cheatsheet: dedicated Calendar buckets + Lifecycle/TTL sections. Six calendar operators were crammed into ONE middot row (a wall; the live filter could only match the whole clump). Split into "Calendar buckets" (one row per operator + plain-English desc) + "Lifecycle and TTL" (is:expiring/is:expired/is:template/is:locked/is:noted, each naming its inverse so is:notemplate/is:unlocked/is:nonoted are findable). Each operator now its own .cheatsheet-row -> filter isolates it, ArrowDown nav + "N of M" count pick them up free. 27/27 sanity-cheatsheet-filter (was 17): per-operator findability + substring isolation.
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 496.4KB). 175/175 new+touched sanity (27+64+31+26+27); full sweep 135/135 sanity suites + 11/12 script tests pass (the 1 = the long-standing pre-existing playwright redact-ui IDB v3-vs-v4 mismatch, unrelated). Pushed 3091e8b..e602a2d.
+Deferred: none — all 5 are solid, demoable, revertible slices.
+
+
 ### TICK LOG 2026-06-27 06:40 PT — 5/5 shipped (frontend UX, calendar month grain + 3 surfaces)
 Pushed the calendar buckets to the MONTH grain (the natural next step the
 last tick flagged), extended the empty-bucket escape a rung wider, and
@@ -702,6 +736,11 @@ touched so no one area dominates.
 - [ ] Cheatsheet: a "Calendar buckets" mini-section or inline note listing today/yesterday/thisweek/lastweek/thismonth/lastmonth together (currently one dense row) for discoverability now that there are six
 
 ### Shipped (autoship)
+- [x] Note-composer: live caution-warning banner while typing (lib/note-warn-banner delegates to note-warning; names the matched keyword; informational, never blocks save) — `86f5e47`
+- [x] Bulk-bar: UTF-8 byte weight alongside chars on Copy hover + completion toast (planBulkCopy.bytes; utf8ByteLength + formatCopyBytes mirror bulk-export) — `14d1228`
+- [x] Trash: retention-urgency tint on the "X left" countdown (lib/trash-ttl soon/imminent/expired tiers; hour-grain "4h left" when < 24h; warm-bg flag) — `fc200a6`
+- [x] Search: `is:expired` operator + danger-toned "Expired (N)" quick chip + Cmd+K + empty-state + cheatsheet (strict past-due subset of is:expiring, rolling `now`) — `9ef3172`
+- [x] Cheatsheet: dedicated "Calendar buckets" + "Lifecycle and TTL" sections (one row per operator, each inverse named in its desc; live filter now isolates each) — `e602a2d`
 - [x] Quick-chips: click-to-page chevrons on the faded overflow edges (pure pageScrollTarget, 80% page overlap + clamp; chevrons toggle in lockstep with their fade, smooth scroll) — `2b2ee6b`
 - [x] Lightbox: windowed "…" edge cues become PAGE buttons (pure dotStripPageTarget steps the active image one window-width + clamps, null at a dead edge) — `19a00c0`
 - [x] Cheatsheet: ArrowDown from the filter steps focus into the surviving rows (pure cheatsheetRowNav roving model; up-off-top returns to input, accent focus ring) — `d0a49b4`
