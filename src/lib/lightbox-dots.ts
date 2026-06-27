@@ -191,3 +191,51 @@ export function dotWindowLabel(dots: ReadonlyArray<LightboxDot> | null | undefin
   }
   return "";
 }
+
+/** Which edge of the windowed strip a paging cue sits on. */
+export type DotPageDirection = "before" | "after";
+
+/**
+ * Resolve the image id to jump to when the user clicks a windowed "…"
+ * edge cue, paging the dot band one full window in that direction.
+ *
+ * The band centres on the active dot and shows up to `maxVisible` dots
+ * (see `windowLightboxDots`). Clicking the leading "…" should reveal the
+ * clipped dots BEFORE the window; clicking the trailing "…" the ones
+ * AFTER. We do that by stepping the ACTIVE image one window-width
+ * (`maxVisible`) in the requested direction and clamping to the ends —
+ * opening that image re-centres the band there, so a full page of
+ * previously-hidden dots slides into view and the user lands on a
+ * concrete frame (not a no-op scroll).
+ *
+ * Returns the target id, or null when:
+ *   - the list is nullish / has fewer than two images (no paging), or
+ *   - no dot is active (a stale id mid-re-render — nothing to step from),
+ *   - or the step wouldn't move (already at the clamped edge), so the
+ *     caller can treat a dead cue as a no-op rather than re-opening the
+ *     current image.
+ *
+ * @param ids         ordered zoomable image ids (from imageNavIds).
+ * @param currentId   the id currently shown in the lightbox.
+ * @param direction   which edge cue was clicked ("before" / "after").
+ * @param maxVisible  the window size (defaults to DEFAULT_MAX_DOTS), so
+ *                    a page == one band-width, matching what's on screen.
+ */
+export function dotStripPageTarget(
+  ids: ReadonlyArray<string> | null | undefined,
+  currentId: string | null | undefined,
+  direction: DotPageDirection,
+  maxVisible: number = DEFAULT_MAX_DOTS,
+): string | null {
+  if (!Array.isArray(ids) || ids.length <= 1) return null;
+  const total = ids.length;
+  const cap = Number.isFinite(maxVisible) && maxVisible >= 1 ? Math.floor(maxVisible) : 1;
+  const activeIdx = ids.indexOf(typeof currentId === "string" ? currentId : "");
+  if (activeIdx < 0) return null; // no active image to step from
+  const step = direction === "before" ? -cap : cap;
+  let target = activeIdx + step;
+  if (target < 0) target = 0;
+  if (target > total - 1) target = total - 1;
+  if (target === activeIdx) return null; // already at the clamped edge
+  return ids[target];
+}

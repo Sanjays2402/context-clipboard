@@ -2732,13 +2732,33 @@ kbd {
    wrap from .lightbox-dots is harmless (the windowed set never overflows
    the max-width). */
 .lightbox-dot-more {
+  /* Now a real <button> that pages the band — reset the native button
+     chrome so it reads as the same bare "…" cue, then layer on a
+     pointer + hover/focus affordance so it's discoverable as clickable. */
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0 2px;
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1;
   letter-spacing: 1px;
   user-select: none;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.12s ease, background 0.12s ease;
   /* Nudge the ellipsis baseline up so it centres against the dots. */
   transform: translateY(-1px);
+}
+.lightbox-dot-more:hover {
+  color: var(--text);
+  background: var(--glass);
+}
+.lightbox-dot-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  color: var(--text);
 }
 
 .lightbox-dot-count {

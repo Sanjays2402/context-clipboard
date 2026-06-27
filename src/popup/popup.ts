@@ -154,7 +154,7 @@ import {
 } from "../lib/lightbox-zoom";
 import { shouldZoomThumb } from "../lib/thumb-zoom";
 import { imageDownloadName } from "../lib/image-download";
-import { lightboxDots, dotStripVisible, dotLabel, windowLightboxDots, dotWindowLabel } from "../lib/lightbox-dots";
+import { lightboxDots, dotStripVisible, dotLabel, windowLightboxDots, dotWindowLabel, dotStripPageTarget } from "../lib/lightbox-dots";
 import {
   effectiveLang,
   selectValueFor,
@@ -6962,14 +6962,18 @@ function renderLightboxDots(ids: ReadonlyArray<string>): void {
       return `<button type="button" class="lightbox-dot${d.active ? " active" : ""}" role="tab" data-dot-id="${escapeHtml(d.id)}" aria-selected="${d.active ? "true" : "false"}" aria-label="${label}" title="${label}"></button>`;
     })
     .join("");
-  // Truncation cues — non-interactive ellipses flanking the band. aria-
-  // hidden so the screen-reader user navigates by the dots' own labels +
-  // the count, not a bare "…".
+  // Truncation cues — clickable ellipses flanking the band that PAGE the
+  // dot strip one window in their direction (revealing the dots clipped
+  // off that edge and landing on a concrete frame). data-page carries the
+  // direction the click handler reads. A real <button> so it's keyboard-
+  // reachable + has a hover/focus affordance; the aria-label names the
+  // action for screen-reader users (who otherwise navigate by the dots'
+  // own labels + the count).
   const moreBefore = win.hasMoreBefore
-    ? `<span class="lightbox-dot-more" aria-hidden="true">…</span>`
+    ? `<button type="button" class="lightbox-dot-more" data-page="before" aria-label="Show earlier images" title="Show earlier images">…</button>`
     : "";
   const moreAfter = win.hasMoreAfter
-    ? `<span class="lightbox-dot-more" aria-hidden="true">…</span>`
+    ? `<button type="button" class="lightbox-dot-more" data-page="after" aria-label="Show later images" title="Show later images">…</button>`
     : "";
   // Compact "N of M" position label, shown only when the strip is
   // windowed (a fully-visible strip doesn't need it — the active dot is
@@ -7044,9 +7048,20 @@ lightboxDownload.addEventListener("click", (e) => {
 });
 // Dot-strip: delegated click → jump straight to that image. stopPropagation
 // so the click doesn't bubble to the backdrop (which would close the
-// lightbox). A no-op when the dot is the current image.
+// lightbox). A no-op when the dot is the current image. A click on a "…"
+// edge cue pages the band one window in that direction instead (revealing
+// the dots clipped off that edge + landing on a concrete frame).
 lightboxDotsEl.addEventListener("click", (e) => {
   e.stopPropagation();
+  // Windowed "…" edge cue: page the strip one window toward that edge.
+  const more = (e.target as HTMLElement).closest(".lightbox-dot-more") as HTMLElement | null;
+  if (more) {
+    const dir = more.dataset.page === "before" ? "before" : "after";
+    const ids = imageNavIds(currentClips);
+    const target = dotStripPageTarget(ids, lightboxId, dir);
+    if (target) void openLightboxClip(target);
+    return;
+  }
   const dot = (e.target as HTMLElement).closest(".lightbox-dot") as HTMLElement | null;
   const id = dot?.dataset.dotId;
   if (!id || id === lightboxId) return;
