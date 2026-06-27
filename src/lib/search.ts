@@ -24,7 +24,7 @@ import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
 import { hasLangOverride, langOverrideMatches, isLangOverrideDir } from "./lang-override";
-import { localDayStart, localYesterdayStart, localWeekStart } from "./today-filter";
+import { localDayStart, localYesterdayStart, localWeekStart, localLastWeekStart } from "./today-filter";
 
 export interface ParsedQuery {
   freeText: string;
@@ -109,6 +109,23 @@ export interface ParsedQuery {
    * lives in lib/today-filter (`isThisWeek`) for tests + reuse.
    */
   thisWeekOnly: boolean;
+  /**
+   * Surface only clips whose `lastSeenAt` falls within the local
+   * calendar week BEFORE the one containing "now" — from last week's
+   * start-day local midnight up to (but not including) this week's
+   * start-day midnight. Triggered by `is:lastweek` (and the "Last week"
+   * quick-chip that injects it).
+   *
+   * Companion to `is:thisweek` — the two tile the week timeline with no
+   * gap or overlap (a clip is in exactly one of {older, last-week,
+   * this-week}). Unlike `is:thisweek`, last week is bounded on BOTH
+   * ends, so applyQuery needs two thresholds: an inclusive lower bound
+   * (`lastWeekAfter` = last week's start midnight) and an exclusive
+   * upper bound (`lastWeekBefore` = this week's start midnight). Both
+   * computed at PARSE time; the exact predicate lives in
+   * lib/today-filter (`isLastWeek`) for tests + reuse.
+   */
+  lastWeekOnly: boolean;
   /**
    * Parity twin of `kind:link`. The other `is:` operators
    * (pinned/redacted/template/expiring/archived) read as
@@ -489,6 +506,20 @@ export interface ParsedQuery {
    * false.
    */
   thisWeekAfter?: number;
+  /**
+   * Unix ms — local midnight of LAST week's start day (inclusive lower
+   * bound), computed at parse time when `is:lastweek` is present.
+   * applyQuery requires `lastSeenAt >= lastWeekAfter`. Absent when
+   * `lastWeekOnly` is false.
+   */
+  lastWeekAfter?: number;
+  /**
+   * Unix ms — local midnight of THIS week's start day (exclusive upper
+   * bound for the last-week window), computed at parse time when
+   * `is:lastweek` is present. applyQuery requires
+   * `lastSeenAt < lastWeekBefore`. Absent when `lastWeekOnly` is false.
+   */
+  lastWeekBefore?: number;
 }
 
 const TOKEN_RE = /\S+/g;
@@ -526,6 +557,7 @@ export function parseQuery(raw: string): ParsedQuery {
     todayOnly: false,
     yesterdayOnly: false,
     thisWeekOnly: false,
+    lastWeekOnly: false,
     linkOnly: false,
     lockedOnly: false,
     unlockedOnly: false,
@@ -598,6 +630,17 @@ export function parseQuery(raw: string): ParsedQuery {
         // past the week's end. Threshold computed once at parse time.
         out.thisWeekOnly = true;
         out.thisWeekAfter = localWeekStart(now);
+      }
+      else if (v === "lastweek") {
+        // Local calendar WEEK before this one — bounded on both ends.
+        // Thresholds computed once at parse time: inclusive lower (last
+        // week's start midnight) + exclusive upper (this week's start
+        // midnight), so applyQuery does two straight comparisons. Tiles
+        // perfectly against is:thisweek (this week's start is the shared
+        // boundary).
+        out.lastWeekOnly = true;
+        out.lastWeekAfter = localLastWeekStart(now);
+        out.lastWeekBefore = localWeekStart(now);
       }
       else if (v === "link") out.linkOnly = true;
       else if (v === "locked") out.lockedOnly = true;
@@ -961,6 +1004,14 @@ export function applyQuery(
     // of is:today / is:yesterday (when same week). Inclusive lower bound
     // only; no upper bound needed (clips aren't normally future-stamped).
     if (q.thisWeekOnly && q.thisWeekAfter != null && c.lastSeenAt < q.thisWeekAfter) return false;
+    // `is:lastweek` — clips within the previous local calendar week.
+    // Bounded on BOTH ends: inclusive lower (last week's start) +
+    // exclusive upper (this week's start). The upper bound keeps this
+    // week's clips OUT, so last-week + this-week surface disjoint sets.
+    if (q.lastWeekOnly) {
+      if (q.lastWeekAfter != null && c.lastSeenAt < q.lastWeekAfter) return false;
+      if (q.lastWeekBefore != null && c.lastSeenAt >= q.lastWeekBefore) return false;
+    }
     for (const t of q.tags) if (!c.tags.includes(t)) return false;
     if (extraTag && !c.tags.includes(extraTag)) return false;
     if (needle) {
@@ -997,6 +1048,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.todayOnly) bits.push("today");
   if (q.yesterdayOnly) bits.push("yesterday");
   if (q.thisWeekOnly) bits.push("this-week");
+  if (q.lastWeekOnly) bits.push("last-week");
   if (q.linkOnly) bits.push("link");
   if (q.lockedOnly) bits.push("locked");
   if (q.unlockedOnly) bits.push("unlocked");

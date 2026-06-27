@@ -176,3 +176,38 @@ export function isThisWeek(ts: number | null | undefined, now: number = Date.now
   if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
   return ts >= localWeekStart(now) && ts < localWeekEnd(now);
 }
+
+/**
+ * Unix-ms of the start-day local midnight of the PREVIOUS calendar week
+ * — the inclusive lower bound of "last week". Built by stepping
+ * `localWeekStart` back seven calendar days via setDate (DST-safe, not a
+ * `- 7 * DAY_MS` subtraction). A non-finite `now` falls back to the live
+ * clock.
+ *
+ * Companion to `is:thisweek` — the next-most-asked week bucket. The
+ * window's upper bound is exactly `localWeekStart(now)` (this week's
+ * start midnight), so last-week and this-week tile the timeline with no
+ * gap and no overlap: a clip is in exactly one of {older, last-week,
+ * this-week, future}.
+ */
+export function localLastWeekStart(now: number = Date.now()): number {
+  const d = new Date(localWeekStart(now));
+  d.setDate(d.getDate() - 7); // previous week's start day, re-zeroed -> DST-safe
+  return d.getTime();
+}
+
+/**
+ * True when `ts` falls within the local calendar week BEFORE the one
+ * containing `now` (>= last week's start-day midnight AND < this week's
+ * start-day midnight). A non-finite `ts` is never last-week. Exact
+ * both-ends gate so a clip from two weeks ago, this week, or a
+ * future-stamped clip all correctly read as NOT last-week.
+ *
+ * The window's upper bound is `localWeekStart(now)` — the same value
+ * `isThisWeek`'s lower bound uses — so `isThisWeek` and `isLastWeek` are
+ * mutually exclusive by construction (no instant satisfies both).
+ */
+export function isLastWeek(ts: number | null | undefined, now: number = Date.now()): boolean {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+  return ts >= localLastWeekStart(now) && ts < localWeekStart(now);
+}
