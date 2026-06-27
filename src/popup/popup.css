@@ -3805,6 +3805,20 @@ kbd {
   align-items: center;
 }
 
+/* Selected/active accent on one stub row — mirrors the live list's
+   `.clip.selected` (accent-soft fill + a 1px accent outline drawn inset
+   so it doesn't shift layout). Shows the user how the selection/active
+   highlight reads at the chosen density: the 1px outline's visual weight
+   against a roomy comfortable row vs a tight compact one is exactly what
+   keyboard-nav / multi-select users are weighing. The negative outline
+   offset keeps it flush inside the row's border like the real list. */
+.density-preview-row--selected {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  border-radius: 6px;
+}
+
 /* Cozy — trim the padding + gap, keep the tag chip + meta line. The
    thumb stays at its base 42px (cozy keeps the full thumb, like the
    real list). */

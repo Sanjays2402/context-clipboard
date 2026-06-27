@@ -3236,8 +3236,15 @@ function renderDensityPreview(): void {
       const thumb = r.image
         ? `<span class="density-preview-thumb" aria-hidden="true">${icons.imageGeneric()}</span>`
         : "";
+      // One row carries the selected/active accent so the swatch shows how
+      // the highlight (accent fill + outline) reads at the chosen density,
+      // not just the resting rows. Mirrors the live list's .clip.selected.
+      const rowClass =
+        `density-preview-row` +
+        (r.image ? " density-preview-row--image" : "") +
+        (r.selected ? " density-preview-row--selected" : "");
       return (
-        `<div class="density-preview-row${r.image ? " density-preview-row--image" : ""}">` +
+        `<div class="${rowClass}">` +
         thumb +
         `<span class="density-preview-title">${escapeHtml(r.title)}</span>` +
         `<span class="density-preview-meta">${escapeHtml(r.meta)}</span>` +

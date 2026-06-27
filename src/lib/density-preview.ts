@@ -58,6 +58,16 @@ export interface DensityPreviewRow {
    * — that compact buys. Text rows leave this false/undefined.
    */
   image?: boolean;
+  /**
+   * True for the one stub row that renders with the active/selected
+   * accent (mirroring the real list's `.clip.selected`: accent-soft fill
+   * + accent outline). Without it the swatch only showed how RESTING rows
+   * read at each density — but the selection/active highlight's contrast
+   * shifts as rows tighten (a 1px outline reads very differently on a 9px
+   * row vs a 2px one). Keyboard-nav + multi-select users weigh exactly
+   * that, so one row carries the accent. Exactly one row sets this.
+   */
+  selected?: boolean;
 }
 
 /**
@@ -70,11 +80,16 @@ export interface DensityPreviewRow {
  * thumb, at compact the CSS drops it to 28px, so a user weighing compact
  * sees what happens to their screenshot-heavy history, not just the text
  * rows.
+ *
+ * The 2nd row carries the `selected` accent so the swatch also shows how
+ * the active/selected highlight (accent fill + outline) reads at each
+ * density — its contrast against a tightening row is exactly what
+ * keyboard-nav / multi-select users care about.
  */
 export function densityPreviewRows(): DensityPreviewRow[] {
   return [
     { title: "useEffect cleanup pattern", meta: "github.com - 2m ago", tag: "code" },
-    { title: "Standup notes - shipping Friday", meta: "notion.so - 1h ago", tag: "work" },
+    { title: "Standup notes - shipping Friday", meta: "notion.so - 1h ago", tag: "work", selected: true },
     { title: "https://news.ycombinator.com", meta: "link - yesterday", tag: "read" },
     { title: "Screenshot - dashboard mock", meta: "figma.com - 2d ago", tag: "design", image: true },
   ];

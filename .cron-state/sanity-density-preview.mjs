@@ -14,6 +14,8 @@
 //   4. densityPreviewClass mapping (comfortable base / cozy / compact /
 //      unknown -> comfortable).
 //   5. densityPreviewCaption names the density.
+//   6. exactly ONE selected row (the accent stub), and it's a text row
+//      (not the image row) so the highlight reads against a tag chip.
 
 function normalise(d) {
   return d === "cozy" || d === "compact" ? d : "comfortable";
@@ -21,7 +23,7 @@ function normalise(d) {
 function densityPreviewRows() {
   return [
     { title: "useEffect cleanup pattern", meta: "github.com - 2m ago", tag: "code" },
-    { title: "Standup notes - shipping Friday", meta: "notion.so - 1h ago", tag: "work" },
+    { title: "Standup notes - shipping Friday", meta: "notion.so - 1h ago", tag: "work", selected: true },
     { title: "https://news.ycombinator.com", meta: "link - yesterday", tag: "read" },
     { title: "Screenshot - dashboard mock", meta: "figma.com - 2d ago", tag: "design", image: true },
   ];
@@ -82,6 +84,14 @@ ck("null -> comfortable base", densityPreviewClass(null), "density-preview");
 ck("compact caption mentions compact", densityPreviewCaption("compact").toLowerCase().includes("compact"), true);
 ck("cozy caption mentions cozy", densityPreviewCaption("cozy").toLowerCase().includes("cozy"), true);
 ck("comfortable caption mentions comfortable", densityPreviewCaption("comfortable").toLowerCase().includes("comfortable"), true);
+
+// 6. exactly one selected row, and it's a text row (not the image row)
+const selectedRows = rows.filter((r) => r.selected === true);
+ck("exactly one selected row", selectedRows.length, 1);
+ck("row 1 is the selected row", rows[1].selected === true, true);
+ck("selected row is NOT the image row", !selectedRows[0].image, true);
+ck("image row is not selected", !rows[3].selected, true);
+ck("row 0 is not selected", !rows[0].selected, true);
 
 console.log(`density-preview sanity: ${p}/${t} passed`);
 if (p !== t) process.exit(1);
