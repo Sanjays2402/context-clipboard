@@ -499,6 +499,21 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [ ] Detail wrap-around: a settings toggle to opt OUT of wrap (restore the dead-end) for users who rely on the disabled-button edge cue
 - [ ] Focus breadcrumb selection tail: when selection extends beyond the visible filter window, distinguish "N selected (M visible)" so the keyboard user knows the off-screen overflow
 
+### TICK LOG 2026-06-27 06:40 PT — 5/5 shipped (frontend UX, calendar month grain + 3 surfaces)
+Pushed the calendar buckets to the MONTH grain (the natural next step the
+last tick flagged), extended the empty-bucket escape a rung wider, and
+sharpened three long/abstract surfaces (cheatsheet count, lone-day list,
+density swatch). Orthogonal spread: search / empty-state / cheatsheet /
+list / settings.
+- `06b8b7c` Search: `is:thismonth` + `is:lastmonth` operators + quick-chips — the next grain up from the week buckets. lib/today-filter localMonthStart (zero time, snap day to the 1st) + localMonthEnd / localLastMonthStart (setMonth +/-1 off the snapped 1st, correct across 28/29/30/31-day months AND DST-safe; year-rollover correct) + isThisMonth/isLastMonth both-ends predicates. search.ts: thisMonth = SUPERSET (inclusive lower only), lastMonth bounded both ends (tiles against this-month). Chips counted independently (this-month shown only when thisMonthCount > thisWeekCount so it never duplicates This week); Cmd+K, empty-state wall, cheatsheet row. 32/32 sanity-thismonth-filter.
+- `2cf0254` Empty-state: widen `is:thisweek` -> "Widen to this month" — the widen-bucket escape gains a 2nd rung (day->week->month, one grain each). lib/widen-bucket WIDEN_MAP + a data-driven `fromLabel` per entry so the "No clips from <bucket>" headline drops the popup's old today/yesterday ternary (which couldn't name "this week"). is:thismonth + "last*" buckets correctly DON'T widen. 34/34 sanity-widen-bucket.
+- `91e2ced` Cheatsheet: live "N of M" match-count badge on the filter — answers "how hard did my query narrow the ~31-row sheet?". Pure cheatsheetMatchLabel (returns "" filter-off, "6 of 31", or "No matches"; clamps matched to [0,total] + floors non-finite total so a double-count bug can't render "40 of 31"). Badge absolutely positioned at the input's right edge (tabular nums, pointer-events:none); :has() reserves right-padding only while shown. 17/17 sanity-cheatsheet-match-count.
+- `0668400` List: suppress the redundant lone day-divider under is:today/is:yesterday — when the whole list IS one day, the single "Today"/"Yesterday" divider is noise. New pure lib/redundant-divider gates suppression to EXACTLY the lone day op + its matching divider label (day-group's TODAY_HEADER/YESTERDAY_HEADER now exported constants = single source of truth, so a "Pinned"/dated divider on top is left alone). First divider only. 23/23 sanity-redundant-divider.
+- `d9de909` Settings: density preview shows the selected-row accent — the swatch showed resting rows but not how the active/selected highlight (accent-soft + 1px outline) reads as rows tighten (contrast keyboard-nav/multi-select users weigh). One text stub row carries `selected`; CSS mirrors .clip.selected. 20/20 sanity-density-preview.
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 485.2KB). 126/126 new-feature sanity (32+34+17+23+20); regression thisweek/lastweek/today/yesterday/cheatsheet-filter all pass. Pushed dfb6f82..d9de909.
+Deferred: none — all 5 are solid, demoable, revertible slices.
+
+
 ### TICK LOG 2026-06-27 02:09 PT — 5/5 shipped (frontend UX, calendar + discoverability)
 Pushed the calendar buckets up to the WEEK grain, gave an empty day a
 real way out, and made two long surfaces (the cheatsheet, the density
@@ -645,9 +660,9 @@ lastweek). These are orthogonal UX gaps across list, lightbox, settings,
 detail, and the new week buckets — deliberately spread so no one cluster
 dominates.
 - [ ] Day-group dividers: coarse "This week" / "Last week" / "Earlier" grouping for the older tail (one divider per bucket instead of one per day) — pairs naturally with the new week operators
-- [ ] Search: `is:thismonth` / `is:lastmonth` — the next grain up from the week buckets (local calendar month, same parse-time-threshold pattern); also extends widen-bucket's WIDEN_MAP (week -> month)
-- [ ] Empty-state widen: when `is:thisweek` matches nothing, offer "Widen to last week" (or once month ships, "this month") — extend WIDEN_MAP beyond the day buckets
-- [ ] Quick-chip "Today" active: suppress the redundant "Today" day-group divider (the whole list IS today) to save a row — recurring, still open
+- [x] Search: `is:thismonth` / `is:lastmonth` — the next grain up from the week buckets (local calendar month, same parse-time-threshold pattern); also extends widen-bucket's WIDEN_MAP (week -> month) — `06b8b7c`
+- [x] Empty-state widen: when `is:thisweek` matches nothing, offer "Widen to this month" — extend WIDEN_MAP beyond the day buckets — `2cf0254`
+- [x] Quick-chip "Today" active: suppress the redundant "Today" day-group divider (the whole list IS today) to save a row — shipped as lib/redundant-divider, covers is:today + is:yesterday — `0668400`
 - [ ] Lightbox dot-strip windowed: clicking a "…" edge cue pages the band one window in that direction (currently the ellipsis is a passive cue) — recurring
 - [ ] Lightbox: a thin filmstrip of actual thumbnails (not just dots) for image runs, windowed the same way — richer than dots for picking a specific screenshot
 - [ ] Lightbox download: settings toggle for the filename stem (bare timestamp vs product-prefixed name) — recurring
@@ -656,13 +671,42 @@ dominates.
 - [ ] Search: recent-searches dropdown on focus (show last 5 even before typing, like a browser address bar) — long-standing
 - [ ] Bulk-bar: byte-total on the "Copy selected" pre-commit hover too (toast has chars; export now has bytes — unify so copy hover shows both char + byte weight)
 - [ ] Cheatsheet: keyboard focus into the filtered list — ArrowDown from the filter input moves a highlight through the surviving rows (the filter input is focused on open; give it a down-arrow exit into the results)
-- [ ] Cheatsheet: show a live match-count next to the filter ("6 of 31") so the user knows how aggressively their query narrowed
+- [x] Cheatsheet: show a live match-count next to the filter ("6 of 31") so the user knows how aggressively their query narrowed — `91e2ced`
 - [ ] Detail tag chips: drag-to-reorder auto-scroll when dragging past the row's right edge (long tag lists overflow + clip) — recurring
 - [ ] Quick-chips: clicking a faded scroll-shadow edge (or a chevron) scrolls the strip one page in that direction — recurring
-- [ ] Density preview: a per-row "selected" accent on one stub row so the swatch also shows how the active/selected highlight reads at each density (keyboard-nav users care about this contrast)
+- [x] Density preview: a per-row "selected" accent on one stub row so the swatch also shows how the active/selected highlight reads at each density (keyboard-nav users care about this contrast) — `d9de909`
 - [ ] Settings: a "compact starts collapsed" toggle for the day-group dividers — at compact density the dividers could default to a thin rule instead of the "Today · 6" badge to save vertical space
 
+### New (added this tick — 2026-06-27 06:40 PT refill, FRESH frontend)
+Calendar buckets now reach the MONTH grain (today/yesterday/thisweek/
+lastweek/thismonth/lastmonth). Fresh orthogonal frontend gaps across
+list, lightbox, search, detail, settings, and the new month buckets.
+Deliberately steering toward surfaces the recent calendar cluster hasn't
+touched so no one area dominates.
+- [ ] Day-group dividers: coarse "This week" / "Last week" / "Earlier" rollup for the older tail — one divider per coarse bucket instead of one per day, pairs with the week/month operators (recurring, now strongly motivated)
+- [ ] Search: empty-state widen `is:thismonth` -> "Widen to this year" once a year bucket exists; OR (smaller) when `is:lastmonth`/`is:lastweek` is empty, offer "Show this <grain>" as the inverse escape
+- [ ] Quick-chips: a "scroll one page" chevron on each faded scroll-shadow edge when the strip overflows (the shadow is a passive cue today) — recurring, real gap now the strip carries 6 calendar chips + hosts
+- [ ] List: a coarse "Earlier" collapse — when a long tail of single-day dividers piles up below this-week, collapse days older than last-week under one "Earlier" divider with a count (declutter without losing the recent dividers)
+- [ ] Cheatsheet: ArrowDown from the filter input drops focus into the surviving rows (highlight + Enter to... nothing yet, but at least scroll/keyboard-traverse) — the input is focused on open, give it a down-arrow exit
+- [ ] Detail: "Copy line N" line-number gutter for multi-line clips (click a line to copy just it) — long-standing real workflow, untouched by recent ticks
+- [ ] Search: recent-searches dropdown on focus (last 5, browser-address-bar style) before typing — long-standing
+- [ ] Lightbox: clicking a windowed "…" edge cue pages the dot band one window (currently passive) — recurring
+- [ ] Lightbox: a thin actual-thumbnail filmstrip (not just dots) for image runs, windowed the same way
+- [ ] Lightbox download: settings toggle for the filename stem (bare timestamp vs product-prefixed)
+- [ ] Settings: group the copy/export/display prefs (bulk-md separator, density, future toggles) under a "Display & export" subheading so the panel stays scannable
+- [ ] Bulk-bar: byte-total on the "Copy selected" pre-commit hover (toast has chars, export has bytes — unify so the hover shows both)
+- [ ] Detail tag chips: drag-to-reorder auto-scroll when dragging past the row's right edge (long tag lists overflow + clip)
+- [ ] Quick-chip month buckets: when `is:thismonth` is active and it equals the whole list, the per-day dividers are still useful (multi-day) — but a "This month · N" summary divider at the very top could anchor the run (parallel to the suppressed lone-day divider, opposite direction)
+- [ ] Settings density preview: also show a "pinned" stub row (pin-dot + accent) so the swatch covers the pinned-tier styling at each density, not just selected + image
+- [ ] Detail: a per-clip "captured <relative>" breadcrumb that reads "earlier this month" / "last month" using the new month predicates (warmer than the raw date for recent clips)
+- [ ] Cheatsheet: a "Calendar buckets" mini-section or inline note listing today/yesterday/thisweek/lastweek/thismonth/lastmonth together (currently one dense row) for discoverability now that there are six
+
 ### Shipped (autoship)
+- [x] Search: `is:thismonth` / `is:lastmonth` operators + quick-chips (local calendar month, SUPERSET of week/day; lastmonth tiles against thismonth) — `06b8b7c`
+- [x] Empty-state: widen `is:thisweek` -> "Widen to this month" (widen-bucket gains a 2nd rung + data-driven fromLabel) — `2cf0254`
+- [x] Cheatsheet: live "N of M" match-count badge on the filter input (clamped, "No matches" at zero) — `91e2ced`
+- [x] List: suppress the redundant lone day-divider under is:today/is:yesterday (lib/redundant-divider, label-matched to day-group constants) — `0668400`
+- [x] Settings: density preview shows the selected-row accent (mirrors .clip.selected at each density) — `d9de909`
 - [x] Search: `is:thisweek` operator + "This week" quick-chip (local calendar week, Monday start, SUPERSET of today/yesterday) — `36bf541`
 - [x] Search: `is:lastweek` operator + "Last week" quick-chip (previous local week, tiles against this-week) — `27867de`
 - [x] Empty-state: "Widen to this week" chip when a lone day bucket (is:today/is:yesterday) matches nothing — `d350f42`
