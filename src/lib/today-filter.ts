@@ -73,3 +73,40 @@ export function isToday(ts: number | null | undefined, now: number = Date.now())
   if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
   return ts >= localDayStart(now) && ts < localDayEnd(now);
 }
+
+/**
+ * Unix-ms of the LOCAL midnight that began YESTERDAY — the inclusive
+ * lower bound of the yesterday window. Computed by stepping the
+ * calendar date back one and re-zeroing (NOT `localDayStart - 24h`,
+ * which is wrong across a DST boundary the same way `localDayEnd` is).
+ * A non-finite `now` falls back to the live clock.
+ *
+ * Companion to `is:today` — the next-most-asked calendar bucket. The
+ * upper bound of yesterday is exactly `localDayStart(now)` (today's
+ * midnight), so the two buckets tile the timeline with no gap and no
+ * overlap: a clip is in exactly one of {before-yesterday, yesterday,
+ * today, future}.
+ */
+export function localYesterdayStart(now: number = Date.now()): number {
+  const base = Number.isFinite(now) ? now : Date.now();
+  const d = new Date(base);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - 1); // previous calendar day, re-zeroed -> DST-safe
+  return d.getTime();
+}
+
+/**
+ * True when `ts` falls within the local calendar day BEFORE the one
+ * containing `now` (>= yesterday's local midnight AND < today's local
+ * midnight). A non-finite `ts` is never yesterday. Exact both-ends gate
+ * so a clip from two days ago, today, or a future-stamped clip all
+ * correctly read as NOT yesterday.
+ *
+ * The window's upper bound is `localDayStart(now)` — the same value
+ * `isToday`'s lower bound uses — so `isToday` and `isYesterday` are
+ * mutually exclusive by construction (no instant satisfies both).
+ */
+export function isYesterday(ts: number | null | undefined, now: number = Date.now()): boolean {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+  return ts >= localYesterdayStart(now) && ts < localDayStart(now);
+}

@@ -24,7 +24,7 @@ import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
 import { hasLangOverride, langOverrideMatches, isLangOverrideDir } from "./lang-override";
-import { localDayStart } from "./today-filter";
+import { localDayStart, localYesterdayStart } from "./today-filter";
 
 export interface ParsedQuery {
   freeText: string;
@@ -74,6 +74,24 @@ export interface ParsedQuery {
    * both-ends predicate lives in lib/today-filter for tests + reuse.
    */
   todayOnly: boolean;
+  /**
+   * Surface only clips whose `lastSeenAt` falls within the local
+   * calendar day BEFORE "now" — i.e. yesterday's local midnight up to
+   * (but not including) today's local midnight. Triggered by
+   * `is:yesterday` (and the "Yesterday" quick-chip that injects it).
+   *
+   * The next-most-asked calendar bucket after `is:today` — the two
+   * tile the recent timeline without gap or overlap (a clip is in
+   * exactly one of {older, yesterday, today}). Unlike `is:today`,
+   * yesterday is bounded on BOTH ends, so applyQuery needs two
+   * thresholds: an inclusive lower bound (`yesterdayAfter` =
+   * yesterday's local midnight) and an exclusive upper bound
+   * (`yesterdayBefore` = today's local midnight). Both are computed at
+   * PARSE time (mirroring `is:today`'s single threshold) and stashed
+   * here; the exact both-ends predicate lives in lib/today-filter
+   * (`isYesterday`) for tests + reuse.
+   */
+  yesterdayOnly: boolean;
   /**
    * Parity twin of `kind:link`. The other `is:` operators
    * (pinned/redacted/template/expiring/archived) read as
@@ -431,6 +449,20 @@ export interface ParsedQuery {
    * todayAfter`. Absent when `todayOnly` is false.
    */
   todayAfter?: number;
+  /**
+   * Unix ms — local midnight of YESTERDAY (inclusive lower bound),
+   * computed at parse time when `is:yesterday` is present. applyQuery
+   * requires `lastSeenAt >= yesterdayAfter`. Absent when `yesterdayOnly`
+   * is false.
+   */
+  yesterdayAfter?: number;
+  /**
+   * Unix ms — local midnight of TODAY (exclusive upper bound for the
+   * yesterday window), computed at parse time when `is:yesterday` is
+   * present. applyQuery requires `lastSeenAt < yesterdayBefore`. Absent
+   * when `yesterdayOnly` is false.
+   */
+  yesterdayBefore?: number;
 }
 
 const TOKEN_RE = /\S+/g;
@@ -466,6 +498,7 @@ export function parseQuery(raw: string): ParsedQuery {
     expiringOnly: false,
     archivedOnly: false,
     todayOnly: false,
+    yesterdayOnly: false,
     linkOnly: false,
     lockedOnly: false,
     unlockedOnly: false,
@@ -517,6 +550,17 @@ export function parseQuery(raw: string): ParsedQuery {
         // same way before:/after: store an absolute Unix-ms bound.
         out.todayOnly = true;
         out.todayAfter = localDayStart(now);
+      }
+      else if (v === "yesterday") {
+        // Local calendar day BEFORE today — bounded on both ends.
+        // Thresholds computed once at parse time: inclusive lower
+        // (yesterday's midnight) + exclusive upper (today's midnight),
+        // so applyQuery does two straight comparisons without per-clip
+        // date math. Tiles perfectly against is:today (today's midnight
+        // is the shared boundary).
+        out.yesterdayOnly = true;
+        out.yesterdayAfter = localYesterdayStart(now);
+        out.yesterdayBefore = localDayStart(now);
       }
       else if (v === "link") out.linkOnly = true;
       else if (v === "locked") out.lockedOnly = true;
@@ -867,6 +911,15 @@ export function applyQuery(
     // parse time). Inclusive lower bound; no upper bound needed (clips
     // aren't normally future-stamped).
     if (q.todayOnly && q.todayAfter != null && c.lastSeenAt < q.todayAfter) return false;
+    // `is:yesterday` — clips within the previous local calendar day.
+    // Bounded on BOTH ends: inclusive lower (yesterday's midnight) +
+    // exclusive upper (today's midnight). The upper bound is what keeps
+    // today's clips OUT (where is:today's open-ended lower bound lets
+    // them in), so the two operators surface disjoint sets.
+    if (q.yesterdayOnly) {
+      if (q.yesterdayAfter != null && c.lastSeenAt < q.yesterdayAfter) return false;
+      if (q.yesterdayBefore != null && c.lastSeenAt >= q.yesterdayBefore) return false;
+    }
     for (const t of q.tags) if (!c.tags.includes(t)) return false;
     if (extraTag && !c.tags.includes(extraTag)) return false;
     if (needle) {
@@ -901,6 +954,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.expiringOnly) bits.push("expiring");
   if (q.archivedOnly) bits.push("archived");
   if (q.todayOnly) bits.push("today");
+  if (q.yesterdayOnly) bits.push("yesterday");
   if (q.linkOnly) bits.push("link");
   if (q.lockedOnly) bits.push("locked");
   if (q.unlockedOnly) bits.push("unlocked");

@@ -187,7 +187,7 @@ import {
   bulkSeparatorPreview,
   bulkSeparatorCaption,
 } from "../lib/bulk-separator-preview";
-import { isToday } from "../lib/today-filter";
+import { isToday, isYesterday } from "../lib/today-filter";
 import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
@@ -1237,6 +1237,7 @@ function renderQuickChips(allClips: ClipItem[]) {
   let expiring = 0;
   let archived = 0;
   let todayCount = 0;
+  let yesterdayCount = 0;
   const todayNow = Date.now();
   for (const c of allClips) {
     const h = hostFrom(c.source.url);
@@ -1248,6 +1249,7 @@ function renderQuickChips(allClips: ClipItem[]) {
     if (typeof c.expiresAt === "number") expiring++;
     if (c.archived) archived++;
     if (isToday(c.lastSeenAt, todayNow)) todayCount++;
+    else if (isYesterday(c.lastSeenAt, todayNow)) yesterdayCount++;
   }
   const topHosts = Array.from(hostCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -1319,6 +1321,18 @@ function renderQuickChips(allClips: ClipItem[]) {
       active: hasOp("is:today"),
       count: todayCount,
       ariaLabel: "Filter to clips from today (since local midnight)",
+    });
+  // "Yesterday" — the previous LOCAL calendar day, the next-most-asked
+  // bucket after Today. Tiles against Today with no overlap (a clip is
+  // in at most one of the two). Only shown when there's at least one
+  // clip from yesterday so the strip doesn't carry a dead "Yesterday (0)".
+  if (yesterdayCount > 0)
+    pills.push({
+      label: "Yesterday",
+      op: "is:yesterday",
+      active: hasOp("is:yesterday"),
+      count: yesterdayCount,
+      ariaLabel: "Filter to clips from yesterday (the previous local calendar day)",
     });
   pills.push({
     label: "Last 24h",
@@ -1942,7 +1956,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -7024,6 +7038,17 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:today");
+      },
+    },
+    {
+      id: "filter-yesterday",
+      label: "Show yesterday's clips",
+      hint: "is:yesterday — the previous local calendar day",
+      group: "Filter",
+      keywords: "yesterday calendar day previous before is:yesterday",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:yesterday");
       },
     },
     {
