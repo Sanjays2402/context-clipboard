@@ -64,6 +64,17 @@ export interface BulkCopyPlan {
    * contract the detail-view content-stats uses.
    */
   chars: number;
+  /**
+   * UTF-8 byte length of the joined `text` (seams included). The char
+   * count answers "how much will I paste"; the byte count answers "how
+   * much weight is this" — the same distinction the bulk-export JSON
+   * receipt draws (it shows bytes). Surfacing BOTH on the copy hover +
+   * toast gives the copy path the same pre/post parity the export path
+   * has: the hover preview and the completion receipt show identical
+   * figures. A multi-byte glyph (emoji, CJK) makes bytes > chars, which
+   * is exactly the signal a "is this a heavy paste?" glance wants.
+   */
+  bytes: number;
 }
 
 const JOIN_SEPARATOR = "\n\n";
@@ -99,32 +110,82 @@ export function planBulkCopy(clips: ReadonlyArray<BulkCopyClip | null | undefine
     hasContent: bodies.length > 0,
     // Code-point length of exactly what hits the clipboard.
     chars: [...text].length,
+    // UTF-8 byte weight of exactly what hits the clipboard.
+    bytes: utf8ByteLength(text),
   };
+}
+
+/**
+ * UTF-8 byte length of a string. Used to weigh the joined copy payload
+ * so the hover + toast can show bytes alongside chars. Prefers the
+ * platform TextEncoder (exact, surrogate-correct); falls back to a
+ * manual code-point walk when TextEncoder is unavailable (defensive —
+ * it exists everywhere this extension runs). Mirrors lib/bulk-export's
+ * utf8ByteLength so the copy + export receipts count weight identically.
+ */
+export function utf8ByteLength(s: string | null | undefined): number {
+  if (typeof s !== "string" || s.length === 0) return 0;
+  if (typeof TextEncoder !== "undefined") {
+    try {
+      return new TextEncoder().encode(s).length;
+    } catch {
+      // fall through to manual count
+    }
+  }
+  let bytes = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp <= 0x7f) bytes += 1;
+    else if (cp <= 0x7ff) bytes += 2;
+    else if (cp <= 0xffff) bytes += 3;
+    else bytes += 4;
+  }
+  return bytes;
+}
+
+/**
+ * Format a byte count into a compact human string (e.g. "742 B",
+ * "12.3 KB", "4.2 MB", "1.07 GB"). Mirrors lib/bulk-export.formatExportBytes
+ * BYTE-FOR-BYTE (same tiers, same rounding: floor for B, 1 dp for KB/MB,
+ * 2 dp for GB) so the copy receipt and the export receipt render weight
+ * identically across the UI. Binary units (1024-step) since this is
+ * storage/transfer weight, not a count.
+ *
+ * Defensive: a non-finite / negative byte count reads "0 B".
+ */
+export function formatCopyBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "0 B";
+  if (n < 1024) return `${Math.floor(n)} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 /**
  * Human toast for a completed (or empty) bulk copy. Mirrors the
  * grammar style of the other bulk toasts: lead with the count, append
- * the joined CHARACTER total so the completion receipt matches the
- * button-hover preview (`formatBulkCopyButtonTitle`) — the user sees the
- * same number before AND after the copy. The skipped-images tail trails
- * when relevant.
+ * the joined CHARACTER total AND the UTF-8 byte weight so the completion
+ * receipt matches the button-hover preview (`formatBulkCopyButtonTitle`)
+ * — the user sees the same figures before AND after the copy. The byte
+ * weight gives the copy path the same pre/post parity the export JSON
+ * receipt has (which shows bytes). The skipped-images tail trails when
+ * relevant.
  *
- *   3 copied, 1240 chars, 0 skipped -> "Copied 3 clips - 1,240 chars"
- *   1 copied, 12 chars, 0 skipped    -> "Copied 1 clip - 12 chars"
- *   3 copied, 1240 chars, 2 skipped -> "Copied 3 clips - 1,240 chars - 2 images skipped"
- *   0 copied, 2 skipped              -> "Nothing to copy - 2 images skipped"
- *   0 copied, 0 skipped              -> "Nothing to copy"
+ *   3 copied, 1240 chars, 1.2 KB, 0 skipped -> "Copied 3 clips - 1,240 chars - 1.2 KB"
+ *   1 copied, 12 chars, 12 B, 0 skipped       -> "Copied 1 clip - 12 chars - 12 B"
+ *   3 copied, 1240 chars, 1.2 KB, 2 skipped -> "Copied 3 clips - 1,240 chars - 1.2 KB - 2 images skipped"
+ *   0 copied, 2 skipped                        -> "Nothing to copy - 2 images skipped"
+ *   0 copied, 0 skipped                        -> "Nothing to copy"
  */
 export function formatBulkCopyToast(plan: BulkCopyPlan): string {
-  const { copied, skippedImages, chars } = plan;
+  const { copied, skippedImages, chars, bytes } = plan;
   if (copied === 0) {
     if (skippedImages > 0) {
       return `Nothing to copy \u2014 ${skippedImages} image${skippedImages === 1 ? "" : "s"} skipped`;
     }
     return "Nothing to copy";
   }
-  const head = `Copied ${copied} clip${copied === 1 ? "" : "s"} \u2014 ${groupThousandsLocal(chars)} char${chars === 1 ? "" : "s"}`;
+  const head = `Copied ${copied} clip${copied === 1 ? "" : "s"} \u2014 ${groupThousandsLocal(chars)} char${chars === 1 ? "" : "s"} \u2014 ${formatCopyBytes(bytes)}`;
   if (skippedImages > 0) {
     return `${head} \u2014 ${skippedImages} image${skippedImages === 1 ? "" : "s"} skipped`;
   }
@@ -142,6 +203,10 @@ export function formatBulkCopyToast(plan: BulkCopyPlan): string {
  * When the visible slice carries fewer copyable clips than the total
  * selection (selection outlives the filter window), we stay honest
  * and describe only what we can concretely act on.
+ *
+ * The hover reads "Copy 3 clips as text (1,240 chars · 1.2 KB)" — char
+ * count for "how much will I paste", byte weight for "how heavy is it",
+ * the same two figures the completion toast echoes (pre/post parity).
  */
 export function formatBulkCopyButtonTitle(plan: BulkCopyPlan): string {
   if (!plan.hasContent) {
@@ -150,7 +215,7 @@ export function formatBulkCopyButtonTitle(plan: BulkCopyPlan): string {
     }
     return "Copy selected clips as text";
   }
-  const base = `Copy ${plan.copied} clip${plan.copied === 1 ? "" : "s"} as text (${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"})`;
+  const base = `Copy ${plan.copied} clip${plan.copied === 1 ? "" : "s"} as text (${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"} \u00b7 ${formatCopyBytes(plan.bytes)})`;
   if (plan.skippedImages > 0) {
     return `${base} (${plan.skippedImages} image${plan.skippedImages === 1 ? "" : "s"} skipped)`;
   }
