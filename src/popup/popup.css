@@ -2354,6 +2354,7 @@ footer button:hover {
    affordance, not an afterthought. */
 .cheatsheet-filter {
   padding: 10px 14px 0 14px;
+  position: relative;
 }
 
 .cheatsheet-filter-input {
@@ -2370,6 +2371,13 @@ footer button:hover {
   box-shadow: var(--shadow-inset);
 }
 
+/* When the live "N of M" badge is showing, reserve room on the right so
+   a long shortcut query never slides under the count. The badge itself
+   is absolutely positioned at the field's right edge. */
+.cheatsheet-filter:has(.cheatsheet-filter-count:not([hidden])) .cheatsheet-filter-input {
+  padding-right: 64px;
+}
+
 .cheatsheet-filter-input::placeholder {
   color: var(--muted);
 }
@@ -2381,6 +2389,25 @@ footer button:hover {
   box-shadow:
     0 0 0 3px var(--accent-glow),
     var(--shadow-inset);
+}
+
+/* Live "N of M" match-count badge, pinned to the input's right edge.
+   Mono-tone + small so it reads as quiet metadata, not a control. Sits
+   vertically centred over the field (the 10px top pad on the container
+   is accounted for in the offset). pointer-events:none so a click near
+   the right edge still lands in the input. */
+.cheatsheet-filter-count {
+  position: absolute;
+  top: 10px;
+  right: 22px;
+  height: calc(100% - 10px);
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* "No shortcuts match" note — only shown when a non-empty filter clears

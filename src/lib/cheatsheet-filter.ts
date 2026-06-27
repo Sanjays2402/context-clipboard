@@ -70,3 +70,34 @@ export function cheatsheetRowMatches(
   if (!hay) return false; // empty row can't match a non-empty needle
   return hay.includes(q);
 }
+
+/**
+ * The live "N of M" match-count label for the filter input, telling the
+ * user how aggressively their query narrowed the sheet. Returns "" when
+ * the filter is off (empty query) — the count is noise when everything
+ * shows, so the popup hides the badge then.
+ *
+ * Grammar:
+ *   - filter off (empty query)            -> ""          (badge hidden)
+ *   - some rows match                     -> "6 of 31"
+ *   - nothing matches                     -> "No matches"
+ *
+ * `matched` is clamped to [0, total] and `total` floored at 0 so a
+ * bad caller (negative, NaN, matched > total from a double-count bug)
+ * can never render a nonsense "7 of 5" or "-1 of 31". The "No matches"
+ * string mirrors the standalone no-match note's intent but is shorter
+ * (it rides next to the input, not as a centered row).
+ */
+export function cheatsheetMatchLabel(
+  matched: number,
+  total: number,
+  query: string | null | undefined,
+): string {
+  const q = normaliseCheatFilter(query);
+  if (!q) return ""; // filter off -> no badge
+  const tot = Number.isFinite(total) && total > 0 ? Math.floor(total) : 0;
+  const rawM = Number.isFinite(matched) ? Math.floor(matched) : 0;
+  const m = Math.min(Math.max(rawM, 0), tot);
+  if (m === 0) return "No matches";
+  return `${m} of ${tot}`;
+}

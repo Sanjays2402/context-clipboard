@@ -196,6 +196,7 @@ import { isToday, isYesterday, isThisWeek, isLastWeek, isThisMonth, isLastMonth 
 import { widenSuggestion } from "../lib/widen-bucket";
 import {
   cheatsheetRowMatches,
+  cheatsheetMatchLabel,
   normaliseCheatFilter,
 } from "../lib/cheatsheet-filter";
 import {
@@ -534,6 +535,7 @@ const rowMenuEl = $("row-menu");
 const cheatsheetEl = $("cheatsheet");
 const cheatsheetClose = $<HTMLButtonElement>("cheatsheet-close");
 const cheatsheetFilterInput = $<HTMLInputElement>("cheatsheet-filter-input");
+const cheatsheetFilterCount = $("cheatsheet-filter-count");
 const cheatsheetNoMatch = $("cheatsheet-no-match");
 const lightboxEl = $("lightbox");
 const lightboxImg = $<HTMLImageElement>("lightbox-img");
@@ -6640,13 +6642,19 @@ function applyCheatsheetFilter(): void {
   const q = normaliseCheatFilter(cheatsheetFilterInput.value);
   const groups = cheatsheetEl.querySelectorAll<HTMLElement>(".cheatsheet-group");
   let anyVisible = false;
+  let matchedRows = 0;
+  let totalRows = 0;
   groups.forEach((group) => {
     const rows = group.querySelectorAll<HTMLElement>(".cheatsheet-row");
     let groupHasMatch = false;
     rows.forEach((row) => {
+      totalRows++;
       const match = cheatsheetRowMatches(row.textContent, q);
       row.hidden = !match;
-      if (match) groupHasMatch = true;
+      if (match) {
+        groupHasMatch = true;
+        matchedRows++;
+      }
     });
     // Hide the whole group (incl. its <h4> heading) when no row in it
     // matches, so the user never stares at a lone heading with no rows.
@@ -6654,6 +6662,14 @@ function applyCheatsheetFilter(): void {
     if (groupHasMatch) anyVisible = true;
   });
   cheatsheetNoMatch.hidden = anyVisible || !q;
+  // Live "N of M" badge next to the input so the user sees how hard their
+  // query narrowed the sheet ("6 of 31"). Empty when the filter is off
+  // (label builder returns "") — we hide it then so the cleared sheet has
+  // no stray count. "No matches" rides here too (shorter than the
+  // centered no-match note, which still shows for the empty body).
+  const countLabel = cheatsheetMatchLabel(matchedRows, totalRows, q);
+  cheatsheetFilterCount.textContent = countLabel;
+  cheatsheetFilterCount.hidden = countLabel === "";
 }
 
 function toggleCheatsheet(): void {
