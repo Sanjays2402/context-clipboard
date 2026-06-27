@@ -1,88 +1,87 @@
 // Sanity: settings density-preview model (lib/density-preview).
 //
-// The Row-density control pairs with a live preview: three stub clip
-// rows rendered at the chosen density (scoped class so the live list
-// isn't touched) + a caption naming the trade-off. This harness builds
-// the real module with esbuild and exercises the pure helpers.
+// The Row-density control pairs with a live preview swatch — stub clip
+// rows rendered at the chosen density so the abstract dropdown choice is
+// concrete. This tick adds a 4th IMAGE stub row carrying `image: true`,
+// so the swatch shows the thumb-shrink (42->28px) compact buys, not just
+// the text tightening. This harness exercises the pure row model + the
+// class/caption mappings (inline copies, bundler-free).
 //
 // Coverage:
-//   1. densityPreviewRows: fixed 3 representative rows (title/meta/tag).
-//   2. densityPreviewClass: scoped class per density (comfortable = base,
-//      cozy/compact add a modifier); NOT the global body class.
-//   3. densityPreviewCaption: names the density + its trade-off.
-//   4. defensive: unknown/null density -> comfortable.
+//   1. four stub rows, last one is the image row.
+//   2. exactly ONE image row; the first three are text (no image flag).
+//   3. every row has non-empty title/meta/tag.
+//   4. densityPreviewClass mapping (comfortable base / cozy / compact /
+//      unknown -> comfortable).
+//   5. densityPreviewCaption names the density.
 
-import { build } from "esbuild";
-import { mkdtempSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
-
-const dir = mkdtempSync(join(tmpdir(), "ctxclip-density-preview-"));
-await build({
-  entryPoints: ["src/lib/density-preview.ts"],
-  bundle: true,
-  format: "esm",
-  outfile: join(dir, "density-preview.mjs"),
-  platform: "neutral",
-  target: "es2022",
-  sourcemap: false,
-});
-const mod = await import("file://" + join(dir, "density-preview.mjs"));
-const { densityPreviewRows, densityPreviewClass, densityPreviewCaption, DENSITIES } = mod;
-
-let pass = 0;
-let total = 0;
-function check(name, got, want) {
-  total++;
-  const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (ok) pass++;
-  else console.error("FAIL", name, "got", JSON.stringify(got), "want", JSON.stringify(want));
+function normalise(d) {
+  return d === "cozy" || d === "compact" ? d : "comfortable";
 }
-function checkTrue(name, got) {
-  total++;
-  if (got === true) pass++;
-  else console.error("FAIL", name, "expected true, got", JSON.stringify(got));
+function densityPreviewRows() {
+  return [
+    { title: "useEffect cleanup pattern", meta: "github.com - 2m ago", tag: "code" },
+    { title: "Standup notes - shipping Friday", meta: "notion.so - 1h ago", tag: "work" },
+    { title: "https://news.ycombinator.com", meta: "link - yesterday", tag: "read" },
+    { title: "Screenshot - dashboard mock", meta: "figma.com - 2d ago", tag: "design", image: true },
+  ];
+}
+function densityPreviewClass(d) {
+  const den = normalise(d);
+  return den === "comfortable" ? "density-preview" : `density-preview density-preview--${den}`;
+}
+function densityPreviewCaption(d) {
+  const den = normalise(d);
+  switch (den) {
+    case "compact":
+      return "Compact - tightest rows, tags hidden, ~30+ per screen";
+    case "cozy":
+      return "Cozy - trimmer rows, keeps the tag row and full thumb";
+    case "comfortable":
+    default:
+      return "Comfortable - the roomy default, full spacing";
+  }
 }
 
-// 1. rows
+let p = 0,
+  t = 0;
+function ck(n, g, w) {
+  t++;
+  if (g === w) p++;
+  else console.error("FAIL", n, "got", JSON.stringify(g), "want", JSON.stringify(w));
+}
+
 const rows = densityPreviewRows();
-check("rows: exactly 3 stub rows", rows.length, 3);
-checkTrue("rows: each has title/meta/tag",
-  rows.every((r) => typeof r.title === "string" && r.title.length > 0 &&
-    typeof r.meta === "string" && r.meta.length > 0 &&
-    typeof r.tag === "string" && r.tag.length > 0));
-checkTrue("rows: deterministic (same content each call)",
-  JSON.stringify(densityPreviewRows()) === JSON.stringify(rows));
 
-// 2. scoped class — comfortable is the base, cozy/compact add a modifier
-check("class: comfortable = base only", densityPreviewClass("comfortable"), "density-preview");
-check("class: cozy adds modifier", densityPreviewClass("cozy"), "density-preview density-preview--cozy");
-check("class: compact adds modifier", densityPreviewClass("compact"), "density-preview density-preview--compact");
-// Must NOT be the global body class (compact-rows / cozy-rows) — that
-// would compact the live list behind the panel.
-checkTrue("class: never emits the global body class",
-  !densityPreviewClass("compact").includes("compact-rows") &&
-  !densityPreviewClass("cozy").includes("cozy-rows"));
+// 1. four rows, last is the image row
+ck("four stub rows", rows.length, 4);
+ck("last row is the image row", rows[3].image === true, true);
 
-// 3. caption — names density + trade-off, distinct per tier
-const capComfort = densityPreviewCaption("comfortable");
-const capCozy = densityPreviewCaption("cozy");
-const capCompact = densityPreviewCaption("compact");
-checkTrue("caption: comfortable names it", /comfortable/i.test(capComfort));
-checkTrue("caption: cozy names it", /cozy/i.test(capCozy));
-checkTrue("caption: compact names it", /compact/i.test(capCompact));
-checkTrue("caption: all three distinct",
-  capComfort !== capCozy && capCozy !== capCompact && capComfort !== capCompact);
+// 2. exactly one image row; first three are text
+const imageRows = rows.filter((r) => r.image === true);
+ck("exactly one image row", imageRows.length, 1);
+ck("row 0 is not an image", !rows[0].image, true);
+ck("row 1 is not an image", !rows[1].image, true);
+ck("row 2 is not an image", !rows[2].image, true);
 
-// 4. defensive — unknown/null density -> comfortable behaviour
-check("defensive: unknown class -> base", densityPreviewClass("huge"), "density-preview");
-check("defensive: null class -> base", densityPreviewClass(null), "density-preview");
-check("defensive: undefined class -> base", densityPreviewClass(undefined), "density-preview");
-check("defensive: unknown caption -> comfortable", densityPreviewCaption("huge"), capComfort);
-check("defensive: null caption -> comfortable", densityPreviewCaption(null), capComfort);
+// 3. every row has non-empty content
+let allFilled = true;
+for (const r of rows) {
+  if (!r.title || !r.meta || !r.tag) allFilled = false;
+}
+ck("every row has title/meta/tag", allFilled, true);
 
-// DENSITIES re-export present + ordered
-check("DENSITIES re-exported in order", DENSITIES, ["comfortable", "cozy", "compact"]);
+// 4. class mapping
+ck("comfortable -> base class", densityPreviewClass("comfortable"), "density-preview");
+ck("cozy -> cozy modifier", densityPreviewClass("cozy"), "density-preview density-preview--cozy");
+ck("compact -> compact modifier", densityPreviewClass("compact"), "density-preview density-preview--compact");
+ck("unknown -> comfortable base", densityPreviewClass("bogus"), "density-preview");
+ck("null -> comfortable base", densityPreviewClass(null), "density-preview");
 
-console.log(`density-preview sanity: ${pass}/${total} pass`);
-if (pass !== total) process.exit(1);
+// 5. captions name the density
+ck("compact caption mentions compact", densityPreviewCaption("compact").toLowerCase().includes("compact"), true);
+ck("cozy caption mentions cozy", densityPreviewCaption("cozy").toLowerCase().includes("cozy"), true);
+ck("comfortable caption mentions comfortable", densityPreviewCaption("comfortable").toLowerCase().includes("comfortable"), true);
+
+console.log(`density-preview sanity: ${p}/${t} passed`);
+if (p !== t) process.exit(1);

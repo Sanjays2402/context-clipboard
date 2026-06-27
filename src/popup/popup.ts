@@ -3178,14 +3178,23 @@ function renderDensityPreview(): void {
   sDensityPreview.className = densityPreviewClass(den);
   sDensityCaption.textContent = densityPreviewCaption(den);
   sDensityPreview.innerHTML = densityPreviewRows()
-    .map(
-      (r) =>
-        `<div class="density-preview-row">` +
+    .map((r) => {
+      // The image stub row leads with a square thumb (a mono image glyph
+      // standing in for the captured picture) so the compact density's
+      // thumb-shrink (42->28px) is visible in the swatch. Text rows omit
+      // it entirely — the layout flexes the title to fill the gap.
+      const thumb = r.image
+        ? `<span class="density-preview-thumb" aria-hidden="true">${icons.imageGeneric()}</span>`
+        : "";
+      return (
+        `<div class="density-preview-row${r.image ? " density-preview-row--image" : ""}">` +
+        thumb +
         `<span class="density-preview-title">${escapeHtml(r.title)}</span>` +
         `<span class="density-preview-meta">${escapeHtml(r.meta)}</span>` +
         `<span class="density-preview-tag">${escapeHtml(r.tag)}</span>` +
-        `</div>`,
-    )
+        `</div>`
+      );
+    })
     .join("");
 }
 

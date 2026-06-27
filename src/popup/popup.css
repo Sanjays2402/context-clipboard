@@ -3749,7 +3749,38 @@ kbd {
   color: var(--text-secondary);
 }
 
-/* Cozy — trim the padding + gap, keep the tag chip + meta line. */
+/* Image stub row — a square thumb stands in for the captured picture so
+   the swatch shows the thumb-shrink compact buys, not just the text
+   tightening. Base (comfortable/cozy) = 42px, mirroring the real list's
+   thumb; compact drops it to 28px below. The mono glyph fills the box. */
+.density-preview-thumb {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+.density-preview-thumb svg {
+  width: 18px;
+  height: 18px;
+}
+/* The image row centres its children (thumb + text) rather than the
+   baseline alignment text rows use, so the 42px thumb sits vertically
+   centred against the title/meta instead of dangling from their
+   baseline. */
+.density-preview-row--image {
+  align-items: center;
+}
+
+/* Cozy — trim the padding + gap, keep the tag chip + meta line. The
+   thumb stays at its base 42px (cozy keeps the full thumb, like the
+   real list). */
 .density-preview--cozy .density-preview-row {
   padding: 5px 12px;
   gap: 6px;
@@ -3767,6 +3798,20 @@ kbd {
 }
 .density-preview--compact .density-preview-tag {
   display: none;
+}
+/* Compact shrinks the image thumb 42->28px, exactly as the real list's
+   `body.compact-rows .clip .thumb` does — so the swatch shows what
+   happens to a screenshot-heavy history at compact, not just the text
+   tightening. */
+.density-preview--compact .density-preview-thumb {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+.density-preview--compact .density-preview-thumb svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* Clip row context menu (right-click) — fixed-position floating menu

@@ -50,19 +50,33 @@ export interface DensityPreviewRow {
   meta: string;
   /** A single tag chip — hidden at compact density (mirrors the list). */
   tag: string;
+  /**
+   * True for the IMAGE stub row. The preview renders a small square thumb
+   * in place of nothing, and the CSS shrinks it 42->28px at compact
+   * density (mirroring the real list's `body.compact-rows .thumb`), so
+   * the swatch telegraphs the thumb-shrink — not just the text tightening
+   * — that compact buys. Text rows leave this false/undefined.
+   */
+  image?: boolean;
 }
 
 /**
  * The fixed stub rows the preview paints. Representative content so the
- * density differences (row height, gap, tag-row visibility at compact)
- * are visible. Same three rows regardless of density — only the layout
- * the CSS applies changes.
+ * density differences (row height, gap, tag-row visibility at compact,
+ * AND the image thumb-shrink) are visible. Same rows regardless of
+ * density — only the layout the CSS applies changes.
+ *
+ * The 4th row is an IMAGE clip: at comfortable/cozy it shows a 42px
+ * thumb, at compact the CSS drops it to 28px, so a user weighing compact
+ * sees what happens to their screenshot-heavy history, not just the text
+ * rows.
  */
 export function densityPreviewRows(): DensityPreviewRow[] {
   return [
     { title: "useEffect cleanup pattern", meta: "github.com - 2m ago", tag: "code" },
     { title: "Standup notes - shipping Friday", meta: "notion.so - 1h ago", tag: "work" },
     { title: "https://news.ycombinator.com", meta: "link - yesterday", tag: "read" },
+    { title: "Screenshot - dashboard mock", meta: "figma.com - 2d ago", tag: "design", image: true },
   ];
 }
 
