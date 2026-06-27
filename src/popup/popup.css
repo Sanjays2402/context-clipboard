@@ -3651,6 +3651,79 @@ kbd {
   max-height: 160px;
 }
 
+/* Row-density preview — three stub clip rows rendered at the chosen
+   density so the comfortable/cozy/compact trade-off is visible before
+   saving. SCOPED (not the global body class) so previewing compact
+   doesn't compact the live list behind the open settings panel. Each
+   tier dials down padding + gap; compact also hides the tag chip, the
+   same way the real list does. */
+.density-preview {
+  background: var(--bg-elevated, var(--glass));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.density-preview-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  /* Comfortable (base) — roomy padding + a clear divider per row. */
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.density-preview-row:last-child {
+  border-bottom: none;
+}
+
+.density-preview-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.density-preview-meta {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.density-preview-tag {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* Cozy — trim the padding + gap, keep the tag chip + meta line. */
+.density-preview--cozy .density-preview-row {
+  padding: 5px 12px;
+  gap: 6px;
+}
+
+/* Compact — tightest rows; hide the tag chip (mirrors the real list,
+   which drops the tag row at compact density) so the swatch telegraphs
+   exactly what compact sacrifices for the row count. */
+.density-preview--compact .density-preview-row {
+  padding: 2px 12px;
+  gap: 5px;
+}
+.density-preview--compact .density-preview-title {
+  font-size: 11px;
+}
+.density-preview--compact .density-preview-tag {
+  display: none;
+}
+
 /* Clip row context menu (right-click) — fixed-position floating menu
    styled to match the palette card. Built with real <button> rows so
    it's keyboard-accessible and identical handling on click/Enter. */

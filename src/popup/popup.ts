@@ -172,6 +172,11 @@ import {
   densityLabel,
   type Density,
 } from "../lib/density";
+import {
+  densityPreviewRows,
+  densityPreviewClass,
+  densityPreviewCaption,
+} from "../lib/density-preview";
 import { nextDetailIndex, formatWrapToast } from "../lib/detail-nav";
 import {
   planBulkCopy,
@@ -430,6 +435,8 @@ const sAutoRedact = $<HTMLInputElement>("s-autoredact");
 const retroRedactBtn = $<HTMLButtonElement>("retro-redact-btn");
 const sBlurPreviews = $<HTMLInputElement>("s-blur");
 const sDensity = $<HTMLSelectElement>("s-density");
+const sDensityPreview = $("s-density-preview");
+const sDensityCaption = $("s-density-caption");
 const sBulkMdSep = $<HTMLSelectElement>("s-bulk-md-sep");
 const sBulkMdSepPreview = $("s-bulk-md-sep-preview");
 const sBulkMdSepCaption = $("s-bulk-md-sep-caption");
@@ -3066,6 +3073,7 @@ async function openSettings() {
   sAutoRedact.checked = s.autoRedactPii;
   sBlurPreviews.checked = !!s.blurPreviews;
   sDensity.value = resolveDensity(s);
+  renderDensityPreview();
   sBulkMdSep.value = s.bulkMarkdownSeparator === "blank" ? "blank" : "rule";
   renderBulkSepPreview();
   // Privacy audit retention — defaults to 30 if the stored value
@@ -3096,6 +3104,31 @@ async function openSettings() {
 
 function closeSettings() {
   settingsPanel.hidden = true;
+}
+
+/**
+ * Repaint the row-density preview from the current <select> value:
+ * three stub clip rows rendered at the chosen density (scoped class so
+ * the live list behind the panel isn't affected), plus a one-line
+ * caption naming the trade-off. Mirrors the separator preview's
+ * affordance — the abstract dropdown choice becomes concrete before the
+ * user saves. Pure model in lib/density-preview. Called on settings load
+ * + on every change of the density select.
+ */
+function renderDensityPreview(): void {
+  const den = sDensity.value;
+  sDensityPreview.className = densityPreviewClass(den);
+  sDensityCaption.textContent = densityPreviewCaption(den);
+  sDensityPreview.innerHTML = densityPreviewRows()
+    .map(
+      (r) =>
+        `<div class="density-preview-row">` +
+        `<span class="density-preview-title">${escapeHtml(r.title)}</span>` +
+        `<span class="density-preview-meta">${escapeHtml(r.meta)}</span>` +
+        `<span class="density-preview-tag">${escapeHtml(r.tag)}</span>` +
+        `</div>`,
+    )
+    .join("");
 }
 
 /**
@@ -10637,6 +10670,10 @@ sDensity.addEventListener("change", () => {
 // changes the select (the value persists on Save/Esc/back like the rest
 // of the settings form).
 sBulkMdSep.addEventListener("change", () => renderBulkSepPreview());
+
+// Live-update the row-density preview as the user flips the select, so
+// the abstract choice is concrete before they Save/Esc/back.
+sDensity.addEventListener("change", () => renderDensityPreview());
 
 retroRedactBtn.addEventListener("click", () => void runRetroactiveAutoRedact());
 
