@@ -1262,6 +1262,7 @@ function renderQuickChips(allClips: ClipItem[]) {
   let images = 0;
   let templates = 0;
   let expiring = 0;
+  let expired = 0;
   let archived = 0;
   let todayCount = 0;
   let yesterdayCount = 0;
@@ -1278,6 +1279,10 @@ function renderQuickChips(allClips: ClipItem[]) {
     if (c.kind === "image") images++;
     if (c.template) templates++;
     if (typeof c.expiresAt === "number") expiring++;
+    // Already-past-due subset of expiring: the GC will sweep these at
+    // the next capture, but until then they linger — the `is:expired`
+    // chip surfaces them for a "rescue or let go" pass.
+    if (typeof c.expiresAt === "number" && c.expiresAt <= todayNow) expired++;
     if (c.archived) archived++;
     if (isToday(c.lastSeenAt, todayNow)) todayCount++;
     else if (isYesterday(c.lastSeenAt, todayNow)) yesterdayCount++;
@@ -1301,7 +1306,7 @@ function renderQuickChips(allClips: ClipItem[]) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  type Pill = { label: string; op: string; active: boolean; count?: number; ariaLabel?: string };
+  type Pill = { label: string; op: string; active: boolean; count?: number; ariaLabel?: string; tone?: "danger" };
   const pills: Pill[] = [];
   pills.push({
     label: "Pinned",
@@ -1321,6 +1326,19 @@ function renderQuickChips(allClips: ClipItem[]) {
       op: "is:expiring",
       active: hasOp("is:expiring"),
       count: expiring,
+    });
+  // Already-expired subset — only worth a chip when some clip is past
+  // due. Distinct op so the user can jump straight to the "about to be
+  // GC'd" set without scanning the wider Expiring list. The chip count
+  // is the past-due tally; clicking applies is:expired.
+  if (expired > 0)
+    pills.push({
+      label: "Expired",
+      op: "is:expired",
+      active: hasOp("is:expired"),
+      count: expired,
+      tone: "danger",
+      ariaLabel: "Filter to clips whose TTL has already passed (about to be purged)",
     });
   if (archived > 0)
     // Hide the Archived chip while `is:archived` is already in the
@@ -1456,7 +1474,7 @@ function renderQuickChips(allClips: ClipItem[]) {
   quickChipsEl.innerHTML = pills
     .map(
       (p) =>
-        `<button class="quick-chip ${p.active ? "active" : ""}" data-op="${escapeHtml(p.op)}" title="${escapeHtml(p.ariaLabel || `Toggle ${p.op}`)}"><span>${escapeHtml(p.label)}</span>${p.count != null ? `<em>${p.count}</em>` : ""}</button>`,
+        `<button class="quick-chip ${p.active ? "active" : ""}${p.tone ? ` tone-${p.tone}` : ""}" data-op="${escapeHtml(p.op)}" title="${escapeHtml(p.ariaLabel || `Toggle ${p.op}`)}"><span>${escapeHtml(p.label)}</span>${p.count != null ? `<em>${p.count}</em>` : ""}</button>`,
     )
     .join("");
   // Layout metrics (scrollWidth/clientWidth) aren't valid until the new
@@ -2099,7 +2117,7 @@ async function render(): Promise<void> {
           `</div>`;
       } else {
         hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:expired</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
       }
     }
@@ -8260,6 +8278,16 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:expiring");
+      },
+    },
+    {
+      id: "filter-expired",
+      label: "Show expired clips (past due — rescue or let go)",
+      group: "Filter",
+      keywords: "is:expired ttl past due gc purge",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:expired");
       },
     },
     {

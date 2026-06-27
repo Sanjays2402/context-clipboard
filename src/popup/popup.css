@@ -825,6 +825,32 @@ mark.match-hl {
   color: var(--bg);
 }
 
+/* Danger-toned quick chip (e.g. "Expired") — a soft-red resting state so
+ * the about-to-be-purged set reads as urgent in the chip strip, distinct
+ * from the neutral filters. The count badge inherits the danger hue. When
+ * active it fills solid red (mirrors .active's accent fill) so the toggle
+ * state stays obvious. */
+.quick-chip.tone-danger {
+  border-color: rgba(229, 83, 75, 0.42);
+  color: var(--danger);
+}
+.quick-chip.tone-danger em {
+  color: var(--danger);
+}
+.quick-chip.tone-danger:hover {
+  background: rgba(229, 83, 75, 0.08);
+}
+.quick-chip.tone-danger.active {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+  box-shadow: 0 2px 8px rgba(229, 83, 75, 0.32);
+}
+.quick-chip.tone-danger.active em {
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+}
+
 /* Saved searches (smart folders) */
 .saved-searches {
   display: flex;

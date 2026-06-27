@@ -57,6 +57,18 @@ export interface ParsedQuery {
   /** Only clips with an `expiresAt` set when true. */
   expiringOnly: boolean;
   /**
+   * Surface only clips whose `expiresAt` has ALREADY PASSED (a finite
+   * `expiresAt` <= now). Triggered by `is:expired`. Distinct from
+   * `is:expiring`, which surfaces every clip carrying a TTL regardless
+   * of how far off the deadline is: `is:expired` is the strict subset
+   * that's past due — the GC purges these opportunistically at the next
+   * capture, but until then they linger, so this is the "rescue them or
+   * let them go" review pass. Evaluated against an injected `now` at
+   * apply time (mirrors the before/after windows) so a clip that crosses
+   * its deadline starts matching without a re-parse.
+   */
+  expiredOnly: boolean;
+  /**
    * Surface archived clips. When false (the default), `applyQuery`
    * drops archived rows so the daily list stays uncluttered. When
    * the user types `is:archived` this flips on and we INCLUDE
@@ -617,6 +629,7 @@ export function parseQuery(raw: string): ParsedQuery {
     templateOnly: false,
     noTemplate: false,
     expiringOnly: false,
+    expiredOnly: false,
     archivedOnly: false,
     todayOnly: false,
     yesterdayOnly: false,
@@ -668,6 +681,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "template") out.templateOnly = true;
       else if (v === "notemplate") out.noTemplate = true;
       else if (v === "expiring") out.expiringOnly = true;
+      else if (v === "expired") out.expiredOnly = true;
       else if (v === "archived") out.archivedOnly = true;
       else if (v === "today") {
         // Local calendar day (since local midnight) — distinct from the
@@ -883,9 +897,18 @@ export function applyQuery(
      * fall-open contract.
      */
     hostScrubbedPredicate?: (c: ClipItem) => boolean;
+    /**
+     * Current time, injectable for tests. Used by `is:expired` to decide
+     * whether a clip's `expiresAt` has already passed. Defaults to
+     * `Date.now()` at call time so the live popup gets rolling semantics
+     * (a clip that crosses its deadline starts matching on the next
+     * render with no re-parse), while tests can pin it deterministically.
+     */
+    now?: number;
   } = {},
 ): ClipItem[] {
   const needle = q.freeText.toLowerCase();
+  const nowMs = typeof opts.now === "number" ? opts.now : Date.now();
   const pinnedOnly = q.pinnedOnly || !!opts.extraPinnedOnly;
   // `is:link` is a synonym for `kind: "link"`. When the user mixes a
   // conflicting explicit kind (e.g. `kind:image is:link`), the two
@@ -1064,6 +1087,13 @@ export function applyQuery(
     if (q.templateOnly && !c.template) return false;
     if (q.noTemplate && c.template) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
+    // `is:expired` — strict subset of is:expiring: a finite expiresAt
+    // that's already at/past `now`. These linger until the GC sweeps
+    // them at the next capture, so this is the "rescue or let go" pass.
+    // A clip with no TTL never matches.
+    if (q.expiredOnly && !(typeof c.expiresAt === "number" && c.expiresAt <= nowMs)) {
+      return false;
+    }
     // Archive bit: by default we DROP archived clips from the list so
     // the user's daily view stays clean. `is:archived` flips that —
     // we then REQUIRE the bit, giving an archive-only view.
@@ -1144,6 +1174,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.templateOnly) bits.push("template");
   if (q.noTemplate) bits.push("not-template");
   if (q.expiringOnly) bits.push("expiring");
+  if (q.expiredOnly) bits.push("expired");
   if (q.archivedOnly) bits.push("archived");
   if (q.todayOnly) bits.push("today");
   if (q.yesterdayOnly) bits.push("yesterday");
