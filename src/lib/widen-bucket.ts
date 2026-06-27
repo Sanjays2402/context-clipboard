@@ -16,48 +16,66 @@
  * rewrite are exercised headless and stay consistent.
  *
  * Design decisions:
- *   - Only `is:today` / `is:yesterday` widen (to `is:thisweek`). They're
- *     the narrow day buckets that sit one grain below the week. We do
- *     NOT offer to widen `is:thisweek` (there's no "this month" bucket
- *     yet) or `is:lastweek` (widening it would land on `is:thisweek`,
- *     which excludes last week entirely — the wrong direction). Adding
- *     a "this month" later is a one-line extension of WIDEN_MAP.
+ *   - `is:today` / `is:yesterday` widen to `is:thisweek`; `is:thisweek`
+ *     widens to `is:thismonth`. Each rung steps exactly one grain wider,
+ *     so an empty narrow bucket always has a sensible "show the next size
+ *     up" escape. We do NOT widen `is:thismonth` (there's no "this year"
+ *     bucket yet) or the "last*" buckets (widening `is:lastweek` would
+ *     land on `is:thisweek`, which excludes last week entirely — the
+ *     wrong direction). Adding a "this year" rung later is a one-line
+ *     extension of WIDEN_MAP.
  *   - The query must be JUST the bucket operator (after trimming /
  *     collapsing whitespace) — `is:today host:github.com` is a compound
- *     filter where a blunt "widen to week" would silently drop the host
+ *     filter where a blunt "widen" would silently drop the host
  *     constraint, so we don't offer it. A single operator keeps the
  *     rewrite honest: swap one token, change nothing else.
  *   - The match is case-insensitive on the operator (the parser
  *     lowercases `is:` values) but otherwise exact, so a stray word
  *     ("is:today foo") doesn't trigger.
  *   - Returns a structured result (`canWiden` + the target query + a
- *     human label) so the popup needs no string logic of its own.
+ *     human label + the source bucket's noun) so the popup needs no
+ *     string logic of its own — including the "No clips from <bucket>"
+ *     headline, which reads `fromLabel`.
  */
 
-/** The day buckets we offer to widen, mapped to their wider target op. */
-const WIDEN_MAP: ReadonlyArray<{ from: string; to: string; label: string }> = [
-  { from: "is:today", to: "is:thisweek", label: "Widen to this week" },
-  { from: "is:yesterday", to: "is:thisweek", label: "Widen to this week" },
+/**
+ * The buckets we offer to widen, each mapped to its next-grain-wider
+ * target op. `fromLabel` is the human noun for the empty bucket (used in
+ * the "No clips from <fromLabel>" headline); `label` is the button copy.
+ */
+const WIDEN_MAP: ReadonlyArray<{ from: string; to: string; label: string; fromLabel: string }> = [
+  { from: "is:today", to: "is:thisweek", label: "Widen to this week", fromLabel: "today" },
+  { from: "is:yesterday", to: "is:thisweek", label: "Widen to this week", fromLabel: "yesterday" },
+  { from: "is:thisweek", to: "is:thismonth", label: "Widen to this month", fromLabel: "this week" },
 ];
 
 export interface WidenSuggestion {
-  /** True when the query is a lone day bucket that can widen to a week. */
+  /** True when the query is a lone bucket that can widen one grain up. */
   canWiden: boolean;
   /** The rewritten search-box value (the wider operator). Empty when !canWiden. */
   query: string;
   /** Button label, e.g. "Widen to this week". Empty when !canWiden. */
   label: string;
+  /**
+   * Human noun for the SOURCE bucket that came up empty, e.g. "today" /
+   * "yesterday" / "this week" — for the "No clips from <fromLabel>"
+   * headline. Empty when !canWiden so the popup never renders a partial
+   * sentence.
+   */
+  fromLabel: string;
 }
 
-const NONE: WidenSuggestion = { canWiden: false, query: "", label: "" };
+const NONE: WidenSuggestion = { canWiden: false, query: "", label: "", fromLabel: "" };
 
 /**
  * Decide whether `raw` (the search box value) is a lone narrow calendar
- * bucket worth widening, and if so produce the wider query + chip label.
+ * bucket worth widening, and if so produce the wider query + chip label
+ * + the source bucket's human noun.
  *
  * Returns `{ canWiden: false }` for anything that isn't EXACTLY one of
- * the day-bucket operators (compound queries, plain text, week buckets,
- * empty input) — the popup then falls back to its generic operator hint.
+ * the widen-able bucket operators (compound queries, plain text, the
+ * widest buckets, "last*" buckets, empty input) — the popup then falls
+ * back to its generic operator hint.
  */
 export function widenSuggestion(raw: string | null | undefined): WidenSuggestion {
   if (typeof raw !== "string") return NONE;
@@ -67,7 +85,7 @@ export function widenSuggestion(raw: string | null | undefined): WidenSuggestion
   if (!norm || norm.includes(" ")) return NONE;
   for (const entry of WIDEN_MAP) {
     if (norm === entry.from) {
-      return { canWiden: true, query: entry.to, label: entry.label };
+      return { canWiden: true, query: entry.to, label: entry.label, fromLabel: entry.fromLabel };
     }
   }
   return NONE;

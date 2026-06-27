@@ -2041,17 +2041,18 @@ async function render(): Promise<void> {
         `<br/><button type="button" class="empty-action" data-act="exit-archive">Show daily list</button>` +
         `</div>`;
     } else {
-      // A lone calendar-day bucket (is:today / is:yesterday) that came
-      // up empty doesn't want a different operator — it wants the same
-      // view with a wider net. Offer a one-tap "Widen to this week" chip
-      // (data-act handled below) instead of the generic operator wall.
-      // widenSuggestion gates this to EXACTLY a day-bucket query so a
-      // compound filter never silently loses its other constraints.
+      // A lone calendar bucket (is:today / is:yesterday / is:thisweek)
+      // that came up empty doesn't want a different operator — it wants
+      // the same view with a wider net. Offer a one-tap "Widen to …" chip
+      // (data-act handled below) that steps one grain wider (day -> week,
+      // week -> month) instead of the generic operator wall.
+      // widenSuggestion gates this to EXACTLY a lone bucket query so a
+      // compound filter never silently loses its other constraints, and
+      // returns the source bucket's human noun for the headline.
       const widen = widenSuggestion(searchEl.value);
       if (widen.canWiden) {
-        const bucketLabel = searchEl.value.trim().toLowerCase() === "is:yesterday" ? "yesterday" : "today";
         hint =
-          `<div class="empty">No clips from ${bucketLabel}.` +
+          `<div class="empty">No clips from ${escapeHtml(widen.fromLabel)}.` +
           `<br/><small>Nothing landed in this calendar bucket — try a wider window.</small>` +
           `<br/><button type="button" class="empty-action" data-act="widen-bucket" data-query="${escapeHtml(widen.query)}">${escapeHtml(widen.label)}</button>` +
           `</div>`;
