@@ -24,7 +24,7 @@ import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
 import { hasLangOverride, langOverrideMatches, isLangOverrideDir } from "./lang-override";
-import { localDayStart, localYesterdayStart } from "./today-filter";
+import { localDayStart, localYesterdayStart, localWeekStart } from "./today-filter";
 
 export interface ParsedQuery {
   freeText: string;
@@ -92,6 +92,23 @@ export interface ParsedQuery {
    * (`isYesterday`) for tests + reuse.
    */
   yesterdayOnly: boolean;
+  /**
+   * Surface only clips whose `lastSeenAt` falls within the local
+   * calendar WEEK containing "now" — from the week's start-day local
+   * midnight (Monday by default; see `WEEK_START_DAY`) up to, but not
+   * including, next week's start-day midnight. Triggered by
+   * `is:thisweek` (and the "This week" quick-chip that injects it).
+   *
+   * The next grain UP from `is:today` / `is:yesterday`: a SUPERSET, not
+   * a disjoint bucket. Today (and yesterday, when it's the same week)
+   * fall inside this window, so the chip count is computed independently
+   * rather than as a remainder. Only the inclusive lower bound is needed
+   * at apply time (`thisWeekAfter` = this week's start midnight); no
+   * clip is normally future-stamped past the week's end. Computed at
+   * PARSE time, mirroring `is:today`. The exact both-ends predicate
+   * lives in lib/today-filter (`isThisWeek`) for tests + reuse.
+   */
+  thisWeekOnly: boolean;
   /**
    * Parity twin of `kind:link`. The other `is:` operators
    * (pinned/redacted/template/expiring/archived) read as
@@ -463,6 +480,15 @@ export interface ParsedQuery {
    * when `yesterdayOnly` is false.
    */
   yesterdayBefore?: number;
+  /**
+   * Unix ms — local midnight of the WEEK's start day (inclusive lower
+   * bound), computed at parse time when `is:thisweek` is present.
+   * applyQuery requires `lastSeenAt >= thisWeekAfter`. Open-ended on the
+   * upper side (like `is:today`) since clips aren't normally
+   * future-stamped past the week's end. Absent when `thisWeekOnly` is
+   * false.
+   */
+  thisWeekAfter?: number;
 }
 
 const TOKEN_RE = /\S+/g;
@@ -499,6 +525,7 @@ export function parseQuery(raw: string): ParsedQuery {
     archivedOnly: false,
     todayOnly: false,
     yesterdayOnly: false,
+    thisWeekOnly: false,
     linkOnly: false,
     lockedOnly: false,
     unlockedOnly: false,
@@ -561,6 +588,16 @@ export function parseQuery(raw: string): ParsedQuery {
         out.yesterdayOnly = true;
         out.yesterdayAfter = localYesterdayStart(now);
         out.yesterdayBefore = localDayStart(now);
+      }
+      else if (v === "thisweek") {
+        // Local calendar WEEK containing now — the next grain up from
+        // is:today / is:yesterday. SUPERSET of those (today + same-week
+        // yesterday both fall inside), so unlike the disjoint day
+        // buckets it only needs an inclusive lower bound here (the
+        // week's start-day midnight); no clip is normally future-stamped
+        // past the week's end. Threshold computed once at parse time.
+        out.thisWeekOnly = true;
+        out.thisWeekAfter = localWeekStart(now);
       }
       else if (v === "link") out.linkOnly = true;
       else if (v === "locked") out.lockedOnly = true;
@@ -920,6 +957,10 @@ export function applyQuery(
       if (q.yesterdayAfter != null && c.lastSeenAt < q.yesterdayAfter) return false;
       if (q.yesterdayBefore != null && c.lastSeenAt >= q.yesterdayBefore) return false;
     }
+    // `is:thisweek` — clips since the week's start-day midnight. SUPERSET
+    // of is:today / is:yesterday (when same week). Inclusive lower bound
+    // only; no upper bound needed (clips aren't normally future-stamped).
+    if (q.thisWeekOnly && q.thisWeekAfter != null && c.lastSeenAt < q.thisWeekAfter) return false;
     for (const t of q.tags) if (!c.tags.includes(t)) return false;
     if (extraTag && !c.tags.includes(extraTag)) return false;
     if (needle) {
@@ -955,6 +996,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.archivedOnly) bits.push("archived");
   if (q.todayOnly) bits.push("today");
   if (q.yesterdayOnly) bits.push("yesterday");
+  if (q.thisWeekOnly) bits.push("this-week");
   if (q.linkOnly) bits.push("link");
   if (q.lockedOnly) bits.push("locked");
   if (q.unlockedOnly) bits.push("unlocked");

@@ -192,7 +192,7 @@ import {
   bulkSeparatorPreview,
   bulkSeparatorCaption,
 } from "../lib/bulk-separator-preview";
-import { isToday, isYesterday } from "../lib/today-filter";
+import { isToday, isYesterday, isThisWeek } from "../lib/today-filter";
 import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
@@ -1246,6 +1246,7 @@ function renderQuickChips(allClips: ClipItem[]) {
   let archived = 0;
   let todayCount = 0;
   let yesterdayCount = 0;
+  let thisWeekCount = 0;
   const todayNow = Date.now();
   for (const c of allClips) {
     const h = hostFrom(c.source.url);
@@ -1258,6 +1259,10 @@ function renderQuickChips(allClips: ClipItem[]) {
     if (c.archived) archived++;
     if (isToday(c.lastSeenAt, todayNow)) todayCount++;
     else if (isYesterday(c.lastSeenAt, todayNow)) yesterdayCount++;
+    // "This week" is a SUPERSET of today + (same-week) yesterday, not a
+    // disjoint bucket — so it's counted independently, NOT in the
+    // else-if chain. A clip from today is both today AND this-week.
+    if (isThisWeek(c.lastSeenAt, todayNow)) thisWeekCount++;
   }
   const topHosts = Array.from(hostCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -1341,6 +1346,20 @@ function renderQuickChips(allClips: ClipItem[]) {
       active: hasOp("is:yesterday"),
       count: yesterdayCount,
       ariaLabel: "Filter to clips from yesterday (the previous local calendar day)",
+    });
+  // "This week" — the LOCAL calendar week (Monday-start), the next grain
+  // up from Today/Yesterday. It's a SUPERSET of those, so it only earns
+  // a chip when it surfaces clips the Today chip doesn't already cover
+  // (i.e. there's at least one clip from earlier this week). On a Monday
+  // with only Monday clips, thisWeekCount === todayCount and the chip
+  // would just duplicate "Today" — so we suppress it there.
+  if (thisWeekCount > todayCount)
+    pills.push({
+      label: "This week",
+      op: "is:thisweek",
+      active: hasOp("is:thisweek"),
+      count: thisWeekCount,
+      ariaLabel: "Filter to clips from this week (since the start of the local calendar week)",
     });
   pills.push({
     label: "Last 24h",
@@ -1964,7 +1983,7 @@ async function render(): Promise<void> {
         `</div>`;
     } else {
       hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
     }
     listEl.innerHTML = hint;
@@ -7103,6 +7122,17 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:yesterday");
+      },
+    },
+    {
+      id: "filter-thisweek",
+      label: "Show this week's clips",
+      hint: "is:thisweek — the running local calendar week (Monday start)",
+      group: "Filter",
+      keywords: "this week calendar running monday recent seven days is:thisweek",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:thisweek");
       },
     },
     {

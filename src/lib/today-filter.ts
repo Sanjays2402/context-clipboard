@@ -110,3 +110,69 @@ export function isYesterday(ts: number | null | undefined, now: number = Date.no
   if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
   return ts >= localYesterdayStart(now) && ts < localDayStart(now);
 }
+
+/**
+ * Which weekday begins the calendar week, as a `Date.getDay()` value
+ * (0 = Sunday ... 6 = Saturday). We use MONDAY (1) — the ISO-8601 week
+ * start, which is what most of the world (and every "this week" filter a
+ * productivity user reaches for) means by a week. Flipping this single
+ * constant to 0 would move the boundary to a Sunday-start week without
+ * touching the math below, so the locale choice lives in exactly one
+ * place. (A full per-locale week-start would read
+ * Intl.Locale.weekInfo.firstDay, but that's still patchy across engines
+ * and isn't worth the branch here — Monday is the safe, predictable
+ * default the dividers can also adopt later.)
+ */
+export const WEEK_START_DAY = 1; // Monday (ISO-8601)
+
+/**
+ * Unix-ms of the most recent local midnight on the week's start day
+ * at/under `now` — the inclusive lower bound of "this week". Built by
+ * walking back from today's local midnight to the most recent
+ * `WEEK_START_DAY`, stepping whole calendar days (NOT subtracting
+ * `n * DAY_MS`, which is wrong across a DST boundary the same way
+ * `localDayEnd`/`localYesterdayStart` are). A non-finite `now` falls
+ * back to the live clock.
+ *
+ * The next grain up from `is:today` / `is:yesterday`: where those bucket
+ * a single calendar day, this brackets the whole running week (Monday
+ * 00:00 through next Monday 00:00). Today and yesterday (when yesterday
+ * is in the same week) both fall inside this window, so the "This week"
+ * chip is a SUPERSET of the day chips — its count is computed
+ * independently, not as a remainder.
+ */
+export function localWeekStart(now: number = Date.now()): number {
+  const base = Number.isFinite(now) ? now : Date.now();
+  const d = new Date(base);
+  d.setHours(0, 0, 0, 0); // local midnight today
+  // Days since the week's start day, in [0, 6]. (getDay() - start + 7) % 7
+  // handles the wrap so a Sunday-start or Monday-start both land right.
+  const delta = (d.getDay() - WEEK_START_DAY + 7) % 7;
+  d.setDate(d.getDate() - delta); // step back whole days -> DST-safe
+  return d.getTime();
+}
+
+/**
+ * Unix-ms of the NEXT week's start-day local midnight after `now` — the
+ * exclusive upper bound of "this week" (= `localWeekStart` + 7 calendar
+ * days, advanced via setDate so it's DST-correct). A clip stamped at
+ * exactly this instant belongs to next week, not this one.
+ */
+export function localWeekEnd(now: number = Date.now()): number {
+  const d = new Date(localWeekStart(now));
+  d.setDate(d.getDate() + 7); // next week's start day, re-zeroed -> DST-safe
+  return d.getTime();
+}
+
+/**
+ * True when `ts` falls within the local calendar week containing `now`
+ * (>= this week's start-day midnight AND < next week's start-day
+ * midnight). A non-finite `ts` is never this-week. Exact both-ends gate
+ * so a future-stamped clip (clock skew, next week) reads as NOT this
+ * week. `isToday`/`isYesterday` (when yesterday is in-week) imply
+ * `isThisWeek`, never the reverse.
+ */
+export function isThisWeek(ts: number | null | undefined, now: number = Date.now()): boolean {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+  return ts >= localWeekStart(now) && ts < localWeekEnd(now);
+}
