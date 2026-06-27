@@ -119,6 +119,7 @@ import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip, linkPeekTooltip } from "../lib/list-peek";
 import { computeDayHeaderInfos } from "../lib/day-group";
 import { isRedundantDayDivider } from "../lib/redundant-divider";
+import { captureRelative } from "../lib/capture-relative";
 import {
   dayRunClipIds,
   dayRunModifierAction,
@@ -394,6 +395,7 @@ const detailLang = $<HTMLSelectElement>("detail-lang");
 const detailLangHint = $("detail-lang-hint");
 const detailUrl = $<HTMLAnchorElement>("detail-url");
 const detailTime = $("detail-time");
+const detailCapturedRel = $("detail-captured-rel");
 const detailHits = $("detail-hits");
 const detailTags = $<HTMLInputElement>("detail-tags");
 const detailTagChips = $("detail-tag-chips");
@@ -2388,6 +2390,21 @@ async function openDetail(id: string) {
   detailUrl.href = c.source.url || "#";
   detailUrl.textContent = c.source.url || "—";
   detailTime.textContent = new Date(c.createdAt).toLocaleString();
+  // Warm relative breadcrumb beside the precise timestamp: for clips from
+  // the recent calendar buckets (today / yesterday / this+last week /
+  // this+last month) a human reads "earlier today" faster than parsing a
+  // full datetime. Empty for older clips (the raw date already reads as a
+  // date) -> hide the breadcrumb then. Reuses the same calendar predicates
+  // the is:today/is:thisweek/is:thismonth operators are built on, so the
+  // phrase and the filters never disagree on where "this week" starts.
+  const rel = captureRelative(c.createdAt);
+  if (rel) {
+    detailCapturedRel.textContent = rel;
+    detailCapturedRel.hidden = false;
+  } else {
+    detailCapturedRel.textContent = "";
+    detailCapturedRel.hidden = true;
+  }
   detailHits.textContent = String(c.hitCount);
   detailTags.value = c.tags.join(", ");
   renderDetailTagChips();

@@ -3079,6 +3079,21 @@ kbd {
   text-decoration: underline;
 }
 
+/* Warm "captured <relative>" breadcrumb under the precise timestamp.
+   The meta-row stacks its children (column flex), so this renders as its
+   own muted subtitle line directly below the exact datetime. Smaller +
+   accent-tinted so it reads as a friendly gloss on the timestamp, not a
+   competing value. Only rendered for clips recent enough that a relative
+   phrase ("earlier today", "last week") beats the raw date; hidden
+   otherwise. */
+.captured-rel {
+  font-size: 11px;
+  color: var(--accent);
+  opacity: 0.85;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
 .nearby {
   padding: 10px 12px;
   background: var(--glass);
