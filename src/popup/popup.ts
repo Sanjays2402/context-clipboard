@@ -201,6 +201,7 @@ import {
   cheatsheetMatchLabel,
   normaliseCheatFilter,
 } from "../lib/cheatsheet-filter";
+import { cheatsheetRowNav } from "../lib/cheatsheet-nav";
 import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
@@ -6719,6 +6720,60 @@ function applyCheatsheetFilter(): void {
   cheatsheetFilterCount.hidden = countLabel === "";
 }
 
+/**
+ * Collect the currently-visible (non-hidden) cheatsheet rows in DOM
+ * order — the roving-focus set ArrowDown/ArrowUp step through. A row is
+ * visible when neither it nor its parent group is hidden (the filter
+ * hides both). Rebuilt on demand (cheap — ~30 nodes) so it always
+ * reflects the live filter state, never a stale snapshot.
+ */
+function visibleCheatsheetRows(): HTMLElement[] {
+  const rows = cheatsheetEl.querySelectorAll<HTMLElement>(".cheatsheet-row");
+  const out: HTMLElement[] = [];
+  rows.forEach((row) => {
+    if (row.hidden) return;
+    const group = row.closest<HTMLElement>(".cheatsheet-group");
+    if (group && group.hidden) return;
+    out.push(row);
+  });
+  return out;
+}
+
+/**
+ * Roving-focus keyboard nav for the cheatsheet rows. ArrowDown from the
+ * filter input drops onto the first surviving row; ArrowDown/Up step the
+ * highlight through visible rows; ArrowUp off the top row returns focus
+ * to the input. The index math + edge cases live in lib/cheatsheet-nav
+ * (pure); this resolves the target index to the actual node and moves
+ * focus. `current` is the index of the focused row within the visible
+ * set, or null when the input is focused.
+ *
+ * Returns true when it handled the key (caller preventDefault()s), false
+ * to let the key fall through (e.g. ArrowUp already in the input).
+ */
+function handleCheatsheetRowNav(key: "ArrowDown" | "ArrowUp"): boolean {
+  const rows = visibleCheatsheetRows();
+  // Which visible row (if any) currently has focus.
+  const active = document.activeElement as HTMLElement | null;
+  const current = active && active.classList.contains("cheatsheet-row")
+    ? rows.indexOf(active)
+    : null;
+  const target = cheatsheetRowNav(key, current === -1 ? null : current, rows.length);
+  if (!target) return false;
+  if (target.kind === "input") {
+    cheatsheetFilterInput.focus();
+    return true;
+  }
+  const row = rows[target.index];
+  if (!row) return false;
+  // Rows aren't natively focusable; make the targeted one focusable then
+  // focus it. tabindex=-1 keeps it out of the Tab order (the arrow keys
+  // own this traversal) while still allowing programmatic focus.
+  row.tabIndex = -1;
+  row.focus();
+  return true;
+}
+
 function toggleCheatsheet(): void {
   if (cheatsheetEl.hidden) openCheatsheet();
   else closeCheatsheet();
@@ -6726,6 +6781,24 @@ function toggleCheatsheet(): void {
 
 cheatsheetClose.addEventListener("click", () => closeCheatsheet());
 cheatsheetFilterInput.addEventListener("input", () => applyCheatsheetFilter());
+// ArrowDown from the filter input drops focus into the first surviving
+// row so a keyboard user can traverse the filtered results instead of
+// being stranded at the input. ArrowUp is a no-op here (already at top).
+cheatsheetFilterInput.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") {
+    if (handleCheatsheetRowNav("ArrowDown")) e.preventDefault();
+  }
+});
+// Once focus is on a row, ArrowUp/Down rove through the visible rows;
+// ArrowUp off the top row returns to the input. Delegated on the card so
+// we bind once regardless of how many rows render.
+cheatsheetEl.addEventListener("keydown", (e) => {
+  const onRow = (e.target as HTMLElement | null)?.classList?.contains("cheatsheet-row");
+  if (!onRow) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (handleCheatsheetRowNav(e.key)) e.preventDefault();
+  }
+});
 cheatsheetEl.addEventListener("click", (e) => {
   // Backdrop click (the dim layer is the dialog root itself; the card stops
   // propagation via its own listener).

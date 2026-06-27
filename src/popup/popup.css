@@ -2461,6 +2461,20 @@ footer button:hover {
   flex: 1 1 auto;
 }
 
+/* Roving-focus highlight — ArrowDown from the filter input steps focus
+   into the surviving rows. The focused row gets an accent ring + a soft
+   fill so a keyboard user can see exactly where they are as they
+   traverse. Negative inset keeps the ring from nudging the row's layout.
+   :focus (not just :focus-visible) because the focus is moved
+   programmatically by the arrow keys, which some engines don't treat as
+   a "visible" focus trigger. */
+.cheatsheet-row:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+}
+
 kbd {
   display: inline-flex;
   align-items: center;
