@@ -80,6 +80,7 @@ import { buildSendActions, reorderSendActionsByLast, type SendAction } from "../
 import { buildBulkPreviewMessage } from "../lib/bulk-preview";
 import { groupAuditByDay } from "../lib/audit-rollup";
 import { groupTrashByHost } from "../lib/trash-host-rollup";
+import { trashTtlState } from "../lib/trash-ttl";
 import { extractHostPattern, looksLikeUrl } from "../lib/host-pattern";
 import { computeTtlBanner } from "../lib/ttl-banner";
 import {
@@ -4087,10 +4088,19 @@ auditRetentionEl.addEventListener("change", async () => {
 function trashRow(t: TrashedClip, liveClips: ClipItem[] = []): string {
   const previewText =
     t.kind === "image" ? t.preview || "Image" : t.preview || t.content;
-  const left = Math.max(
-    0,
-    Math.ceil((t.deletedAt + TRASH_RETENTION_MS - Date.now()) / 86_400_000),
-  );
+  // Retention-urgency tier + label (lib/trash-ttl). Mirrors the detail
+  // TTL banner's tiering applied to the trash purge deadline: a soft-red
+  // "imminent" band (< 24h, hour-grain label so the real runway shows) +
+  // an amber "soon" nudge (< 48h), else the muted default "Xd left" tail
+  // that read here before. So the row that's hours from permanent loss
+  // no longer looks identical to one with a week of runway.
+  const ttl = trashTtlState(t.deletedAt, Date.now(), TRASH_RETENTION_MS);
+  // Defensive fallback to the rounded-up day count if the helper bailed
+  // on a malformed timestamp — preserves the prior behaviour exactly.
+  const leftLabel =
+    ttl.label ||
+    `${Math.max(0, Math.ceil((t.deletedAt + TRASH_RETENTION_MS - Date.now()) / 86_400_000))}d left`;
+  const ttlClass = ttl.tier !== "normal" ? ` ttl-${ttl.tier}` : "";
   const src = [hostFrom(t.source.url), t.source.title]
     .filter(Boolean)
     .join(" · ");
@@ -4133,11 +4143,14 @@ function trashRow(t: TrashedClip, liveClips: ClipItem[] = []): string {
   });
   // Row-level title attr surfaces on hover anywhere outside the
   // child buttons (the buttons keep their own actionable titles).
+  // The retention tail wraps in a tier-classed span so the CSS can tint
+  // it (soft-red when imminent, amber when soon) — the rest of the meta
+  // line stays muted, so only the urgency figure draws the eye.
   return `
-    <div class="trash-row" data-id="${t.id}" title="${escapeHtml(recaptureTooltip)}">
+    <div class="trash-row${ttlClass}" data-id="${t.id}" title="${escapeHtml(recaptureTooltip)}">
       <div class="trash-body">
         <div class="trash-preview">${escapeHtml(previewText.slice(0, 90))}</div>
-        <div class="trash-meta">${escapeHtml(src || "—")} · deleted ${timeAgo(t.deletedAt)} · ${left}d left</div>
+        <div class="trash-meta">${escapeHtml(src || "—")} · deleted ${timeAgo(t.deletedAt)} · <span class="trash-ttl">${escapeHtml(leftLabel)}</span></div>
       </div>
       ${pinBtn}
       ${lockBtn}

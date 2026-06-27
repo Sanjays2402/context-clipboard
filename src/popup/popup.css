@@ -1519,6 +1519,41 @@ button.small:disabled {
   white-space: nowrap;
 }
 
+/* Retention-urgency tail on the trash meta line (lib/trash-ttl). The
+ * "Xd left" / "Xh left" span carries .trash-ttl; by default it inherits
+ * the muted meta colour (no change for the common case — rows with days
+ * of runway). The row's tier class tints just this span so the urgency
+ * figure draws the eye while the rest of the meta stays quiet:
+ *   .ttl-soon     -> amber nudge (< 48h)
+ *   .ttl-imminent -> soft-red, semibold (< 24h — about to be lost)
+ *   .ttl-expired  -> soft-red, semibold (past the deadline; GC pending)
+ * Mirrors the detail-view TTL banner's soon/imminent/expired palette. */
+.trash-ttl {
+  color: inherit;
+}
+.trash-row.ttl-soon .trash-ttl {
+  color: var(--accent-strong, #f5b400);
+  font-weight: 600;
+}
+.trash-row.ttl-imminent .trash-ttl,
+.trash-row.ttl-expired .trash-ttl {
+  color: var(--danger);
+  font-weight: 600;
+}
+/* A whisper of warm tint on the whole imminent/expired row so the
+ * about-to-purge entries stand out in a long trash list at a glance,
+ * not only when the eye lands on the tail. Kept very low-alpha so it
+ * reads as "flagged", not "selected". */
+.trash-row.ttl-imminent,
+.trash-row.ttl-expired {
+  border-color: rgba(229, 83, 75, 0.34);
+  background: rgba(229, 83, 75, 0.05);
+}
+.trash-row.ttl-imminent:hover,
+.trash-row.ttl-expired:hover {
+  background: rgba(229, 83, 75, 0.09);
+}
+
 .trash-restore {
   flex: 0 0 auto;
   background: var(--accent-soft);
