@@ -152,7 +152,7 @@ import {
 } from "../lib/lightbox-zoom";
 import { shouldZoomThumb } from "../lib/thumb-zoom";
 import { imageDownloadName } from "../lib/image-download";
-import { lightboxDots, dotStripVisible, dotLabel } from "../lib/lightbox-dots";
+import { lightboxDots, dotStripVisible, dotLabel, windowLightboxDots, dotWindowLabel } from "../lib/lightbox-dots";
 import {
   effectiveLang,
   selectValueFor,
@@ -6625,14 +6625,34 @@ function renderLightboxDots(ids: ReadonlyArray<string>): void {
     lightboxDotsEl.innerHTML = "";
     return;
   }
-  const dots = lightboxDots(ids, lightboxId);
+  const all = lightboxDots(ids, lightboxId);
+  // Window long runs so a 40-screenshot run shows a ~15-dot band centred
+  // on the current image (plus "…" edge cues + an "N of M" count) instead
+  // of wrapping into a wall. Short runs render every dot, unchanged.
+  const win = windowLightboxDots(all);
   lightboxDotsEl.hidden = false;
-  lightboxDotsEl.innerHTML = dots
+  const dotHtml = win.dots
     .map((d) => {
       const label = escapeHtml(dotLabel(d));
       return `<button type="button" class="lightbox-dot${d.active ? " active" : ""}" role="tab" data-dot-id="${escapeHtml(d.id)}" aria-selected="${d.active ? "true" : "false"}" aria-label="${label}" title="${label}"></button>`;
     })
     .join("");
+  // Truncation cues — non-interactive ellipses flanking the band. aria-
+  // hidden so the screen-reader user navigates by the dots' own labels +
+  // the count, not a bare "…".
+  const moreBefore = win.hasMoreBefore
+    ? `<span class="lightbox-dot-more" aria-hidden="true">…</span>`
+    : "";
+  const moreAfter = win.hasMoreAfter
+    ? `<span class="lightbox-dot-more" aria-hidden="true">…</span>`
+    : "";
+  // Compact "N of M" position label, shown only when the strip is
+  // windowed (a fully-visible strip doesn't need it — the active dot is
+  // the position). Lives at the trailing end so it reads after the dots.
+  const count = win.windowed
+    ? `<span class="lightbox-dot-count" aria-hidden="true">${escapeHtml(dotWindowLabel(all))}</span>`
+    : "";
+  lightboxDotsEl.innerHTML = `${moreBefore}${dotHtml}${moreAfter}${count}`;
 }
 
 /** Step the lightbox to the prev/next image clip (wrap-around). */

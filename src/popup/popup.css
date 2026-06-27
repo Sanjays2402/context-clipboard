@@ -2639,6 +2639,33 @@ kbd {
   border-color: var(--accent);
 }
 
+/* Windowed long-run affordances. For runs longer than the dot cap the
+   strip shows a sliding ~15-dot band centred on the current image, with
+   a "…" truncation cue on each clipped edge and a compact "N of M"
+   position count at the trailing end. The band fits on one line, so the
+   wrap from .lightbox-dots is harmless (the windowed set never overflows
+   the max-width). */
+.lightbox-dot-more {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 1px;
+  user-select: none;
+  /* Nudge the ellipsis baseline up so it centres against the dots. */
+  transform: translateY(-1px);
+}
+
+.lightbox-dot-count {
+  margin-left: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+}
+
 /* Accessibility: honour the user's reduced-motion preference. The
    lightbox backdrop fade-in and the zoom scale transition are pure
    decoration — drop them so the overlay opens and the image enlarges

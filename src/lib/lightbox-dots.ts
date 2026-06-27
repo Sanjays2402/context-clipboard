@@ -97,3 +97,97 @@ export function dotLabel(dot: LightboxDot | null | undefined): string {
   const base = `Image ${dot.index} of ${dot.total}`;
   return dot.active ? `${base} (current)` : base;
 }
+
+/** Default cap on how many dots render before the strip windows. */
+export const DEFAULT_MAX_DOTS = 15;
+
+/**
+ * A windowed slice of the full dot list, for runs too long to show
+ * every dot without wrapping into a wall.
+ */
+export interface DotStripWindow {
+  /** The visible (windowed) dots, in order. */
+  dots: LightboxDot[];
+  /** True when the leading edge is truncated (dots exist before the window). */
+  hasMoreBefore: boolean;
+  /** True when the trailing edge is truncated (dots exist after the window). */
+  hasMoreAfter: boolean;
+  /**
+   * True when the full set didn't fit and we windowed it. The caller
+   * shows the compact "N of M" position label only in this case (a
+   * fully-visible strip needs no count — the active dot says it all).
+   */
+  windowed: boolean;
+}
+
+/**
+ * Window a long dot list down to a sliding band centred on the active
+ * dot, so a run of 40 screenshots shows ~15 dots + ellipsis affordances
+ * instead of wrapping into a wall.
+ *
+ * Behaviour:
+ *   - total <= maxVisible: every dot shown, `windowed: false`, no
+ *     ellipsis. The short-run path is byte-identical to rendering the
+ *     raw `lightboxDots` output.
+ *   - total >  maxVisible: a contiguous slice of `maxVisible` dots,
+ *     centred on the active dot and clamped so it never runs off either
+ *     end (near the start it hugs the start; near the end it hugs the
+ *     end — the active dot is always inside the window). `hasMoreBefore`
+ *     / `hasMoreAfter` flag the truncated edges so the popup can render
+ *     a "…" cue, and `windowed: true` tells it to show the "N of M"
+ *     count.
+ *
+ * The window CENTRES on the active dot (not a fixed page) so stepping
+ * prev/next scrolls the band smoothly rather than jumping a page at a
+ * time. When no dot is active (a stale id mid-re-render) the window
+ * anchors at the start rather than throwing.
+ *
+ * Defensive: a nullish list yields an empty, non-windowed result; a
+ * `maxVisible` below 1 is clamped to 1 so we never return an empty
+ * window for a non-empty list.
+ */
+export function windowLightboxDots(
+  dots: ReadonlyArray<LightboxDot> | null | undefined,
+  maxVisible: number = DEFAULT_MAX_DOTS,
+): DotStripWindow {
+  const all = Array.isArray(dots) ? dots : [];
+  const total = all.length;
+  const cap = Number.isFinite(maxVisible) && maxVisible >= 1 ? Math.floor(maxVisible) : 1;
+  if (total <= cap) {
+    return { dots: all.slice(), hasMoreBefore: false, hasMoreAfter: false, windowed: false };
+  }
+  // Index of the active dot (first match), or 0 when none is active.
+  let activeIdx = 0;
+  for (let i = 0; i < total; i++) {
+    if (all[i] && all[i].active) {
+      activeIdx = i;
+      break;
+    }
+  }
+  const half = Math.floor(cap / 2);
+  // Centre on active, then clamp so the window stays fully in-range.
+  let start = activeIdx - half;
+  if (start < 0) start = 0;
+  if (start > total - cap) start = total - cap;
+  const end = start + cap;
+  return {
+    dots: all.slice(start, end),
+    hasMoreBefore: start > 0,
+    hasMoreAfter: end < total,
+    windowed: true,
+  };
+}
+
+/**
+ * Compact "N of M" position label for the windowed strip, derived from
+ * the active dot in the FULL list. Shown only when the strip is windowed
+ * (so a user staring at a truncated band still knows exactly where they
+ * are). Returns "" when no dot is active (nothing to anchor on).
+ */
+export function dotWindowLabel(dots: ReadonlyArray<LightboxDot> | null | undefined): string {
+  if (!Array.isArray(dots)) return "";
+  for (const d of dots) {
+    if (d && d.active) return `${d.index} of ${d.total}`;
+  }
+  return "";
+}
