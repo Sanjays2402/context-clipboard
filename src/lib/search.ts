@@ -24,7 +24,14 @@ import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
 import { hasLangOverride, langOverrideMatches, isLangOverrideDir } from "./lang-override";
-import { localDayStart, localYesterdayStart, localWeekStart, localLastWeekStart } from "./today-filter";
+import {
+  localDayStart,
+  localYesterdayStart,
+  localWeekStart,
+  localLastWeekStart,
+  localMonthStart,
+  localLastMonthStart,
+} from "./today-filter";
 
 export interface ParsedQuery {
   freeText: string;
@@ -126,6 +133,40 @@ export interface ParsedQuery {
    * lib/today-filter (`isLastWeek`) for tests + reuse.
    */
   lastWeekOnly: boolean;
+  /**
+   * Surface only clips whose `lastSeenAt` falls within the local
+   * calendar MONTH containing "now" — from the 1st-of-month local
+   * midnight up to, but not including, next month's 1st-midnight.
+   * Triggered by `is:thismonth` (and the "This month" quick-chip that
+   * injects it).
+   *
+   * The next grain UP from `is:thisweek`: a SUPERSET, not a disjoint
+   * bucket. This week (and today/yesterday, when in-month) fall inside
+   * this window, so the chip count is computed independently rather than
+   * as a remainder. Only the inclusive lower bound is needed at apply
+   * time (`thisMonthAfter` = this month's 1st-midnight); no clip is
+   * normally future-stamped past the month's end. Computed at PARSE time,
+   * mirroring `is:thisweek`. The exact both-ends predicate lives in
+   * lib/today-filter (`isThisMonth`) for tests + reuse.
+   */
+  thisMonthOnly: boolean;
+  /**
+   * Surface only clips whose `lastSeenAt` falls within the local
+   * calendar month BEFORE the one containing "now" — from last month's
+   * 1st-midnight up to (but not including) this month's 1st-midnight.
+   * Triggered by `is:lastmonth` (and the "Last month" quick-chip that
+   * injects it).
+   *
+   * Companion to `is:thismonth` — the two tile the month timeline with no
+   * gap or overlap (a clip is in exactly one of {older, last-month,
+   * this-month}). Unlike `is:thismonth`, last month is bounded on BOTH
+   * ends, so applyQuery needs two thresholds: an inclusive lower bound
+   * (`lastMonthAfter` = last month's 1st-midnight) and an exclusive upper
+   * bound (`lastMonthBefore` = this month's 1st-midnight). Both computed
+   * at PARSE time; the exact predicate lives in lib/today-filter
+   * (`isLastMonth`) for tests + reuse.
+   */
+  lastMonthOnly: boolean;
   /**
    * Parity twin of `kind:link`. The other `is:` operators
    * (pinned/redacted/template/expiring/archived) read as
@@ -520,6 +561,29 @@ export interface ParsedQuery {
    * `lastSeenAt < lastWeekBefore`. Absent when `lastWeekOnly` is false.
    */
   lastWeekBefore?: number;
+  /**
+   * Unix ms — local midnight of the 1st of THIS month (inclusive lower
+   * bound), computed at parse time when `is:thismonth` is present.
+   * applyQuery requires `lastSeenAt >= thisMonthAfter`. Open-ended on the
+   * upper side (like `is:today` / `is:thisweek`) since clips aren't
+   * normally future-stamped past the month's end. Absent when
+   * `thisMonthOnly` is false.
+   */
+  thisMonthAfter?: number;
+  /**
+   * Unix ms — local midnight of the 1st of LAST month (inclusive lower
+   * bound), computed at parse time when `is:lastmonth` is present.
+   * applyQuery requires `lastSeenAt >= lastMonthAfter`. Absent when
+   * `lastMonthOnly` is false.
+   */
+  lastMonthAfter?: number;
+  /**
+   * Unix ms — local midnight of the 1st of THIS month (exclusive upper
+   * bound for the last-month window), computed at parse time when
+   * `is:lastmonth` is present. applyQuery requires
+   * `lastSeenAt < lastMonthBefore`. Absent when `lastMonthOnly` is false.
+   */
+  lastMonthBefore?: number;
 }
 
 const TOKEN_RE = /\S+/g;
@@ -558,6 +622,8 @@ export function parseQuery(raw: string): ParsedQuery {
     yesterdayOnly: false,
     thisWeekOnly: false,
     lastWeekOnly: false,
+    thisMonthOnly: false,
+    lastMonthOnly: false,
     linkOnly: false,
     lockedOnly: false,
     unlockedOnly: false,
@@ -641,6 +707,27 @@ export function parseQuery(raw: string): ParsedQuery {
         out.lastWeekOnly = true;
         out.lastWeekAfter = localLastWeekStart(now);
         out.lastWeekBefore = localWeekStart(now);
+      }
+      else if (v === "thismonth") {
+        // Local calendar MONTH containing now — the next grain up from
+        // is:thisweek. SUPERSET of the week + day buckets (this week,
+        // today, same-month yesterday all fall inside), so like is:today
+        // / is:thisweek it only needs an inclusive lower bound here (the
+        // 1st-of-month midnight); no clip is normally future-stamped past
+        // the month's end. Threshold computed once at parse time.
+        out.thisMonthOnly = true;
+        out.thisMonthAfter = localMonthStart(now);
+      }
+      else if (v === "lastmonth") {
+        // Local calendar month before this one — bounded on BOTH ends.
+        // Thresholds computed once at parse time: inclusive lower (last
+        // month's 1st-midnight) + exclusive upper (this month's
+        // 1st-midnight), so applyQuery does two straight comparisons.
+        // Tiles perfectly against is:thismonth (this month's 1st is the
+        // shared boundary).
+        out.lastMonthOnly = true;
+        out.lastMonthAfter = localLastMonthStart(now);
+        out.lastMonthBefore = localMonthStart(now);
       }
       else if (v === "link") out.linkOnly = true;
       else if (v === "locked") out.lockedOnly = true;
@@ -1012,6 +1099,19 @@ export function applyQuery(
       if (q.lastWeekAfter != null && c.lastSeenAt < q.lastWeekAfter) return false;
       if (q.lastWeekBefore != null && c.lastSeenAt >= q.lastWeekBefore) return false;
     }
+    // `is:thismonth` — clips since the 1st-of-month midnight. SUPERSET of
+    // is:today / is:yesterday / is:thisweek (when same month). Inclusive
+    // lower bound only; no upper bound needed (clips aren't normally
+    // future-stamped).
+    if (q.thisMonthOnly && q.thisMonthAfter != null && c.lastSeenAt < q.thisMonthAfter) return false;
+    // `is:lastmonth` — clips within the previous local calendar month.
+    // Bounded on BOTH ends: inclusive lower (last month's 1st) +
+    // exclusive upper (this month's 1st). The upper bound keeps this
+    // month's clips OUT, so last-month + this-month surface disjoint sets.
+    if (q.lastMonthOnly) {
+      if (q.lastMonthAfter != null && c.lastSeenAt < q.lastMonthAfter) return false;
+      if (q.lastMonthBefore != null && c.lastSeenAt >= q.lastMonthBefore) return false;
+    }
     for (const t of q.tags) if (!c.tags.includes(t)) return false;
     if (extraTag && !c.tags.includes(extraTag)) return false;
     if (needle) {
@@ -1049,6 +1149,8 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.yesterdayOnly) bits.push("yesterday");
   if (q.thisWeekOnly) bits.push("this-week");
   if (q.lastWeekOnly) bits.push("last-week");
+  if (q.thisMonthOnly) bits.push("this-month");
+  if (q.lastMonthOnly) bits.push("last-month");
   if (q.linkOnly) bits.push("link");
   if (q.lockedOnly) bits.push("locked");
   if (q.unlockedOnly) bits.push("unlocked");

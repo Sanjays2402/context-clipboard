@@ -192,7 +192,7 @@ import {
   bulkSeparatorPreview,
   bulkSeparatorCaption,
 } from "../lib/bulk-separator-preview";
-import { isToday, isYesterday, isThisWeek, isLastWeek } from "../lib/today-filter";
+import { isToday, isYesterday, isThisWeek, isLastWeek, isThisMonth, isLastMonth } from "../lib/today-filter";
 import { widenSuggestion } from "../lib/widen-bucket";
 import {
   cheatsheetRowMatches,
@@ -1255,6 +1255,8 @@ function renderQuickChips(allClips: ClipItem[]) {
   let yesterdayCount = 0;
   let thisWeekCount = 0;
   let lastWeekCount = 0;
+  let thisMonthCount = 0;
+  let lastMonthCount = 0;
   const todayNow = Date.now();
   for (const c of allClips) {
     const h = hostFrom(c.source.url);
@@ -1274,6 +1276,14 @@ function renderQuickChips(allClips: ClipItem[]) {
     // "Last week" is disjoint from this-week (tiles against it), so it's
     // its own independent count too.
     else if (isLastWeek(c.lastSeenAt, todayNow)) lastWeekCount++;
+    // "This month" is the next grain up — a SUPERSET of this-week (and
+    // the day buckets), so it's counted independently too, NOT chained
+    // off the week buckets. A clip from this week is both this-week AND
+    // this-month.
+    if (isThisMonth(c.lastSeenAt, todayNow)) thisMonthCount++;
+    // "Last month" is disjoint from this-month (tiles against it), its
+    // own independent count.
+    else if (isLastMonth(c.lastSeenAt, todayNow)) lastMonthCount++;
   }
   const topHosts = Array.from(hostCounts.entries())
     .sort((a, b) => b[1] - a[1])
@@ -1383,6 +1393,32 @@ function renderQuickChips(allClips: ClipItem[]) {
       active: hasOp("is:lastweek"),
       count: lastWeekCount,
       ariaLabel: "Filter to clips from last week (the previous local calendar week)",
+    });
+  // "This month" — the LOCAL calendar month (1st onward), the next grain
+  // up from This week. It's a SUPERSET of those, so it only earns a chip
+  // when it surfaces clips the This-week chip doesn't already cover (i.e.
+  // there's at least one clip from earlier this month). Early in the
+  // month with only this-week clips, thisMonthCount === thisWeekCount and
+  // the chip would just duplicate "This week" — so we suppress it there.
+  if (thisMonthCount > thisWeekCount)
+    pills.push({
+      label: "This month",
+      op: "is:thismonth",
+      active: hasOp("is:thismonth"),
+      count: thisMonthCount,
+      ariaLabel: "Filter to clips from this month (since the 1st of the local calendar month)",
+    });
+  // "Last month" — the previous LOCAL calendar month, the next-most-asked
+  // bucket after This month. Disjoint from This month (tiles against it,
+  // no overlap). Only shown when there's at least one clip from last
+  // month so the strip doesn't carry a dead "Last month (0)".
+  if (lastMonthCount > 0)
+    pills.push({
+      label: "Last month",
+      op: "is:lastmonth",
+      active: hasOp("is:lastmonth"),
+      count: lastMonthCount,
+      ariaLabel: "Filter to clips from last month (the previous local calendar month)",
     });
   pills.push({
     label: "Last 24h",
@@ -2021,7 +2057,7 @@ async function render(): Promise<void> {
           `</div>`;
       } else {
         hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
       }
     }
@@ -7243,6 +7279,28 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:lastweek");
+      },
+    },
+    {
+      id: "filter-thismonth",
+      label: "Show this month's clips",
+      hint: "is:thismonth — the running local calendar month (since the 1st)",
+      group: "Filter",
+      keywords: "this month calendar running recent thirty days is:thismonth",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:thismonth");
+      },
+    },
+    {
+      id: "filter-lastmonth",
+      label: "Show last month's clips",
+      hint: "is:lastmonth — the previous local calendar month",
+      group: "Filter",
+      keywords: "last month calendar previous prior thirty days is:lastmonth",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:lastmonth");
       },
     },
     {

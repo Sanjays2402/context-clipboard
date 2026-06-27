@@ -211,3 +211,87 @@ export function isLastWeek(ts: number | null | undefined, now: number = Date.now
   if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
   return ts >= localLastWeekStart(now) && ts < localWeekStart(now);
 }
+
+/**
+ * Unix-ms of the first local midnight of the calendar MONTH containing
+ * `now` — the inclusive lower bound of "this month". Built by zeroing
+ * the time-of-day then snapping the day-of-month to the 1st (NOT
+ * subtracting `(getDate()-1) * DAY_MS`, which would drift across a DST
+ * boundary the same way the day/week helpers do). A non-finite `now`
+ * falls back to the live clock.
+ *
+ * The next grain UP from `is:thisweek`: where the week brackets a
+ * running seven-day window, this brackets the whole running calendar
+ * month (1st 00:00 through the 1st of next month 00:00). This week (and
+ * today/yesterday, when in-month) all fall inside this window, so the
+ * "This month" chip is a SUPERSET of the week + day chips — its count is
+ * computed independently, not as a remainder.
+ */
+export function localMonthStart(now: number = Date.now()): number {
+  const base = Number.isFinite(now) ? now : Date.now();
+  const d = new Date(base);
+  d.setHours(0, 0, 0, 0); // local midnight
+  d.setDate(1); // first of the month — safe (every month has a 1st)
+  return d.getTime();
+}
+
+/**
+ * Unix-ms of the first local midnight of NEXT month after `now` — the
+ * exclusive upper bound of "this month". Computed off `localMonthStart`
+ * by advancing the calendar month via setMonth (so it's correct for
+ * 28/29/30/31-day months AND DST-safe — we operate on a date already
+ * snapped to the 1st, which every month has). A clip stamped at exactly
+ * this instant belongs to next month, not this one.
+ */
+export function localMonthEnd(now: number = Date.now()): number {
+  const d = new Date(localMonthStart(now));
+  d.setMonth(d.getMonth() + 1); // first of next month, re-zeroed
+  return d.getTime();
+}
+
+/**
+ * True when `ts` falls within the local calendar month containing `now`
+ * (>= this month's 1st-midnight AND < next month's 1st-midnight). A
+ * non-finite `ts` is never this-month. Exact both-ends gate so a
+ * future-stamped clip (clock skew, next month) reads as NOT this month.
+ * `isToday`/`isYesterday`/`isThisWeek` (when in-month) imply
+ * `isThisMonth`, never the reverse.
+ */
+export function isThisMonth(ts: number | null | undefined, now: number = Date.now()): boolean {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+  return ts >= localMonthStart(now) && ts < localMonthEnd(now);
+}
+
+/**
+ * Unix-ms of the first local midnight of the PREVIOUS calendar month —
+ * the inclusive lower bound of "last month". Built by stepping
+ * `localMonthStart` back one calendar month via setMonth (correct across
+ * differing month lengths + DST-safe, since the date is snapped to the
+ * 1st). A non-finite `now` falls back to the live clock.
+ *
+ * Companion to `is:thismonth` — the window's upper bound is exactly
+ * `localMonthStart(now)` (this month's 1st), so last-month and this-month
+ * tile the timeline with no gap and no overlap: a clip is in exactly one
+ * of {older, last-month, this-month, future}.
+ */
+export function localLastMonthStart(now: number = Date.now()): number {
+  const d = new Date(localMonthStart(now));
+  d.setMonth(d.getMonth() - 1); // first of the previous month, re-zeroed
+  return d.getTime();
+}
+
+/**
+ * True when `ts` falls within the local calendar month BEFORE the one
+ * containing `now` (>= last month's 1st-midnight AND < this month's
+ * 1st-midnight). A non-finite `ts` is never last-month. Exact both-ends
+ * gate so a clip from two months ago, this month, or a future-stamped
+ * clip all correctly read as NOT last-month.
+ *
+ * The window's upper bound is `localMonthStart(now)` — the same value
+ * `isThisMonth`'s lower bound uses — so `isThisMonth` and `isLastMonth`
+ * are mutually exclusive by construction (no instant satisfies both).
+ */
+export function isLastMonth(ts: number | null | undefined, now: number = Date.now()): boolean {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+  return ts >= localLastMonthStart(now) && ts < localMonthStart(now);
+}
