@@ -661,6 +661,70 @@ mark.match-hl {
   transition: mask-image 0.18s ease;
 }
 
+/* Positioned wrapper so the page chevrons can sit OVER the strip's faded
+   overflow edges. The wrapper carries no own layout beyond establishing
+   the containing block + inheriting the strip's top margin. */
+.quick-chips-wrap {
+  position: relative;
+  margin-top: 10px;
+}
+.quick-chips-wrap .quick-chips {
+  /* The wrapper owns the top margin now; the strip sits flush in it. */
+  margin-top: 0;
+}
+
+/* Page chevrons — a click-to-scroll companion to the edge fades, shown
+   only when their edge is clipped (toggled in lockstep with the fade in
+   refreshQuickChipsScrollShadow). They overlay the faded edge, picking up
+   the header's blurred backdrop so they read as floating over the chips
+   rather than a solid bar. A mouse-only user can't scroll a horizontal
+   strip without a shift-wheel, so these make the overflow reachable. */
+.quick-chips-page {
+  position: absolute;
+  top: 0;
+  bottom: 2px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: linear-gradient(
+    to var(--qc-page-dir, right),
+    var(--bg-elevated, var(--glass-strong)) 55%,
+    transparent 100%
+  );
+  backdrop-filter: blur(6px);
+  transition: color 0.12s ease, opacity 0.12s ease;
+}
+.quick-chips-page:hover {
+  color: var(--text);
+}
+.quick-chips-page:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  color: var(--text);
+}
+.quick-chips-page svg {
+  width: 15px;
+  height: 15px;
+}
+.quick-chips-page-start {
+  left: 0;
+  --qc-page-dir: left;
+  justify-content: flex-start;
+  padding-left: 1px;
+}
+.quick-chips-page-end {
+  right: 0;
+  --qc-page-dir: right;
+  justify-content: flex-end;
+  padding-right: 1px;
+}
+
 /* More content to the RIGHT → fade the trailing edge. */
 .quick-chips[data-shadow-end] {
   mask-image: linear-gradient(

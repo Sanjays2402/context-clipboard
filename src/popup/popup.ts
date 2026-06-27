@@ -114,7 +114,7 @@ import {
 } from "../lib/similar-nav";
 import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast, formatContentStatsMarkdown } from "../lib/content-stats";
 import { formatFocusPosition } from "../lib/focus-position";
-import { computeScrollEdges } from "../lib/scroll-shadow";
+import { computeScrollEdges, pageScrollTarget } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
 import { peekTooltip, linkPeekTooltip } from "../lib/list-peek";
 import { computeDayHeaderInfos } from "../lib/day-group";
@@ -362,6 +362,8 @@ const quickCaptureBtn = $<HTMLButtonElement>("quick-capture-btn");
 const linkCaptureBtn = $<HTMLButtonElement>("link-capture-btn");
 const tagChipsEl = $("tag-chips");
 const quickChipsEl = $("quick-chips");
+const quickChipsPageStart = $<HTMLButtonElement>("quick-chips-page-start");
+const quickChipsPageEnd = $<HTMLButtonElement>("quick-chips-page-end");
 const savedSearchesEl = $("saved-searches");
 const searchHistoryEl = $("search-history");
 const saveSearchBtn = $<HTMLButtonElement>("save-search-btn");
@@ -1473,6 +1475,8 @@ function refreshQuickChipsScrollShadow(): void {
   if (quickChipsEl.hidden) {
     quickChipsEl.removeAttribute("data-shadow-start");
     quickChipsEl.removeAttribute("data-shadow-end");
+    quickChipsPageStart.hidden = true;
+    quickChipsPageEnd.hidden = true;
     return;
   }
   const edges = computeScrollEdges({
@@ -1482,6 +1486,33 @@ function refreshQuickChipsScrollShadow(): void {
   });
   quickChipsEl.toggleAttribute("data-shadow-start", edges.start);
   quickChipsEl.toggleAttribute("data-shadow-end", edges.end);
+  // The page chevrons live exactly where the fades are — show each one
+  // only when its edge is clipped, so they appear/vanish in lockstep with
+  // the fade they sit on. A chevron with no hidden content past it would
+  // be a dead control.
+  quickChipsPageStart.hidden = !edges.start;
+  quickChipsPageEnd.hidden = !edges.end;
+}
+
+/**
+ * Page the quick-chips strip one "page" (~80% of its width) toward an
+ * edge — the click action behind the leading/trailing chevrons that sit
+ * on the faded overflow edges. Target scrollLeft + clamping live in
+ * lib/scroll-shadow (pure); here we read the live metrics and apply a
+ * smooth scroll. The shadow/chevron state refreshes off the strip's own
+ * scroll event as the smooth scroll progresses.
+ */
+function pageQuickChips(direction: "start" | "end"): void {
+  if (quickChipsEl.hidden) return;
+  const target = pageScrollTarget(
+    {
+      scrollLeft: quickChipsEl.scrollLeft,
+      scrollWidth: quickChipsEl.scrollWidth,
+      clientWidth: quickChipsEl.clientWidth,
+    },
+    direction,
+  );
+  quickChipsEl.scrollTo({ left: target, behavior: "smooth" });
 }
 
 function toggleSearchOp(op: string) {
@@ -5136,6 +5167,12 @@ quickChipsEl.addEventListener("click", (e) => {
 quickChipsEl.addEventListener("scroll", refreshQuickChipsScrollShadow, {
   passive: true,
 });
+// Page chevrons sitting on the faded overflow edges — click to scroll the
+// strip one page toward that edge (a discoverable companion to the
+// trackpad scroll, which a mouse-only user can't do horizontally without
+// a shift-wheel). Each is only visible when its edge is clipped.
+quickChipsPageStart.addEventListener("click", () => pageQuickChips("start"));
+quickChipsPageEnd.addEventListener("click", () => pageQuickChips("end"));
 // Popup width can change (Firefox panel resize, zoom) — re-measure so a
 // row that newly fits, or newly overflows, updates its fades.
 window.addEventListener("resize", refreshQuickChipsScrollShadow);

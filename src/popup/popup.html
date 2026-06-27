@@ -28,7 +28,11 @@
         <button data-kind="link" title="Links only" data-icon="link"></button>
         <button id="pinned-toggle" title="Pinned only" data-icon="pin"></button>
       </div>
-      <div id="quick-chips" class="quick-chips"></div>
+      <div id="quick-chips-wrap" class="quick-chips-wrap">
+        <button id="quick-chips-page-start" class="quick-chips-page quick-chips-page-start" type="button" title="Scroll filters left" aria-label="Scroll filters left" data-icon="back" hidden></button>
+        <div id="quick-chips" class="quick-chips"></div>
+        <button id="quick-chips-page-end" class="quick-chips-page quick-chips-page-end" type="button" title="Scroll filters right" aria-label="Scroll filters right" data-icon="forward" hidden></button>
+      </div>
       <div id="tag-chips" class="tag-chips" hidden></div>
     </header>
 
