@@ -193,6 +193,7 @@ import {
   bulkSeparatorCaption,
 } from "../lib/bulk-separator-preview";
 import { isToday, isYesterday, isThisWeek, isLastWeek } from "../lib/today-filter";
+import { widenSuggestion } from "../lib/widen-bucket";
 import {
   parseQuickCaptureUrl,
   buildQuickCaptureTags,
@@ -1998,9 +1999,25 @@ async function render(): Promise<void> {
         `<br/><button type="button" class="empty-action" data-act="exit-archive">Show daily list</button>` +
         `</div>`;
     } else {
-      hint = searchEl.value.trim()
+      // A lone calendar-day bucket (is:today / is:yesterday) that came
+      // up empty doesn't want a different operator — it wants the same
+      // view with a wider net. Offer a one-tap "Widen to this week" chip
+      // (data-act handled below) instead of the generic operator wall.
+      // widenSuggestion gates this to EXACTLY a day-bucket query so a
+      // compound filter never silently loses its other constraints.
+      const widen = widenSuggestion(searchEl.value);
+      if (widen.canWiden) {
+        const bucketLabel = searchEl.value.trim().toLowerCase() === "is:yesterday" ? "yesterday" : "today";
+        hint =
+          `<div class="empty">No clips from ${bucketLabel}.` +
+          `<br/><small>Nothing landed in this calendar bucket — try a wider window.</small>` +
+          `<br/><button type="button" class="empty-action" data-act="widen-bucket" data-query="${escapeHtml(widen.query)}">${escapeHtml(widen.label)}</button>` +
+          `</div>`;
+      } else {
+        hint = searchEl.value.trim()
         ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
+      }
     }
     listEl.innerHTML = hint;
   } else {
@@ -5492,6 +5509,20 @@ listEl.addEventListener("click", async (e) => {
     searchEl.value = raw.replace(/(?:^|\s)is:archived(?:\s|$)/, " ").replace(/\s+/g, " ").trim();
     activeIndex = 0;
     await render();
+    return;
+  }
+  // Empty-state "Widen to this week" — replace the lone day-bucket query
+  // (is:today / is:yesterday) with the wider operator carried on the
+  // button's data-query. The widenSuggestion helper already validated
+  // the swap target at render time, so here we just adopt it verbatim.
+  const widenAct = target.closest("button.empty-action[data-act=widen-bucket]") as HTMLElement | null;
+  if (widenAct) {
+    const next = widenAct.dataset.query || "";
+    if (next) {
+      searchEl.value = next;
+      activeIndex = 0;
+      await render();
+    }
     return;
   }
   // Day-group divider click — select (or, if already all-selected,
