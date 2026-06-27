@@ -685,23 +685,28 @@ Deliberately steering toward surfaces the recent calendar cluster hasn't
 touched so no one area dominates.
 - [ ] Day-group dividers: coarse "This week" / "Last week" / "Earlier" rollup for the older tail — one divider per coarse bucket instead of one per day, pairs with the week/month operators (recurring, now strongly motivated)
 - [ ] Search: empty-state widen `is:thismonth` -> "Widen to this year" once a year bucket exists; OR (smaller) when `is:lastmonth`/`is:lastweek` is empty, offer "Show this <grain>" as the inverse escape
-- [ ] Quick-chips: a "scroll one page" chevron on each faded scroll-shadow edge when the strip overflows (the shadow is a passive cue today) — recurring, real gap now the strip carries 6 calendar chips + hosts
+- [x] Quick-chips: a "scroll one page" chevron on each faded scroll-shadow edge when the strip overflows (the shadow is a passive cue today) — `2b2ee6b`
 - [ ] List: a coarse "Earlier" collapse — when a long tail of single-day dividers piles up below this-week, collapse days older than last-week under one "Earlier" divider with a count (declutter without losing the recent dividers)
-- [ ] Cheatsheet: ArrowDown from the filter input drops focus into the surviving rows (highlight + Enter to... nothing yet, but at least scroll/keyboard-traverse) — the input is focused on open, give it a down-arrow exit
+- [x] Cheatsheet: ArrowDown from the filter input drops focus into the surviving rows (highlight + Enter to... nothing yet, but at least scroll/keyboard-traverse) — the input is focused on open, give it a down-arrow exit — `d0a49b4`
 - [ ] Detail: "Copy line N" line-number gutter for multi-line clips (click a line to copy just it) — long-standing real workflow, untouched by recent ticks
 - [ ] Search: recent-searches dropdown on focus (last 5, browser-address-bar style) before typing — long-standing
-- [ ] Lightbox: clicking a windowed "…" edge cue pages the dot band one window (currently passive) — recurring
+- [x] Lightbox: clicking a windowed "…" edge cue pages the dot band one window (currently passive) — recurring — `19a00c0`
 - [ ] Lightbox: a thin actual-thumbnail filmstrip (not just dots) for image runs, windowed the same way
 - [ ] Lightbox download: settings toggle for the filename stem (bare timestamp vs product-prefixed)
 - [ ] Settings: group the copy/export/display prefs (bulk-md separator, density, future toggles) under a "Display & export" subheading so the panel stays scannable
 - [ ] Bulk-bar: byte-total on the "Copy selected" pre-commit hover (toast has chars, export has bytes — unify so the hover shows both)
 - [ ] Detail tag chips: drag-to-reorder auto-scroll when dragging past the row's right edge (long tag lists overflow + clip)
 - [ ] Quick-chip month buckets: when `is:thismonth` is active and it equals the whole list, the per-day dividers are still useful (multi-day) — but a "This month · N" summary divider at the very top could anchor the run (parallel to the suppressed lone-day divider, opposite direction)
-- [ ] Settings density preview: also show a "pinned" stub row (pin-dot + accent) so the swatch covers the pinned-tier styling at each density, not just selected + image
-- [ ] Detail: a per-clip "captured <relative>" breadcrumb that reads "earlier this month" / "last month" using the new month predicates (warmer than the raw date for recent clips)
+- [x] Settings density preview: also show a "pinned" stub row (pin-dot + accent) so the swatch covers the pinned-tier styling at each density, not just selected + image — `f564a4e`
+- [x] Detail: a per-clip "captured <relative>" breadcrumb that reads "earlier this month" / "last month" using the new month predicates (warmer than the raw date for recent clips) — `890a142`
 - [ ] Cheatsheet: a "Calendar buckets" mini-section or inline note listing today/yesterday/thisweek/lastweek/thismonth/lastmonth together (currently one dense row) for discoverability now that there are six
 
 ### Shipped (autoship)
+- [x] Quick-chips: click-to-page chevrons on the faded overflow edges (pure pageScrollTarget, 80% page overlap + clamp; chevrons toggle in lockstep with their fade, smooth scroll) — `2b2ee6b`
+- [x] Lightbox: windowed "…" edge cues become PAGE buttons (pure dotStripPageTarget steps the active image one window-width + clamps, null at a dead edge) — `19a00c0`
+- [x] Cheatsheet: ArrowDown from the filter steps focus into the surviving rows (pure cheatsheetRowNav roving model; up-off-top returns to input, accent focus ring) — `d0a49b4`
+- [x] Detail: warm "captured <relative>" breadcrumb under the timestamp (pure captureRelative reuses the is:today/thisweek/thismonth predicates; "" for older clips) — `890a142`
+- [x] Settings: density preview gains a leading pinned-tier stub row (.clip.pinned parity: sweep gradient + filled pin glyph, tightening at compact) — `f564a4e`
 - [x] Search: `is:thismonth` / `is:lastmonth` operators + quick-chips (local calendar month, SUPERSET of week/day; lastmonth tiles against thismonth) — `06b8b7c`
 - [x] Empty-state: widen `is:thisweek` -> "Widen to this month" (widen-bucket gains a 2nd rung + data-driven fromLabel) — `2cf0254`
 - [x] Cheatsheet: live "N of M" match-count badge on the filter input (clamped, "No matches" at zero) — `91e2ced`
@@ -893,6 +898,32 @@ touched so no one area dominates.
 
 <!-- TICKS BELOW -->
 
+- **2026-06-27 10:47 PT** — 5/5 shipped (frontend UX, five distinct
+  surfaces: settings / detail / cheatsheet / lightbox / quick-chips).
+  Deliberately spread so no cluster dominates; four new pure lib modules,
+  27 headless assertions all green; tsc + chrome/firefox build clean.
+  (1) `f564a4e` settings density preview gains a leading PINNED stub row —
+  density-preview.ts adds `pinned?` (distinct from `selected`); mirrors
+  the live list's `.clip.pinned` (accent-soft sweep gradient + filled pin
+  glyph), both tightening with the row at compact, so the swatch now
+  covers the pinned-tier look at each grain, not just resting/selected/
+  image. (2) `890a142` detail "captured <relative>" breadcrumb — new pure
+  lib/capture-relative.captureRelative reuses the is:today/thisweek/
+  thismonth predicates (today→just-now/earlier-today, yesterday, earlier
+  this week, last week, earlier this month, last month; "" for older →
+  breadcrumb hidden); narrowest-bucket-first so a morning clip reads
+  "earlier today"; muted accent subtitle under the exact datetime.
+  (3) `d0a49b4` cheatsheet ArrowDown from filter → roving row focus — new
+  pure lib/cheatsheet-nav.cheatsheetRowNav (down-from-input→row0, down/up
+  rove, up-off-top→input, no-wrap at bottom, stale-index re-enters top,
+  empty-set no-op); rows take tabindex=-1 on demand, accent focus ring.
+  (4) `19a00c0` lightbox windowed "…" edge cues become PAGE buttons — new
+  pure lib/lightbox-dots.dotStripPageTarget steps the active image one
+  window-width and clamps, null at a dead edge; cues now real buttons with
+  hover/focus + aria-label. (5) `2b2ee6b` quick-chips click-to-page
+  chevrons on the faded overflow edges — new pure lib/scroll-shadow.
+  pageScrollTarget (80% page overlap, clamped); chevrons show in lockstep
+  with their fade, wrap div positions them over the edges, smooth scroll.
 - **2026-06-26 09:54 PT** — 5/5 shipped (frontend UX, fresh surfaces).
   Five DISTINCT surfaces (image-viewer / list-selection / search grammar
   / bulk-export / list-selection), each closing an open follow-up from
