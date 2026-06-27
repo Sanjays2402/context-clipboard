@@ -499,6 +499,19 @@ dominated the last several ticks. These are orthogonal UX gaps.
 - [ ] Detail wrap-around: a settings toggle to opt OUT of wrap (restore the dead-end) for users who rely on the disabled-button edge cue
 - [ ] Focus breadcrumb selection tail: when selection extends beyond the visible filter window, distinguish "N selected (M visible)" so the keyboard user knows the off-screen overflow
 
+### TICK LOG 2026-06-27 02:09 PT — 5/5 shipped (frontend UX, calendar + discoverability)
+Pushed the calendar buckets up to the WEEK grain, gave an empty day a
+real way out, and made two long surfaces (the cheatsheet, the density
+swatch) tell the truth. Orthogonal spread across search, empty-state,
+cheatsheet, and settings.
+- `36bf541` Search: `is:thisweek` operator + "This week" quick-chip — the next grain up from today/yesterday. lib/today-filter WEEK_START_DAY (single locale flip-point, Monday/ISO) + localWeekStart/localWeekEnd/isThisWeek, DST-safe. SUPERSET of the day buckets, so its chip count is independent (not an else-if remainder) and the chip only shows when thisWeekCount > todayCount. Parser threshold at parse time; applyQuery + describeQuery + Cmd+K + empty-state + cheatsheet. 22/22 thisweek-filter sanity.
+- `27867de` Search: `is:lastweek` operator + "Last week" quick-chip — companion to thisweek, bounded both ends so it tiles against this-week with no overlap (a clip is in exactly one of {older, last-week, this-week}). lib/today-filter localLastWeekStart + isLastWeek (mutually exclusive with isThisWeek by sharing the this-week-Monday boundary). 21/21 lastweek-filter sanity.
+- `d350f42` Empty-state: "Widen to this week" chip when a lone day bucket (is:today/is:yesterday) matches nothing — a wider net, not a different operator. New pure lib/widen-bucket: widenSuggestion gates the offer to EXACTLY a day-bucket query (a compound "is:today host:x" is left alone so the host constraint can't silently drop), case-insensitive, returns rewritten query + label. data-act=widen-bucket click adopts it verbatim. 22/22 widen-bucket sanity.
+- `6d2b784` Cheatsheet: live shortcut-filter input — six groups / ~30 rows had grown into a wall. Type "lock" and only matching rows survive, empty groups (heading + rows) hide, a centered "no matches" note shows when nothing fits. Pure lib/cheatsheet-filter cheatsheetRowMatches (case-insensitive substring over "<keys> <description>"). Opens cleared + focused; `?`-to-close suppressed while the input is focused (Esc always closes). 18/18 cheatsheet-filter sanity.
+- `8d8cb22` Settings: image stub row in the density preview — the swatch showed text-row tightening but not the thumb-shrink (42->28px) compact buys for screenshot-heavy users. A 4th IMAGE stub (image:true) leads with a thumb the CSS shrinks at compact, mirroring the real list's body.compact-rows .clip .thumb. 15/15 density-preview sanity.
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 480.5KB). 98/98 new-feature sanity (22+21+22+18+15) pass. Pushed 931d5a2..8d8cb22.
+Deferred: none — all 5 are solid, demoable, revertible slices.
+
 ### TICK LOG 2026-06-26 20:16 PT — 5/5 shipped (frontend UX, fresh surfaces)
 Calendar buckets, long-run viewer polish, an export receipt, a settings
 preview, and viewer discoverability — orthogonal to recent ticks.
@@ -611,22 +624,50 @@ ticks where possible. Image-viewer, list, settings, search, detail UX gaps.
 - [ ] Quick-chip "Today" active: suppress the redundant "Today" day-group divider (the whole list IS today) to save a row
 - [ ] Lightbox dot-strip windowed: clicking a "…" edge cue pages the band one window in that direction (currently the ellipsis is a passive cue)
 - [ ] Lightbox download: settings toggle for the filename stem (bare timestamp vs product-prefixed name)
-- [ ] Search: `is:thisweek` / `is:lastweek` calendar buckets (local week, Monday or Sunday start per locale) — the next grain up from today/yesterday
+- [x] Search: `is:thisweek` / `is:lastweek` calendar buckets (local week, Monday start) — `36bf541` + `27867de`
 - [ ] Day-group dividers: a "This week" / "Last week" / "Earlier" coarse grouping option for the older tail (currently every older day gets its own divider)
 - [ ] Bulk-bar: byte-total on the "Copy selected" pre-commit hover too (the toast has chars; the export now has bytes — unify so copy hover shows both char + byte weight)
 - [ ] Settings: group copy/export prefs (bulk-md separator, density preview) under a "Display & export" subheading so the panel stays scannable as previews accrue
-- [ ] Settings density preview: a 4th stub row that's an IMAGE clip (thumb) so the compact thumb-shrink (42->28px) is visible in the swatch, not just the text-row tightening
+- [x] Settings density preview: a 4th stub row that's an IMAGE clip (thumb) so the compact thumb-shrink (42->28px) is visible in the swatch, not just the text-row tightening — `8d8cb22`
 - [ ] Detail: "Copy line N" gutter affordance for multi-line clips — click a line number to copy just that line (long-standing open item, real workflow)
 - [ ] Search: recent-searches dropdown on focus (show last 5 even before typing, like a browser address bar) — long-standing open item
 - [ ] Lightbox: a thin filmstrip of actual thumbnails (not just dots) for image runs, windowed the same way — richer than dots for picking a specific screenshot
-- [ ] Empty-state: when `is:yesterday` (or any calendar bucket) matches nothing, offer a one-tap "widen to this week" chip instead of the generic operator list
-- [ ] Cheatsheet: a live "search operator" filter input at the top so a user can type "lock" and see only the matching shortcut rows (the group is getting long)
+- [x] Empty-state: when `is:yesterday` (or any calendar bucket) matches nothing, offer a one-tap "widen to this week" chip instead of the generic operator list — `d350f42`
+- [x] Cheatsheet: a live "search operator" filter input at the top so a user can type "lock" and see only the matching shortcut rows (the group is getting long) — `6d2b784`
 - [ ] Detail tag chips: drag-to-reorder auto-scroll when dragging past the row's right edge (long tag lists overflow + clip) — recurring real gap
 - [ ] Quick-chips: clicking a faded scroll-shadow edge (or a chevron) scrolls the strip one page in that direction — recurring
 
 
 
+### New (added this tick — 2026-06-27 02:09 PT refill, FRESH frontend)
+Calendar buckets now reach the week grain (today/yesterday/thisweek/
+lastweek). These are orthogonal UX gaps across list, lightbox, settings,
+detail, and the new week buckets — deliberately spread so no one cluster
+dominates.
+- [ ] Day-group dividers: coarse "This week" / "Last week" / "Earlier" grouping for the older tail (one divider per bucket instead of one per day) — pairs naturally with the new week operators
+- [ ] Search: `is:thismonth` / `is:lastmonth` — the next grain up from the week buckets (local calendar month, same parse-time-threshold pattern); also extends widen-bucket's WIDEN_MAP (week -> month)
+- [ ] Empty-state widen: when `is:thisweek` matches nothing, offer "Widen to last week" (or once month ships, "this month") — extend WIDEN_MAP beyond the day buckets
+- [ ] Quick-chip "Today" active: suppress the redundant "Today" day-group divider (the whole list IS today) to save a row — recurring, still open
+- [ ] Lightbox dot-strip windowed: clicking a "…" edge cue pages the band one window in that direction (currently the ellipsis is a passive cue) — recurring
+- [ ] Lightbox: a thin filmstrip of actual thumbnails (not just dots) for image runs, windowed the same way — richer than dots for picking a specific screenshot
+- [ ] Lightbox download: settings toggle for the filename stem (bare timestamp vs product-prefixed name) — recurring
+- [ ] Settings: group copy/export prefs (bulk-md separator, density preview) under a "Display & export" subheading so the panel stays scannable as previews accrue — recurring
+- [ ] Detail: "Copy line N" gutter affordance for multi-line clips — click a line number to copy just that line — long-standing, real workflow
+- [ ] Search: recent-searches dropdown on focus (show last 5 even before typing, like a browser address bar) — long-standing
+- [ ] Bulk-bar: byte-total on the "Copy selected" pre-commit hover too (toast has chars; export now has bytes — unify so copy hover shows both char + byte weight)
+- [ ] Cheatsheet: keyboard focus into the filtered list — ArrowDown from the filter input moves a highlight through the surviving rows (the filter input is focused on open; give it a down-arrow exit into the results)
+- [ ] Cheatsheet: show a live match-count next to the filter ("6 of 31") so the user knows how aggressively their query narrowed
+- [ ] Detail tag chips: drag-to-reorder auto-scroll when dragging past the row's right edge (long tag lists overflow + clip) — recurring
+- [ ] Quick-chips: clicking a faded scroll-shadow edge (or a chevron) scrolls the strip one page in that direction — recurring
+- [ ] Density preview: a per-row "selected" accent on one stub row so the swatch also shows how the active/selected highlight reads at each density (keyboard-nav users care about this contrast)
+- [ ] Settings: a "compact starts collapsed" toggle for the day-group dividers — at compact density the dividers could default to a thin rule instead of the "Today · 6" badge to save vertical space
+
 ### Shipped (autoship)
+- [x] Search: `is:thisweek` operator + "This week" quick-chip (local calendar week, Monday start, SUPERSET of today/yesterday) — `36bf541`
+- [x] Search: `is:lastweek` operator + "Last week" quick-chip (previous local week, tiles against this-week) — `27867de`
+- [x] Empty-state: "Widen to this week" chip when a lone day bucket (is:today/is:yesterday) matches nothing — `d350f42`
+- [x] Cheatsheet: live shortcut-filter input (hides non-matching rows + empty groups, "no matches" note) — `6d2b784`
+- [x] Settings: image stub row in the density preview shows the compact thumb-shrink (42->28px) — `8d8cb22`
 - [x] Search: `is:yesterday` operator + "Yesterday" quick-chip (previous local calendar day, tiles against is:today) — `0cfc3eb`
 - [x] Lightbox: window the position dot-strip for long runs (sliding ~15-dot band + "…" edges + "N of M" count) — `1f574c8`
 - [x] Bulk-bar: byte-size receipt on the Export-selected JSON toast (pre/post parity with copy receipts) — `e204cb1`
