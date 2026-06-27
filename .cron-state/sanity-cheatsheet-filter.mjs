@@ -12,6 +12,9 @@
 //   3. operator-style needles (is:) match operator rows.
 //   4. non-match returns false; nullish row never matches a real needle.
 //   5. row-text normalisation collapses layout whitespace.
+//   6. the new per-operator Calendar buckets + Lifecycle rows each match
+//      their own operator (the dense cram-row was split into one row per
+//      bucket so each is independently findable).
 
 function normaliseCheatFilter(query) {
   if (typeof query !== "string") return "";
@@ -40,7 +43,13 @@ function ck(n, g, w) {
 // A representative row as the popup sees it (textContent concatenates
 // the <kbd> glyphs + the <span> description, with layout whitespace).
 const lockRow = "P\n            Pin / unpin active";
-const weekRow = "is:today · is:yesterday · is:thisweek · is:lastweek\n   local calendar day / week buckets";
+// Calendar buckets are now ONE row per operator (the old cram-row split).
+const todayRow = "is:today\n            since local midnight";
+const thisWeekRow = "is:thisweek\n            this local week (Mon start)";
+const lastMonthRow = "is:lastmonth\n            the previous calendar month";
+// Lifecycle group rows.
+const expiredRow = "is:expired\n            past due — about to be purged";
+const notedRow = "is:noted\n            carries a note · is:nonoted inverts";
 const imageRow = "Enter / Space\n  Open image in lightbox";
 
 // 1. filter off
@@ -55,9 +64,9 @@ ck("'unpin' matches", cheatsheetRowMatches(lockRow, "unpin"), true);
 ck("'image' matches the lightbox row", cheatsheetRowMatches(imageRow, "image"), true);
 
 // 3. operator-style needles
-ck("'is:' matches an operator row", cheatsheetRowMatches(weekRow, "is:"), true);
-ck("'is:thisweek' matches the week row", cheatsheetRowMatches(weekRow, "is:thisweek"), true);
-ck("'week' matches the week row", cheatsheetRowMatches(weekRow, "week"), true);
+ck("'is:' matches an operator row", cheatsheetRowMatches(thisWeekRow, "is:"), true);
+ck("'is:thisweek' matches the week row", cheatsheetRowMatches(thisWeekRow, "is:thisweek"), true);
+ck("'week' matches the week row", cheatsheetRowMatches(thisWeekRow, "week"), true);
 
 // 4. non-match
 ck("'redact' does NOT match the Pin row", cheatsheetRowMatches(lockRow, "redact"), false);
@@ -71,5 +80,20 @@ ck("row text collapses whitespace", cheatsheetRowText(lockRow), "p pin / unpin a
 ck("normalise trims + lowercases", normaliseCheatFilter("  Lock  "), "lock");
 ck("normalise of non-string -> empty", normaliseCheatFilter(42), "");
 
+// 6. each split calendar/lifecycle row is independently findable
+ck("'is:today' finds the today row", cheatsheetRowMatches(todayRow, "is:today"), true);
+ck("'midnight' finds the today row by description", cheatsheetRowMatches(todayRow, "midnight"), true);
+ck("'is:lastmonth' finds the last-month row", cheatsheetRowMatches(lastMonthRow, "is:lastmonth"), true);
+// "is:today" must NOT bleed into "is:thisweek" (substring isolation —
+// the old single cram-row matched ALL six on any one needle).
+ck("'is:lastmonth' does NOT match the today row", cheatsheetRowMatches(todayRow, "is:lastmonth"), false);
+ck("'is:thisweek' does NOT match the last-month row", cheatsheetRowMatches(lastMonthRow, "is:thisweek"), false);
+// Lifecycle rows.
+ck("'is:expired' finds the expired row", cheatsheetRowMatches(expiredRow, "is:expired"), true);
+ck("'purged' finds the expired row by description", cheatsheetRowMatches(expiredRow, "purged"), true);
+ck("'is:nonoted' finds the noted row (inverse named in desc)", cheatsheetRowMatches(notedRow, "is:nonoted"), true);
+ck("'expired' does NOT match the noted row", cheatsheetRowMatches(notedRow, "expired"), false);
+
 console.log(`cheatsheet-filter sanity: ${p}/${t} passed`);
 if (p !== t) process.exit(1);
+

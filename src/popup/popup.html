@@ -606,11 +606,27 @@
             <div class="cheatsheet-row"><kbd>kind:image</kbd><span>image / text / link</span></div>
             <div class="cheatsheet-row"><kbd>host:github.com</kbd><span>match exact host</span></div>
             <div class="cheatsheet-row"><kbd>tag:code</kbd><span>repeat to AND tags</span></div>
-            <div class="cheatsheet-row"><kbd>is:pinned</kbd><span>pinned / redacted / ocr / template / expiring / expired / archived</span></div>
-            <div class="cheatsheet-row"><kbd>is:today</kbd> · <kbd>is:yesterday</kbd> · <kbd>is:thisweek</kbd> · <kbd>is:lastweek</kbd> · <kbd>is:thismonth</kbd> · <kbd>is:lastmonth</kbd><span>local calendar day / week / month buckets</span></div>
+            <div class="cheatsheet-row"><kbd>is:pinned</kbd><span>pinned / redacted / ocr / archived</span></div>
             <div class="cheatsheet-row"><kbd>after:24h</kbd><span>last 24h (units: s/m/h/d/w)</span></div>
             <div class="cheatsheet-row"><kbd>before:7d</kbd><span>older than 7d</span></div>
             <div class="cheatsheet-row"><kbd>g github</kbd><span>jump to first github clip (Enter)</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>Calendar buckets</h4>
+            <div class="cheatsheet-row"><kbd>is:today</kbd><span>since local midnight</span></div>
+            <div class="cheatsheet-row"><kbd>is:yesterday</kbd><span>the previous local day</span></div>
+            <div class="cheatsheet-row"><kbd>is:thisweek</kbd><span>this local week (Mon start)</span></div>
+            <div class="cheatsheet-row"><kbd>is:lastweek</kbd><span>the previous local week</span></div>
+            <div class="cheatsheet-row"><kbd>is:thismonth</kbd><span>this local calendar month</span></div>
+            <div class="cheatsheet-row"><kbd>is:lastmonth</kbd><span>the previous calendar month</span></div>
+          </div>
+          <div class="cheatsheet-group">
+            <h4>Lifecycle &amp; TTL</h4>
+            <div class="cheatsheet-row"><kbd>is:expiring</kbd><span>has a TTL set (any deadline)</span></div>
+            <div class="cheatsheet-row"><kbd>is:expired</kbd><span>past due — about to be purged</span></div>
+            <div class="cheatsheet-row"><kbd>is:template</kbd><span>has {{tokens}} · is:notemplate inverts</span></div>
+            <div class="cheatsheet-row"><kbd>is:locked</kbd><span>confirm-before-delete · is:unlocked inverts</span></div>
+            <div class="cheatsheet-row"><kbd>is:noted</kbd><span>carries a note · is:nonoted inverts</span></div>
           </div>
           <div id="cheatsheet-no-match" class="cheatsheet-no-match" hidden>No shortcuts match that filter.</div>
         </div>
