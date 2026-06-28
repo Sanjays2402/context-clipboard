@@ -11,6 +11,14 @@
  * there is actively wrong: it frames a clean bill of health as a failed
  * search and buries the reassurance under a list of unrelated operators.
  *
+ * `is:expiring` — the parent TTL operator (every clip carrying a deadline,
+ * not just the already-past-due subset) — belongs to the same family. An
+ * empty `is:expiring` means nothing is on a countdown to deletion at all,
+ * which is the calmer end of the same "what's scheduled to vanish?" axis.
+ * So the all-clear treatment covers BOTH TTL operators, with copy tuned to
+ * each (`is:expired` -> "nothing past due"; `is:expiring` -> "nothing on a
+ * timer"), rather than only the past-due tail.
+ *
  * This module is the pure decision behind a calmer empty state: from the
  * raw search box value, it decides whether the query is a lone operator
  * whose emptiness is REASSURING and, if so, returns a warm headline +
@@ -55,6 +63,14 @@ const REASSURANCE_MAP: ReadonlyArray<{
     op: "is:expired",
     headline: "Nothing past due",
     subtext: "No clips have lapsed their TTL — nothing's about to be swept.",
+  },
+  {
+    // The parent TTL operator: every clip carrying a deadline, not just the
+    // past-due subset. Empty here is the calmer all-clear — nothing's even
+    // on a countdown — distinct from is:expired's "nothing's past due yet".
+    op: "is:expiring",
+    headline: "Nothing on a timer",
+    subtext: "No clips have a TTL set — nothing's scheduled to expire.",
   },
 ];
 
