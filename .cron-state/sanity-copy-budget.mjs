@@ -15,6 +15,7 @@ const {
   BULK_COPY_BUDGET_BYTES,
   exceedsCopyBudget,
   appendCopyBudgetWarning,
+  appendCopyBudgetTitleWarning,
   planBulkCopy,
   formatBulkCopyToast,
 } = await import(pathToFileURL(out).href);
@@ -93,6 +94,17 @@ eq(
   formatBulkCopyToast(smallPlan),
   "small real-plan toast unchanged",
 );
+
+// --- title variant: unchanged within budget, warned over ---
+eq(appendCopyBudgetTitleWarning("Copy 3 clips as text (500 chars)", 500), "Copy 3 clips as text (500 chars)", "title within budget -> unchanged");
+eq(appendCopyBudgetTitleWarning("Copy 3 clips", MIB), "Copy 3 clips", "title at budget -> unchanged (not over)");
+const warnedTitle = appendCopyBudgetTitleWarning("Copy 3 clips", Math.round(1.4 * MIB));
+ok(warnedTitle.startsWith("Copy 3 clips"), "title warning keeps the original tooltip");
+ok(/over 1 MB/.test(warnedTitle), "title warning names the budget breach");
+ok(/1\.4 MB/.test(warnedTitle), "title warning shows the size (formatCopyBytes)");
+ok(/truncate/.test(warnedTitle), "title warning mentions truncation risk");
+// defensive: NaN never warns the title either
+eq(appendCopyBudgetTitleWarning("Copy", NaN), "Copy", "title NaN -> unchanged");
 
 rmSync(dir, { recursive: true, force: true });
 console.log(`copy-budget sanity: ${pass}/${pass + fail} pass`);

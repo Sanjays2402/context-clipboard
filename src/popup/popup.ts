@@ -192,6 +192,7 @@ import {
   formatBulkCopyToast,
   formatBulkCopyButtonTitle,
   appendCopyBudgetWarning,
+  appendCopyBudgetTitleWarning,
 } from "../lib/bulk-clipboard";
 import {
   planBulkMarkdown,
@@ -11496,11 +11497,14 @@ function updateBulkBar(): void {
   // click handler does its own authoritative read over the FULL
   // selection at fire time, so the toast count stays truthful even
   // when the selection extends past the filter window.
-  bulkCopy.title = formatBulkCopyButtonTitle(planBulkCopy(visibleSelected));
+  const copyPlan = planBulkCopy(visibleSelected);
+  bulkCopy.title = appendCopyBudgetTitleWarning(formatBulkCopyButtonTitle(copyPlan), copyPlan.bytes);
   // Bulk-copy-as-Markdown title — same visible-slice contract as the
   // plain copy button; the click handler reads the full selection at
   // fire time so the toast count stays truthful past the filter window.
-  bulkCopyMd.title = formatBulkMarkdownButtonTitle(planBulkMarkdown(visibleSelected));
+  // Same >1MB pre-commit hint as plain Copy so both buttons warn on hover.
+  const mdPlan = planBulkMarkdown(visibleSelected);
+  bulkCopyMd.title = appendCopyBudgetTitleWarning(formatBulkMarkdownButtonTitle(mdPlan), mdPlan.bytes);
   // Lock button title — adapts to the selection's current lock-state
   // distribution so a hover reveals what the click will do BEFORE
   // the user commits to it. Counts run over the FULL selection

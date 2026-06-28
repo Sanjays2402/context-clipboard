@@ -273,3 +273,20 @@ export function appendCopyBudgetWarning(message: string, bytes: number): string 
   if (!exceedsCopyBudget(bytes)) return message;
   return `${message} \u2014 large paste (${formatCopyBytes(bytes)}); some targets may truncate`;
 }
+
+/**
+ * Pre-commit byte-budget heads-up for the bulk Copy / Copy-as-Markdown
+ * HOVER. The toast warns AFTER the copy lands; this lets the button title
+ * warn BEFORE: when the visible payload is over budget, a tail names the
+ * size so the user sees a clipped paste coming before they commit. Within
+ * budget the title is returned unchanged (no hover noise on a normal
+ * selection). Title-phrased ("· over 1 MB …") so it reads as a tooltip,
+ * not a completed-action receipt; uses the same formatCopyBytes + budget
+ * gate as the toast so the hover and the post-copy receipt agree. Generic
+ * over the title STRING so it layers onto either copy button's title
+ * helper from one place, leaving those formatters untouched.
+ */
+export function appendCopyBudgetTitleWarning(title: string, bytes: number): string {
+  if (!exceedsCopyBudget(bytes)) return title;
+  return `${title} \u00b7 over 1 MB (${formatCopyBytes(bytes)}) \u2014 some targets may truncate`;
+}
