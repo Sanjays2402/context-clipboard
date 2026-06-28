@@ -6390,10 +6390,18 @@ function refreshNoteWarnBanner(): void {
   if (!banner.flagged) {
     noteWarnRow.hidden = true;
     noteWarnBannerEl.textContent = "";
+    // Clear the textarea border echo so a plain draft reads neutral.
+    noteText.classList.remove("note-flagged");
     return;
   }
   noteWarnRow.hidden = false;
   noteWarnBannerEl.textContent = banner.text;
+  // Echo the caution on the textarea border itself — the banner names the
+  // keyword, but a soft-red border edge reinforces "this note is flagged"
+  // in the user's peripheral vision while they keep typing, without forcing
+  // a re-read of the banner. Same warm-red palette the banner + the palette
+  // tint use, so the whole caution signal reads as one system.
+  noteText.classList.add("note-flagged");
 }
 
 /**

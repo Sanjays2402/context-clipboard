@@ -5687,6 +5687,16 @@ button.audit-row.jumpable:focus-visible {
 .note-composer-text::placeholder {
   color: var(--muted);
 }
+/* Caution border echo — when the draft trips a warning keyword (the
+ * .note-warn-row banner is showing), the textarea's own bottom border
+ * goes soft-red so the "this note is flagged" signal sits at the point of
+ * authoring, in peripheral vision, without forcing a re-read of the
+ * banner. Same warm-red the banner + the palette tint use, so the caution
+ * reads as one system. Toggled by refreshNoteWarnBanner via .note-flagged;
+ * a plain draft drops the class and reads neutral. */
+.note-composer-text.note-flagged {
+  border-bottom-color: rgba(229, 83, 75, 0.55);
+}
 
 /* Live {{token}} counter pill — appears under the textarea whenever the
  * body contains at least one valid template placeholder. Hidden via
