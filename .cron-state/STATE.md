@@ -520,24 +520,59 @@ this tick's slices opened or touched, plus untouched long-standing gaps.
 - [x] Note-composer: a char-count tail like the detail note editor has (the composer has the token pill + warn banner but no length readout vs the 2,000 cap) — `86d2d18`
 
 
+### TICK LOG 2026-06-28 09:10 PT — 5/5 shipped (frontend UX, weight parity + runway cues + discoverability)
+Closed five loops the 02:52 tick's follow-up list opened, each on a
+distinct surface — search, detail breadcrumb, note-composer, trash,
+cheatsheet. Every slice is a pure-module change (or a thin HTML/CSS
+addition) plus a thin wire; two slices UNIFIED a drifted second surface
+onto the shared helper (the content-stats md/plain byte parity; the
+note-count ratio drives both the bar AND the counter colour).
+- `66d648f` Search: `is:expiring` empty-state reassurance. is:expired already shows a warm "Nothing past due" all-clear instead of the operator wall when empty; is:expiring — the PARENT TTL operator (every clip on a countdown, not just past-due) — is the calmer end of the same axis: empty means nothing's even on a timer. Extend lib/empty-reassurance's REASSURANCE_MAP with an is:expiring row carrying its own copy ("Nothing on a timer" / "No clips have a TTL set"). Same conservative lone-operator gate; popup renders reassurance data-driven so ZERO wiring change. 24/24 sanity-empty-reassurance (both ops, distinct copy, compound rejection).
+- `a1661e1` Detail: tail a UTF-8 byte figure onto the content-stats breadcrumb. The breadcrumb answered "how long?" (chars/words/lines) but not "how heavy?" — and the Send-to "Copy weight" row already shows bytes, so the two told different stories. Append a byte segment ("… · 1.2 KB") via the SAME utf8ByteLength + formatCopyBytes the weight row + bulk receipts use, so every weight figure in the UI now agrees. MD variant bolds only the figure ("**1.2** KB") so strip-the-** == plain-line parity holds. Converted sanity-content-stats from inline copies to bundling the REAL module (kills drift). 74/74.
+- `49194b5` Note-composer: progress-bar runway gauge. The char counter turns amber/red but the number is easy to skim past while typing. A slim bar under the tag suggestions fills as the draft nears the 2,000 cap — you SEE it creep toward full before the counter changes colour. Add a clamped `ratio` (length/cap, [0,1]) to the shared lib/note-count state so the bar width, counter colour, AND number all derive from one verdict; the bar carries the same tier class so its fill steps muted->amber->red in lock-step. Hidden for empty drafts, reduced-motion aware. 45/45 sanity-note-near-cap (was 28; ratio fractions + clamp + [0,1] sweep).
+- `448b5a5` Trash: absolute purge-clock tooltip on the retention tail. The tail reads a relative runway ("4h left") but never the clock time it actually goes away. New pure formatTrashPurgeTitle derives the tooltip from the SAME deadline the countdown uses ("Purges after 4:32 PM", + date cross-day); past-due rows get "Past due — sweeps at the next capture" not a stale clock (honest about the GC being opportunistic). Clock format mirrors the detail TTL banner. Wired as a title attr on .trash-ttl. 43/43 sanity-trash-ttl (was 35; bundles the REAL module, asserts against the runtime's own Intl output for locale-safety).
+- `ff1f314` Cheatsheet: "In settings" group. The settings panel grew (export/import, density, per-site rules, privacy audit, blur previews) but the `?` sheet had ZERO coverage. Document the six surfaces as flat .cheat-act pills (the non-keystroke style the Bulk group uses); the live filter + roving focus pick them up free. HTML-only (.cheat-act CSS already ships). 22/22 sanity-cheatsheet-settings parses the REAL popup.html AND verifies each documented feature actually exists (no phantom entries).
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 505.8KB, bg 48.0KB, content 31.2KB). 208/208 new/touched sanity (24+74+45+43+22). Neighbour regression green: clip-weight 22/22, send-to 144/144, json-line 45/45, cheatsheet-bulk 22/22, cheatsheet-filter 27/27. Pushed 8c45039..ff1f314.
+Deferred: none — all 5 are solid, demoable, revertible slices.
+
+### New (added this tick — 2026-06-28 09:10 PT refill, FRESH frontend)
+Follow-ups the loops this tick opened, plus orthogonal gaps. Spread across
+note-composer, detail send-to, content-stats, trash, cheatsheet, search,
+settings — deliberately keeping no single surface dominant.
+- [ ] Note-composer: the new progress bar could carry a tiny inline tick-mark at the 90% (amber) threshold so the user sees WHERE "getting close" begins, not just that the fill changed colour
+- [ ] Detail send-to weight row: include word count too ("198 words · 1,240 chars · 1.2 KB") so the single-clip weight matches the content-stats triple now that the breadcrumb tails bytes
+- [ ] Detail send-to: a "Copy weight as Markdown" variant ("**1,240** chars · **1.2 KB**") mirroring the content-stats Markdown stat-line — now trivial since byteSegment(bold) exists
+- [ ] Search: `is:archived` empty-reassurance ("Nothing archived yet") — extend REASSURANCE_MAP a third entry so the all-clear family covers the archive view too (currently archive has its own bespoke empty copy; unify onto the shared map)
+- [ ] Trash: surface the absolute purge-clock in the row's MAIN title too (the row-level recapture tooltip wins on hover outside the tail; a user hovering the preview never sees the purge time)
+- [ ] Cheatsheet `.cheat-act` token: a "Detail header" group naming the icon-only action glyphs (Redact / Scrub / Archive / Send / Lock / Pin) so the unlabelled buttons get discovered
+- [ ] Note-composer: when the warn banner shows, tint the textarea border soft-red too (the banner names the keyword; a border echo reinforces "flagged" without re-reading)
+- [ ] Settings: a live preview of the note caution-keyword tint (stub note row + its warm tint) so users see what triggers a flag before writing one
+- [ ] Bulk-bar: "Copy selected" byte-budget warning toast when the payload exceeds ~1MB (both copy plans carry the bytes field) — some paste targets choke
+- [ ] Bulk-bar: byte-budget hint on the Copy-as-Markdown hover too (the MD plan carries bytes; the >1MB warning should cover both copy paths)
+- [ ] Trash: a "Purge expired-TTL clips" quick action (mirror of Purge >24h) — clips whose OWN TTL already lapsed are a distinct bucket from old-trash; pairs with the runway sort that floats them
+- [ ] Cheatsheet filter: remember the last filter across opens within a session (currently resets to empty on every `?`) — opt-in, no IDB
+- [ ] Content-stats breadcrumb: clicking it copies "chars · words · lines · bytes" — but the COPY summary now includes bytes; verify the 48-char copy-toast cap still shows the full receipt (it falls back to "Copied stats" past 48 — a longer threshold or a bytes-aware toast may read better)
+- [ ] TTL banner: a settings toggle to opt OUT of the rescue-hint echo on imminent/soon (power users who know pinning pauses TTL may find the repeated cue noisy)
+- [ ] Note-composer near-cap hint: a one-line "approaching the 2,000-char cap" text at the amber threshold (the bar + colour are visual; a word reinforces it for screen-reader users via aria-live)
+
 ### New (added this tick — 2026-06-28 02:52 PT refill, FRESH frontend)
 Follow-ups the loops this tick opened, plus orthogonal gaps. Spread across
 note-composer, detail send-to, bulk-bar, cheatsheet, settings, search, trash.
 - [ ] Note-composer + detail note: now that the counter has a `near` tier, surface a one-line "approaching the 2,000-char cap" hint under the textarea at the amber threshold (the colour change is subtle; a word reinforces it)
 - [ ] Detail send-to: a "Copy weight as Markdown" variant (`**1,240** chars · **1.2 KB**`) mirroring the content-stats Markdown stat-line, for doc paste
-- [ ] Detail content-stats breadcrumb: append the byte figure to the existing chars/words/lines line (now that lib/clip-weight computes it) so the at-a-glance breadcrumb and the send-to row agree
+- [x] Detail content-stats breadcrumb: append the byte figure to the existing chars/words/lines line (now that lib/clip-weight computes it) so the at-a-glance breadcrumb and the send-to row agree — `a1661e1`
 - [ ] Bulk-bar: "Copy selected" byte-budget warning toast when the payload exceeds ~1MB (both copy plans already carry the bytes field) — some paste targets choke
-- [ ] Cheatsheet: an "In settings" group (export/import, density, per-site rules, privacy audit) — the settings panel has grown and has zero cheatsheet coverage
+- [x] Cheatsheet: an "In settings" group (export/import, density, per-site rules, privacy audit) — the settings panel has grown and has zero cheatsheet coverage — `ff1f314`
 - [ ] Cheatsheet `.cheat-act` token: reuse it for the detail-header action glyphs (Redact / Scrub / Archive / Send / Lock / Pin) in a "Detail header" group so the icon-only buttons get named
 - [ ] Settings: a live preview of the note caution-keyword tint (stub note row + its warm tint) so users see what triggers a flag before writing one
 - [ ] Note-composer: when the warn banner shows, tint the textarea border soft-red too (the banner names the keyword; a border echo reinforces "flagged" without re-reading)
 - [ ] TTL banner: a settings toggle to opt OUT of the rescue-hint echo on imminent/soon (power users who know pinning pauses TTL may find the repeated cue noisy)
-- [ ] Search: `is:expiring` empty-reassurance ("No clips on a timer") so the all-clear family covers both TTL operators, not just is:expired
-- [ ] Trash row: a relative "purges at <clock>" tooltip on the urgency tail (the tail shows "4h left"; the title could read the absolute GC time)
+- [x] Search: `is:expiring` empty-reassurance ("No clips on a timer") so the all-clear family covers both TTL operators, not just is:expired — `66d648f`
+- [x] Trash row: a relative "purges at <clock>" tooltip on the urgency tail (the tail shows "4h left"; the title could read the absolute GC time) — `448b5a5`
 - [ ] Bulk-bar: byte-budget hint on the Copy-as-Markdown hover too (the MD plan carries bytes; the >1MB warning should cover both copy paths)
 - [ ] Detail send-to weight row: include word count too ("198 words · 1,240 chars · 1.2 KB") so the single-clip weight matches the content-stats triple
 - [ ] Cheatsheet filter: remember the last filter across opens within a session (currently resets to empty on every `?`) — opt-in, no IDB
-- [ ] Note-composer near-cap: a subtle progress bar under the textarea (fills as you approach the cap) for a more visceral runway cue than the number alone
+- [x] Note-composer near-cap: a subtle progress bar under the textarea (fills as you approach the cap) for a more visceral runway cue than the number alone — `49194b5`
 
 ### TICK LOG 2026-06-28 02:52 PT — 5/5 shipped (frontend UX, pre/post parity + discoverability)
 Closed five loops the 21:02 tick's follow-up list opened, each on a
