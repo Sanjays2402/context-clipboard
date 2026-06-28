@@ -241,6 +241,7 @@ import {
   formatBulkExportToast,
   filterClipsByTag,
   formatBulkExportTagToast,
+  formatBulkExportButtonTitle,
   utf8ByteLength,
 } from "../lib/bulk-export";
 import {
@@ -11529,6 +11530,23 @@ function updateBulkBar(): void {
         ? `${label} · ${visibleSelected.length} of ${selectedIds.size} shown`
         : label;
   }
+  // Export-button hover: pre-commit byte receipt mirroring the post-
+  // export toast, closing the pre/post parity loop the COPY buttons
+  // already have. Serialize the VISIBLE selection (tag-filtered to match
+  // the live input, exactly as the click handler does) once via the SAME
+  // bulkExportJson + utf8ByteLength the click uses, so the hover promises
+  // exactly what a click would write. Falls back gracefully when the tag
+  // filters everything out (count 0 → "No selected clips tagged …").
+  const exportTag = bulkExportTag.value.trim();
+  const exportClips = exportTag
+    ? filterClipsByTag(visibleSelected, exportTag)
+    : visibleSelected;
+  const exportJson = bulkExportJson(exportClips, { version: 4 });
+  bulkExport.title = formatBulkExportButtonTitle({
+    count: exportClips.length,
+    bytes: exportJson ? utf8ByteLength(exportJson) : 0,
+    tag: exportTag,
+  });
 }
 
 function toggleSelected(id: string): void {
@@ -12145,6 +12163,12 @@ bulkExport.addEventListener("click", async () => {
     toast(e instanceof Error ? e.message : "Export failed", "error");
   }
 });
+
+// Live-refresh the bulk-bar so the Export button's hover title (clip
+// count + byte size + the tagged-filter grammar) tracks the tag input as
+// the user types — same pre/post parity the copy buttons have. Cheap: the
+// updateBulkBar serialization runs only over the VISIBLE selection.
+bulkExportTag.addEventListener("input", () => updateBulkBar());
 
 // Init ------------------------------------------------------------------
 (async () => {

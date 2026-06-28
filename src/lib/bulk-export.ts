@@ -249,6 +249,57 @@ function appendBytesTail(head: string, bytes: number | undefined): string {
 }
 
 /**
+ * Compose the bulk "Export selected" BUTTON hover title — the pre-commit
+ * preview that mirrors the post-export toast's byte receipt, closing the
+ * pre/post parity loop the COPY paths already have (their hover shows the
+ * char + byte figures; export only showed bytes AFTER the download).
+ *
+ * The caller serializes the visible selection (optionally tag-filtered to
+ * match the live input) once and hands us the resulting clip count + the
+ * UTF-8 byte size of that JSON, so the hover promises exactly what a click
+ * would write. Grammar tiers mirror the toast helpers:
+ *
+ *   count > 0, no tag:   "Export 3 selected clips as JSON (4.2 KB)"
+ *   count > 0, with tag: "Export 3 selected clips tagged 'secrets' as JSON (4.2 KB)"
+ *   count 0,   with tag: "No selected clips tagged 'secrets' to export"
+ *   count 0,   no tag:   "Export selected clips as JSON"  (defensive — the
+ *                        bulk bar is hidden at an empty selection)
+ *
+ * The " (<size>)" tail is appended only when a positive byte count is
+ * supplied, so a not-yet-computed / empty serialization reads cleanly
+ * without a "(0 B)" stub. Singular/plural noun grammar matches the toasts.
+ */
+export function formatBulkExportButtonTitle(opts: {
+  count: number;
+  bytes?: number;
+  tag?: string;
+}): string {
+  const count = Math.max(0, Math.floor(Number(opts.count) || 0));
+  const tag = (typeof opts.tag === "string" ? opts.tag : "").trim();
+  if (count === 0) {
+    if (tag) return `No selected clips tagged "${tag}" to export`;
+    return "Export selected clips as JSON";
+  }
+  const noun = count === 1 ? "clip" : "clips";
+  const head = tag
+    ? `Export ${groupThousandsLocal(count)} selected ${noun} tagged "${tag}" as JSON`
+    : `Export ${groupThousandsLocal(count)} selected ${noun} as JSON`;
+  return appendSizeParen(head, opts.bytes);
+}
+
+/**
+ * Append a " (<size>)" parenthetical to the export button title when a
+ * positive byte count is supplied. Parenthetical (not the toast's em-dash
+ * tail) because a button title reads better with the size in parens —
+ * "Export 3 clips as JSON (4.2 KB)". Nullish / zero / non-finite → head
+ * unchanged.
+ */
+function appendSizeParen(head: string, bytes: number | undefined): string {
+  if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes <= 0) return head;
+  return `${head} (${formatExportBytes(bytes)})`;
+}
+
+/**
  * Minimal structural shape for the tag filter — needs id + tags.
  * Kept separate from BulkExportClip so the tag filter can operate
  * on the same selection list without forcing callers to type-narrow.
