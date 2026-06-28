@@ -200,6 +200,7 @@ import { isToday, isYesterday, isThisWeek, isLastWeek, isThisMonth, isLastMonth 
 import { widenSuggestion } from "../lib/widen-bucket";
 import { emptyReassurance } from "../lib/empty-reassurance";
 import { noteWarnBanner } from "../lib/note-warn-banner";
+import { noteCountState } from "../lib/note-count";
 import {
   cheatsheetRowMatches,
   cheatsheetMatchLabel,
@@ -582,6 +583,7 @@ const linkCancelBtn = $<HTMLButtonElement>("link-cancel");
 const noteTemplatePill = $("note-template-pill");
 const noteWarnRow = $("note-warn-row");
 const noteWarnBannerEl = $("note-warn-banner");
+const noteCharCount = $("note-char-count");
 
 // State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
@@ -6278,6 +6280,7 @@ async function openNoteComposer(): Promise<void> {
   await renderNoteTagSuggestions();
   refreshTemplateTokenPill();
   refreshNoteWarnBanner();
+  refreshNoteCharCount();
   noteComposer.hidden = false;
   // After the panel paints — focus the textarea so typing lands there
   // instead of stealing focus from whatever the user just clicked.
@@ -6338,6 +6341,24 @@ function refreshNoteWarnBanner(): void {
   }
   noteWarnRow.hidden = false;
   noteWarnBannerEl.textContent = banner.text;
+}
+
+/**
+ * Repaint the composer's char-counter tail ("N / 2,000").
+ *
+ * Mirrors the detail note editor's counter exactly — same cap, same
+ * units, same over-cap red flag — via the shared lib/note-count helper,
+ * so the two surfaces never disagree on the cap or the formatting. The
+ * composer is where a user is MOST likely to overrun (a fresh, unbounded
+ * note), yet it had no gauge until now; this gives them the same warning
+ * the detail editor shows before the sanitizer silently slices the tail
+ * on save. Runs on every textarea `input` plus once at open so the
+ * prefill / paste / reset paths all paint a truthful count.
+ */
+function refreshNoteCharCount(): void {
+  const state = noteCountState(noteText.value);
+  noteCharCount.textContent = state.label;
+  noteCharCount.classList.toggle("over-cap", state.overCap);
 }
 
 /**
@@ -6519,6 +6540,7 @@ noteText.addEventListener("keydown", (e) => {
 // regex scan is microseconds on a 5-row textarea.
 noteText.addEventListener("input", refreshTemplateTokenPill);
 noteText.addEventListener("input", refreshNoteWarnBanner);
+noteText.addEventListener("input", refreshNoteCharCount);
 noteTagsInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();

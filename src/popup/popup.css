@@ -5796,6 +5796,23 @@ button.audit-row.jumpable:focus-visible {
 .note-composer-pin input {
   accent-color: var(--accent);
 }
+/* Char-counter tail in the composer foot ("N / 2,000"). Mirrors the
+ * detail note editor's .detail-note-count (tabular nums + over-cap red)
+ * so the two length readouts read identically. Muted by default — it's a
+ * passive gauge you glance at while typing — and turns danger-red the
+ * moment the draft exceeds the cap, because the sanitizer slices the tail
+ * on save and the user should see that loss coming. */
+.note-char-count {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.note-char-count.over-cap {
+  color: var(--danger, #e06b6b);
+  font-weight: 600;
+}
 .note-composer-hint {
   flex: 1 1 auto;
   font-size: 10.5px;
