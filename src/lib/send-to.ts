@@ -606,8 +606,8 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       // use) so every weight figure in the UI counts identically. Hidden
       // for images + empty bodies via clipWeightSummary's null gate.
       id: "weight",
-      label: "Copy weight (chars + bytes)",
-      hint: "1,240 chars \u00b7 1.2 KB",
+      label: "Copy weight (chars + words + bytes)",
+      hint: "1,240 chars \u00b7 198 words \u00b7 1.2 KB",
       kind: "copy",
       payload: weight ?? undefined,
       available: !!weight,

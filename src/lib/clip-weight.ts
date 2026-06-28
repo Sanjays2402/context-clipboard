@@ -47,14 +47,25 @@ export interface ClipWeightInput {
 export interface ClipWeight {
   /** Unicode code-point count of the body (matches content-stats chars). */
   chars: number;
+  /**
+   * Whitespace-delimited word count of the body (matches content-stats
+   * words). The detail content-stats breadcrumb tails chars / words /
+   * lines / bytes; the single-clip Send-to weight row showed chars +
+   * bytes only, so the two told different stories about the same clip.
+   * Carrying words here lets the weight summary read the SAME triple the
+   * breadcrumb does (chars / words / bytes — line count is structure, not
+   * weight, so it stays out of the size-oriented row). Same
+   * computeContentStats word count, so the two figures can't drift.
+   */
+  words: number;
   /** UTF-8 byte length of the body (matches the bulk receipts' weight). */
   bytes: number;
 }
 
 /**
- * Compute the chars + bytes weight for a clip body. Returns null for
- * image clips (data-URL content) and for empty / whitespace-only bodies,
- * so the caller hides the Send-to row in exactly those cases.
+ * Compute the chars + words + bytes weight for a clip body. Returns null
+ * for image clips (data-URL content) and for empty / whitespace-only
+ * bodies, so the caller hides the Send-to row in exactly those cases.
  *
  * Defensive against nullish / non-string content (treated as empty →
  * null) so a malformed record never throws inside the menu build.
@@ -64,24 +75,31 @@ export function clipWeight(c: ClipWeightInput | null | undefined): ClipWeight | 
   if (c.kind === "image") return null;
   const body = typeof c.content === "string" ? c.content : "";
   if (body.trim() === "") return null;
-  const { chars } = computeContentStats(body);
-  return { chars, bytes: utf8ByteLength(body) };
+  const { chars, words } = computeContentStats(body);
+  return { chars, words, bytes: utf8ByteLength(body) };
 }
 
 /**
  * Format the copy-weight summary string the Send-to row copies, e.g.
- * "1,240 chars · 1.2 KB". Returns null in the same cases clipWeight does
- * (image, empty, bad input) so the row gates off a single predicate.
+ * "1,240 chars · 198 words · 1.2 KB". Returns null in the same cases
+ * clipWeight does (image, empty, bad input) so the row gates off a single
+ * predicate.
  *
- * The char figure is comma-grouped (en-US, deterministic) to match the
- * content-stats breadcrumb; the byte figure uses formatCopyBytes so it
- * reads identically to the bulk copy + export receipts. The middot
- * separator (\u00b7) matches the content-stats breadcrumb so the single-
- * clip weight and the multi-stat breadcrumb share one visual grammar.
+ * The char + word figures are comma-grouped (en-US, deterministic) to
+ * match the content-stats breadcrumb; the byte figure uses formatCopyBytes
+ * so it reads identically to the bulk copy + export receipts. The order —
+ * chars · words · bytes — mirrors the content-stats breadcrumb (which
+ * leads chars, then words, then drops to lines/bytes) so the single-clip
+ * weight and the multi-stat breadcrumb agree on both the figures AND their
+ * sequence. The line count is intentionally absent: this row answers "how
+ * heavy / how long is this paste?", and a line count is structure, not
+ * size. The middot separator (\u00b7) matches the breadcrumb so the two
+ * share one visual grammar.
  */
 export function clipWeightSummary(c: ClipWeightInput | null | undefined): string | null {
   const w = clipWeight(c);
   if (!w) return null;
   const charPart = `${groupThousands(w.chars)} char${w.chars === 1 ? "" : "s"}`;
-  return `${charPart} \u00b7 ${formatCopyBytes(w.bytes)}`;
+  const wordPart = `${groupThousands(w.words)} word${w.words === 1 ? "" : "s"}`;
+  return `${charPart} \u00b7 ${wordPart} \u00b7 ${formatCopyBytes(w.bytes)}`;
 }
