@@ -101,3 +101,24 @@ export function cheatsheetMatchLabel(
   if (m === 0) return "No matches";
   return `${m} of ${tot}`;
 }
+
+/**
+ * The centered no-match note shown when a filter narrows the sheet to
+ * zero rows. Names the query — "No shortcut matches 'foo'" — so the
+ * empty body tells the user WHAT they searched for came up dry, the way
+ * the clip-list empty-state echoes the missed search, instead of a flat
+ * "No shortcuts match that filter." When the filter is off (empty query)
+ * it returns the generic line — there's no query to name, and the note is
+ * hidden anyway. The query is trimmed for display + length-capped so a
+ * pasted wall of text can't blow out the centered note; control chars are
+ * dropped so the note can't carry stray newlines. Single-quoted with the
+ * query's own quotes stripped so the wrap reads cleanly. Pure — the popup
+ * writes this into the note's textContent.
+ */
+export function cheatsheetNoMatchText(query: string | null | undefined): string {
+  const q = normaliseCheatFilter(query);
+  if (!q) return "No shortcuts match that filter.";
+  const cleaned = q.replace(/[\u0000-\u001f]/g, "").replace(/['"]/g, "");
+  const shown = cleaned.length > 24 ? cleaned.slice(0, 24) + "\u2026" : cleaned;
+  return `No shortcut matches \u2018${shown}\u2019.`;
+}

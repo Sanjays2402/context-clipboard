@@ -211,6 +211,7 @@ import { noteCountState } from "../lib/note-count";
 import {
   cheatsheetRowMatches,
   cheatsheetMatchLabel,
+  cheatsheetNoMatchText,
   normaliseCheatFilter,
 } from "../lib/cheatsheet-filter";
 import { cheatsheetRowNav } from "../lib/cheatsheet-nav";
@@ -6937,6 +6938,11 @@ function applyCheatsheetFilter(): void {
     if (groupHasMatch) anyVisible = true;
   });
   cheatsheetNoMatch.hidden = anyVisible || !q;
+  // Name the missed query so the empty body reads "No shortcut matches
+  // 'foo'." rather than a flat generic line — mirrors the clip-list empty
+  // state echoing the failed search. Only meaningful when there's a query;
+  // the generic line stands in for the (hidden) off state.
+  cheatsheetNoMatch.textContent = cheatsheetNoMatchText(q);
   // Live "N of M" badge next to the input so the user sees how hard their
   // query narrowed the sheet ("6 of 31"). Empty when the filter is off
   // (label builder returns "") — we hide it then so the cleared sheet has
