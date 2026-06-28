@@ -340,7 +340,6 @@ import {
 import {
   sanitizeClipNote,
   hasClipNote,
-  CLIP_NOTE_MAX_LEN,
 } from "../lib/clip-note";
 import {
   findLiveRecaptureForTrash,
@@ -2978,16 +2977,19 @@ function paintNoteStamp(noteUpdatedAt: number | undefined): void {
  * Repaint the char-counter + over-cap flag. Called on every input
  * event + on paint. The display is "N / 2000" — over-cap turns red
  * because the underlying sanitizer slices to the cap, so anything
- * over that is content the user is about to LOSE on save.
+ * over that is content the user is about to LOSE on save. A graduated
+ * amber "near" band (>= 90% of the cap) lights up just before the red,
+ * giving the user a runway. Routed through the SAME shared
+ * lib/note-count helper the composer uses, so the two counters can
+ * never drift on the cap, the formatting, or the warn thresholds.
  */
 function updateNoteCount(value: string): void {
-  const len = value.length;
-  detailNoteCount.textContent = `${len.toLocaleString()} / ${CLIP_NOTE_MAX_LEN.toLocaleString()}`;
-  if (len > CLIP_NOTE_MAX_LEN) {
-    detailNoteCount.classList.add("over-cap");
-  } else {
-    detailNoteCount.classList.remove("over-cap");
-  }
+  const state = noteCountState(value);
+  detailNoteCount.textContent = state.label;
+  // One class off the single `tier` verdict — amber "near" vs red
+  // "over" are mutually exclusive, mirroring the composer counter.
+  detailNoteCount.classList.toggle("near-cap", state.tier === "near");
+  detailNoteCount.classList.toggle("over-cap", state.tier === "over");
   detailNoteClear.hidden = value.trim().length === 0;
 }
 
@@ -6358,7 +6360,11 @@ function refreshNoteWarnBanner(): void {
 function refreshNoteCharCount(): void {
   const state = noteCountState(noteText.value);
   noteCharCount.textContent = state.label;
-  noteCharCount.classList.toggle("over-cap", state.overCap);
+  // One class off the single `tier` verdict so the two bands can never
+  // paint at once: amber "near" (>= 90% of the cap) gives the user a
+  // runway before the red "over" band where the sanitizer slices the tail.
+  noteCharCount.classList.toggle("near-cap", state.tier === "near");
+  noteCharCount.classList.toggle("over-cap", state.tier === "over");
 }
 
 /**

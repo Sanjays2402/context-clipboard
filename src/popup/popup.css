@@ -3680,6 +3680,15 @@ kbd {
   letter-spacing: 0.02em;
 }
 
+/* Amber "near cap" band — lights up at >= 90% of the cap, just before
+ * the red over-cap band, so the user gets a runway warning the way a
+ * good form field warns before you overrun. Mutually exclusive with
+ * .over-cap (the popup toggles one class off the shared note-count
+ * `tier`). */
+.detail-note-count.near-cap {
+  color: var(--accent-strong, #f5b400);
+}
+
 .detail-note-count.over-cap {
   color: var(--danger, #e06b6b);
 }
@@ -5808,6 +5817,13 @@ button.audit-row.jumpable:focus-visible {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   white-space: nowrap;
+}
+/* Amber "near cap" band — mirrors the detail counter: >= 90% of the cap
+ * reads amber as a runway warning before the red over-cap band. One class
+ * off the shared note-count `tier` so amber + red never paint together. */
+.note-char-count.near-cap {
+  color: var(--accent-strong, #f5b400);
+  font-weight: 600;
 }
 .note-char-count.over-cap {
   color: var(--danger, #e06b6b);
