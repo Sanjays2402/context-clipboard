@@ -505,22 +505,53 @@ note-composer, bulk-bar, trash, search, detail, settings — the surfaces
 this tick's slices opened or touched, plus untouched long-standing gaps.
 - [ ] Note-composer: when the warning banner shows, also tint the textarea border soft-red (the banner names the keyword; a border echo reinforces "this note is flagged" without re-reading)
 - [ ] Note-composer: the warning keyword list editable per-host (extends note-warning with a per-site-rule field — recurring, now strongly motivated by the new authoring banner that surfaces it)
-- [ ] Bulk-bar: byte weight on the Copy-as-Markdown hover + toast too (the plain Copy path now shows char+byte; the MD path still shows char-only — unify so both batch-copy buttons read the same)
+- [x] Bulk-bar: byte weight on the Copy-as-Markdown hover + toast too (the plain Copy path now shows char+byte; the MD path still shows char-only — unify so both batch-copy buttons read the same) — `08af953`
 - [ ] Bulk-bar: byte weight on the "Export selected" hover (the toast shows bytes post-export; the pre-commit hover doesn't — close the pre/post loop the copy path now has)
-- [ ] Trash: sort the trash list by remaining-runway (imminent/expired first) so the about-to-purge rows float to the top, not just tint in place — pairs with lib/trash-ttl's remainingMs
+- [x] Trash: sort the trash list by remaining-runway (imminent/expired first) so the about-to-purge rows float to the top, not just tint in place — pairs with lib/trash-ttl's remainingMs — `d3d1ead`
 - [ ] Trash: a "Purge expired-TTL clips" quick action (mirror of Purge >24h) — clips whose own TTL already lapsed are a distinct bucket from old-trash
-- [ ] Search: `is:expired` empty-state — when it matches nothing, a "nothing past due" reassurance instead of the generic operator wall (parity with the widen-bucket calendar escape)
-- [ ] Detail: surface the is:expired state in the TTL banner copy ("Expired N ago — restore by pinning" actionable hint) when an expired clip is opened
+- [x] Search: `is:expired` empty-state — when it matches nothing, a "nothing past due" reassurance instead of the generic operator wall (parity with the widen-bucket calendar escape) — `2ab83d0`
+- [x] Detail: surface the is:expired state in the TTL banner copy ("Expired N ago — restore by pinning" actionable hint) when an expired clip is opened — `0fa2a89`
 - [ ] Settings: a live preview of the note caution-keyword tint (show a stub note row with a keyword + its warm tint) so users see what triggers it before writing one
 - [ ] Bulk-bar: "Copy selected" should also offer a byte-budget warning toast when the payload exceeds ~1MB (some paste targets choke) — uses the new bytes field
 - [ ] Detail "Send to": a "Copy weight (chars + bytes)" row mirroring the bulk receipt for a single clip (the detail content-stats shows chars/words/lines but not bytes)
 - [ ] Cheatsheet: a "Bulk actions" group documenting the selection model (Copy / Copy-MD / Export / Tag / Note / Lock+Pin) now that the bulk bar has grown
 - [ ] Trash row: a relative "purges <when>" tooltip on the urgency tail (the tail shows "4h left"; the title could read the absolute clock time it'll GC)
 - [ ] Quick-chip "Expired": when active and it equals the whole list, suppress the per-day dividers (the list IS the expired set, dividers are noise — parallel to the lone-day suppression)
-- [ ] Note-composer: a char-count tail like the detail note editor has (the composer has the token pill + warn banner but no length readout vs the 2,000 cap)
+- [x] Note-composer: a char-count tail like the detail note editor has (the composer has the token pill + warn banner but no length readout vs the 2,000 cap) — `86d2d18`
 
 
-### TICK LOG 2026-06-27 15:36 PT — 5/5 shipped (frontend UX, fresh surfaces)
+### TICK LOG 2026-06-27 21:02 PT — 5/5 shipped (frontend UX, fresh surfaces)
+Closed five loops the 15:36 tick left open, spread across bulk-bar, trash,
+search, detail, and the note composer — deliberately orthogonal so no one
+surface dominates. Every slice is a pure module + a thin wire, 30/30
+headless sanity across the four new pure modules.
+- `08af953` Bulk-bar: byte weight on Copy-as-Markdown hover + toast. The plain Copy path already paired chars with a UTF-8 byte weight on both hover and toast; the Markdown sibling showed chars only, so the two batch-copy buttons disagreed. planBulkMarkdown now computes the byte length of the exact joined document (fences/citations/separators included), reusing lib/bulk-clipboard's utf8ByteLength + formatCopyBytes so a Markdown doc and a plain join of the same bytes weigh identically. Hover "(1,240 chars . 1.2 KB)", toast "- 1,240 chars - 1.2 KB". No popup wiring change — the plan flows through the two formatters.
+- `d3d1ead` Trash: float about-to-purge rows to the top. listTrash returns newest-deleted-first, so the LEAST-runway rows (oldest) sank below the 50-row render cap — exactly the rows that need a glance before they're gone. New lib/trash-sort floats the urgent rows (imminent < 24h + expired, the soft-red band) to the top, most-urgent-first, leaving the calm bulk in its incoming order (stable partition, not a re-sort). Delegates tier + remaining-ms to the same trash-ttl the tint uses, so SORT and TINT agree. Sorted BEFORE the slice so an urgent row can't be capped out.
+- `2ab83d0` Search: warm all-clear empty-state for is:expired. is:expired is a "what's about to be lost?" rescue pass, so an empty result is good news. New lib/empty-reassurance recognizes lone all-clear operators and returns a warm headline + subtext ("Nothing past due"); the popup renders it success-tinted instead of the generic operator wall. Gated to EXACTLY the lone operator (a compound would over-claim) — same conservative line widen-bucket draws. REASSURANCE_MAP is the single extension point.
+- `0fa2a89` Detail: actionable rescue copy on the expired TTL banner. The expired tier read passively ("Expired — GC at next capture"); it didn't tell the user the banner's own "Keep" pin button SAVES the clip (pin pauses TTL). Reworked to lead with staleness ("Expired 23m ago") and point the detail at the escape: "Pin to keep it — otherwise the GC sweeps it at the next capture". Copy + doc only; the pin button already sits in the banner.
+- `86d2d18` Note-composer: live char-counter tail vs the 2,000 cap. The composer grew a token pill + warn banner but never the length readout the detail editor has — the surface MOST likely to overrun had no gauge. New shared lib/note-count owns the "N / cap" label + strictly-over-cap verdict against the same CLIP_NOTE_MAX_LEN the sanitizer slices on, counting the same UTF-16 units, so it predicts the exact truncation. Wired into the composer foot, repaints on input + open. Muted default, danger-red over cap — mirrors .detail-note-count so the two can't drift.
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 500.0KB). 30/30 headless sanity (trash-sort floating + stable tail + purity; empty-reassurance gating; note-count over-cap + grouping; bulk-markdown bytes >= chars on multi-byte). Pushed b447301..86d2d18.
+Deferred: none — all 5 are solid, demoable, revertible slices.
+
+### New (added this tick — 2026-06-27 21:02 PT refill, FRESH frontend)
+Orthogonal to the surfaces this tick touched where possible; each closes a
+real loop or fills a long-standing gap. Spread across bulk-bar, trash,
+detail, note-composer, search, settings, cheatsheet.
+- [ ] Bulk-bar: byte weight on the "Export selected" hover too (the toast shows bytes post-export; the pre-commit hover doesn't — close the pre/post loop the copy paths now both have)
+- [ ] Bulk-bar: "Copy selected" byte-budget warning toast when the payload exceeds ~1MB (some paste targets choke) — uses the bytes field both copy plans now carry
+- [ ] Trash: a "Purge expired-TTL clips" quick action (mirror of Purge >24h) — clips whose OWN TTL already lapsed are a distinct bucket from old-trash; pairs with the new runway sort that floats them
+- [ ] Trash row: a relative "purges <when>" tooltip on the urgency tail (the tail shows "4h left"; the title could read the absolute clock time it'll GC)
+- [ ] Detail "Send to": a "Copy weight (chars + bytes)" row mirroring the bulk receipt for a single clip (detail content-stats shows chars/words/lines but not bytes) — reuses lib/bulk-clipboard's utf8ByteLength + formatCopyBytes
+- [ ] Note-composer: when the warn banner shows, tint the textarea border soft-red too (the banner names the keyword; a border echo reinforces "this note is flagged" without re-reading)
+- [ ] Note-composer: the char-counter could go AMBER as it nears the cap (e.g. > 90%) before the red over-cap, a graduated warning like a form field (extends lib/note-count with a "near" tier)
+- [ ] Search: `is:expired` empty-reassurance — extend the map with `is:expiring` finding nothing ("No clips on a timer") so the all-clear family covers both TTL operators
+- [ ] Detail: surface the is:expiring (live, not-yet-due) state in the TTL banner with a "restore-by-pinning" affordance parity — the expired tier now has the rescue hint; the imminent/soon tiers could echo it
+- [ ] Settings: a live preview of the note caution-keyword tint (stub note row with a keyword + its warm tint) so users see what triggers it before writing one
+- [ ] Cheatsheet: a "Bulk actions" group documenting the selection model (Copy / Copy-MD / Export / Tag / Note / Lock+Pin) now that the bulk bar has grown
+- [ ] Quick-chip "Expired": when active and it equals the whole list, suppress the per-day dividers (the list IS the expired set — parallel to the lone-day suppression that already ships)
+- [ ] Trash: a "sort: runway / recency" toggle so power users who want the old strict newest-first order back can opt out of the urgent-float (the float is the default; the toggle is the escape)
+- [ ] Note-composer: char-count tail should also surface in the LINK composer (it shares the modal shell but captures a URL, which has its own implicit length expectations)
+- [ ] Detail: when an expired clip is opened, a one-click "Pin to keep" should also be reachable from the meta-row TTL pill (not just the banner) for users who collapsed the banner
 Deliberately steered AWAY from the calendar/lightbox cluster that dominated
 the last several ticks onto five orthogonal surfaces: note-composer, bulk-bar,
 trash, search, cheatsheet. Each closes a real loop a prior tick left open.
