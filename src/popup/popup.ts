@@ -181,6 +181,11 @@ import {
   densityPreviewClass,
   densityPreviewCaption,
 } from "../lib/density-preview";
+import {
+  noteTintPreviewRows,
+  noteTintPreviewCaption,
+  noteTintPreviewRowCaption,
+} from "../lib/note-tint-preview";
 import { nextDetailIndex, formatWrapToast } from "../lib/detail-nav";
 import {
   planBulkCopy,
@@ -454,6 +459,8 @@ const sBlurPreviews = $<HTMLInputElement>("s-blur");
 const sDensity = $<HTMLSelectElement>("s-density");
 const sDensityPreview = $("s-density-preview");
 const sDensityCaption = $("s-density-caption");
+const sNoteTintPreview = $("s-note-tint-preview");
+const sNoteTintCaption = $("s-note-tint-caption");
 const sBulkMdSep = $<HTMLSelectElement>("s-bulk-md-sep");
 const sBulkMdSepPreview = $("s-bulk-md-sep-preview");
 const sBulkMdSepCaption = $("s-bulk-md-sep-caption");
@@ -3279,6 +3286,9 @@ async function openSettings() {
   renderDensityPreview();
   sBulkMdSep.value = s.bulkMarkdownSeparator === "blank" ? "blank" : "rule";
   renderBulkSepPreview();
+  // Note caution-tint preview is static (fixed stub notes + the live
+  // detector) so it paints once on settings load — no input drives it.
+  renderNoteTintPreview();
   // Privacy audit retention — defaults to 30 if the stored value
   // is missing or junk (a freshly imported settings shape from an
   // older version won't have this field).
@@ -3356,6 +3366,38 @@ function renderDensityPreview(): void {
         `<span class="density-preview-title">${escapeHtml(r.title)}</span>` +
         `<span class="density-preview-meta">${escapeHtml(r.meta)}</span>` +
         `<span class="density-preview-tag">${escapeHtml(r.tag)}</span>` +
+        `</div>`
+      );
+    })
+    .join("");
+}
+
+/**
+ * Paint the note caution-tint preview: a few stub note rows, the flagged
+ * ones carrying the same warm tint the in-page palette applies + the note
+ * composer banner names, each labelled with the keyword that fired. It's
+ * the explainer for "why did that clip go red?" — made concrete in the
+ * settings panel before the user ever writes a flagged note. Pure model in
+ * lib/note-tint-preview delegates the per-row verdict to lib/note-warning,
+ * the EXACT detector the live surfaces use, so the swatch can never claim a
+ * tint the palette wouldn't. Static content, so it's painted once on
+ * settings load (no input drives it).
+ */
+function renderNoteTintPreview(): void {
+  sNoteTintCaption.textContent = noteTintPreviewCaption();
+  sNoteTintPreview.innerHTML = noteTintPreviewRows()
+    .map((r) => {
+      // Flagged rows get the warm-tint class (mirrors the palette's per-row
+      // caution tint) + a small keyword tag naming the trigger; the plain
+      // row renders untinted as the baseline the tinted rows contrast with.
+      const rowClass = `note-tint-preview-row${r.flagged ? " note-tint-preview-row--flagged" : ""}`;
+      const tag = r.flagged
+        ? `<span class="note-tint-preview-tag">${escapeHtml(noteTintPreviewRowCaption(r))}</span>`
+        : "";
+      return (
+        `<div class="${rowClass}">` +
+        `<span class="note-tint-preview-note">${escapeHtml(r.note)}</span>` +
+        tag +
         `</div>`
       );
     })

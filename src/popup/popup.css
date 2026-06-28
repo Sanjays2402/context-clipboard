@@ -4103,6 +4103,59 @@ kbd {
   height: 14px;
 }
 
+/* Note caution-tint preview — a few stub note rows in the settings panel,
+   the flagged ones carrying the SAME warm-red tint the in-page palette
+   applies + the composer banner names, so a user can see WHAT trips the
+   tint (and what it looks like) before ever writing a flagged note. The
+   flagged-row palette mirrors .note-warn-banner (warm-red fill + border)
+   so the preview and the live surfaces read as one system. */
+.note-tint-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  background: var(--bg-elevated, var(--glass));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.note-tint-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--text);
+}
+.note-tint-preview-note {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Flagged rows mirror the palette's caution tint (warm-red), matching
+   .note-warn-banner's fill + border so the preview reads as the same
+   signal the user meets at paste time. */
+.note-tint-preview-row--flagged {
+  background: rgba(229, 83, 75, 0.1);
+  border-color: rgba(229, 83, 75, 0.42);
+  border-left-width: 3px;
+}
+.note-tint-preview-tag {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(229, 83, 75, 0.18);
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  user-select: none;
+}
+
 /* Clip row context menu (right-click) — fixed-position floating menu
    styled to match the palette card. Built with real <button> rows so
    it's keyboard-accessible and identical handling on click/Enter. */
