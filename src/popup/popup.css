@@ -2633,6 +2633,26 @@ kbd {
   box-shadow: var(--shadow-sm);
 }
 
+/* Bulk-bar action token in the cheatsheet — a flat accent-tinted pill on
+ * the LEFT (not a raised keycap) so the user reads it as "a button in the
+ * bulk bar", not "a key to press". Overrides the generic right-aligned
+ * .cheatsheet-row span (which the DESCRIPTION span uses) so the action
+ * label sits left like a <kbd> while the description still floats right. */
+.cheatsheet-row .cheat-act {
+  margin-left: 0;
+  flex: 0 0 auto;
+  text-align: left;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--accent-soft, var(--glass-strong));
+  color: var(--accent, var(--text));
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .cheatsheet-foot {
   padding: 8px 14px 11px;
   border-top: 1px solid var(--border);
