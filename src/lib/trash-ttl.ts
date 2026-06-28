@@ -109,3 +109,92 @@ export function trashTtlState(
   const days = Math.ceil(remainingMs / DAY_MS);
   return { tier: "normal", remainingMs, label: `${days}d left` };
 }
+
+/**
+ * Build the hover-tooltip for the trash row's urgency tail.
+ *
+ * The tail reads a RELATIVE runway ("4h left" / "2d left") — quick to
+ * scan, but it doesn't answer "when, on the clock, does this actually go
+ * away?". This produces the ABSOLUTE deadline string the tail carries in
+ * its `title` attr, so hovering "4h left" reveals "Purges after 4:32 PM"
+ * (or "… 4:32 PM, Jun 30" when the deadline lands on another day). The
+ * relative tail and the absolute tooltip describe the SAME deadline
+ * (deletedAt + retentionMs) — two readings of one moment.
+ *
+ * Wording note: the GC sweeps trash opportunistically (at the next
+ * capture after the deadline), not exactly on the second, so we say
+ * "Purges after <clock>" — the clock is when the clip becomes ELIGIBLE,
+ * which is the honest promise. Once past due, the tail already reads
+ * "Purges any moment", so the tooltip reinforces that with "Past due —
+ * sweeps at the next capture" rather than a stale past clock time.
+ *
+ * Pure + `now`-injectable (for the same-day decision + tests). Returns ""
+ * on malformed input so the caller simply omits the title attr.
+ */
+export function formatTrashPurgeTitle(
+  deletedAt: number,
+  now: number = Date.now(),
+  retentionMs: number = DEFAULT_TRASH_RETENTION_MS,
+): string {
+  if (!Number.isFinite(deletedAt) || !Number.isFinite(retentionMs) || retentionMs <= 0) {
+    return "";
+  }
+  const deadline = deletedAt + retentionMs;
+  if (!Number.isFinite(deadline)) return "";
+  // Past due: the tail says "Purges any moment"; a past clock time would
+  // mislead, so name the real behaviour (opportunistic sweep at next capture).
+  if (deadline - now <= 0) {
+    return "Past due \u2014 sweeps at the next capture";
+  }
+  const clock = formatTrashClock(deadline);
+  // Same LOCAL calendar day as `now`? Then the clock alone is unambiguous.
+  // A different day needs the date too, so "4:32 PM" doesn't read as today.
+  if (isSameLocalDay(deadline, now)) {
+    return `Purges after ${clock}`;
+  }
+  return `Purges after ${clock}, ${formatTrashDate(deadline)}`;
+}
+
+/** True when two Unix-ms instants fall on the same LOCAL calendar day. */
+function isSameLocalDay(a: number, b: number): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
+}
+
+/**
+ * "4:32 PM" / "16:32" depending on locale — hour + minute only. Mirrors
+ * the detail TTL banner's clock format (lib/ttl-banner.formatClock) so the
+ * two surfaces read time identically. Manual HH:MM fallback in exotic
+ * envs (e.g. node without ICU) keeps tests deterministic-ish.
+ */
+function formatTrashClock(at: number): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(at));
+  } catch {
+    const d = new Date(at);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+}
+
+/** "Jun 30" — short month + day, for a deadline on a different day. */
+function formatTrashDate(at: number): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+    }).format(new Date(at));
+  } catch {
+    const d = new Date(at);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+}

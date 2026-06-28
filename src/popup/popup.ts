@@ -80,7 +80,7 @@ import { buildSendActions, reorderSendActionsByLast, type SendAction } from "../
 import { buildBulkPreviewMessage } from "../lib/bulk-preview";
 import { groupAuditByDay } from "../lib/audit-rollup";
 import { groupTrashByHost } from "../lib/trash-host-rollup";
-import { trashTtlState } from "../lib/trash-ttl";
+import { trashTtlState, formatTrashPurgeTitle } from "../lib/trash-ttl";
 import { sortTrashByRunway } from "../lib/trash-sort";
 import { extractHostPattern, looksLikeUrl } from "../lib/host-pattern";
 import { computeTtlBanner } from "../lib/ttl-banner";
@@ -4143,6 +4143,12 @@ function trashRow(t: TrashedClip, liveClips: ClipItem[] = []): string {
     ttl.label ||
     `${Math.max(0, Math.ceil((t.deletedAt + TRASH_RETENTION_MS - Date.now()) / 86_400_000))}d left`;
   const ttlClass = ttl.tier !== "normal" ? ` ttl-${ttl.tier}` : "";
+  // Absolute purge-clock tooltip for the relative tail: hovering "4h left"
+  // reveals "Purges after 4:32 PM" (with a date when the deadline lands on
+  // another day). Same deadline the tail counts down to — two readings of
+  // one moment. Empty on malformed timestamps -> no title attr.
+  const purgeTitle = formatTrashPurgeTitle(t.deletedAt, Date.now(), TRASH_RETENTION_MS);
+  const ttlTitleAttr = purgeTitle ? ` title="${escapeHtml(purgeTitle)}"` : "";
   const src = [hostFrom(t.source.url), t.source.title]
     .filter(Boolean)
     .join(" · ");
@@ -4192,7 +4198,7 @@ function trashRow(t: TrashedClip, liveClips: ClipItem[] = []): string {
     <div class="trash-row${ttlClass}" data-id="${t.id}" title="${escapeHtml(recaptureTooltip)}">
       <div class="trash-body">
         <div class="trash-preview">${escapeHtml(previewText.slice(0, 90))}</div>
-        <div class="trash-meta">${escapeHtml(src || "—")} · deleted ${timeAgo(t.deletedAt)} · <span class="trash-ttl">${escapeHtml(leftLabel)}</span></div>
+        <div class="trash-meta">${escapeHtml(src || "—")} · deleted ${timeAgo(t.deletedAt)} · <span class="trash-ttl"${ttlTitleAttr}>${escapeHtml(leftLabel)}</span></div>
       </div>
       ${pinBtn}
       ${lockBtn}

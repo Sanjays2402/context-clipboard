@@ -16,6 +16,15 @@
 //   5. boundary exactness (the 24h / 48h / 0 thresholds).
 //   6. hour rounding (ceil, floored at 1) — never tell the user MORE time.
 //   7. defensive: non-finite deletedAt / retention -> normal + empty label.
+//   8. formatTrashPurgeTitle (bundled REAL module) — the absolute
+//      purge-clock tooltip on the relative tail (same-day clock, cross-day
+//      date, past-due wording, malformed -> empty).
+
+import { build } from "esbuild";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -123,6 +132,56 @@ ck("non-finite retention -> normal", trashTtlState(deletedAgo(0), NOW, NaN).tier
 
 // remainingMs is exposed for the caller (sorting / debugging).
 ck("remainingMs reflects deadline", trashTtlState(deletedAgo(7 * DAY_MS - 4 * HOUR_MS), NOW).remainingMs, 4 * HOUR_MS);
+
+// 8. formatTrashPurgeTitle — bundle the REAL module so the tooltip copy +
+//    same-day/cross-day/past-due branching track shipping behaviour.
+const dir = mkdtempSync(join(tmpdir(), "ctxclip-trashttl-"));
+const out = join(dir, "trash-ttl.mjs");
+await build({ entryPoints: ["src/lib/trash-ttl.ts"], bundle: true, format: "esm", outfile: out, logLevel: "silent" });
+const { formatTrashPurgeTitle } = await import(pathToFileURL(out).href);
+
+// Helper: expected clock string for a given instant via the same Intl path
+// the module uses, so the assertion is locale-agnostic (we compare against
+// the runtime's own formatting, not a hard-coded "4:32 PM").
+const clockOf = (at) =>
+  new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(at));
+const dateOf = (at) =>
+  new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(at));
+
+// Pick a NOW with headroom in the local day so "+4h" stays same-day.
+const noonish = new Date(NOW);
+noonish.setHours(9, 0, 0, 0); // 9:00 AM local — +4h is 1 PM, still today
+const NOON = noonish.getTime();
+
+// Same-day deadline: 4h of runway -> "Purges after <clock>", no date.
+const sameDayDeleted = NOON - (7 * DAY_MS - 4 * HOUR_MS); // deadline = NOON + 4h
+const sameDayDeadline = sameDayDeleted + DEFAULT_TRASH_RETENTION_MS;
+ck("same-day tooltip names the clock", formatTrashPurgeTitle(sameDayDeleted, NOON), `Purges after ${clockOf(sameDayDeadline)}`);
+ck("same-day tooltip omits the date", formatTrashPurgeTitle(sameDayDeleted, NOON).includes(","), false);
+
+// Cross-day deadline: 2 days of runway -> tooltip carries the date too.
+const crossDayDeleted = NOON - (7 * DAY_MS - 2 * DAY_MS); // deadline = NOON + 2d
+const crossDayDeadline = crossDayDeleted + DEFAULT_TRASH_RETENTION_MS;
+ck("cross-day tooltip names clock + date", formatTrashPurgeTitle(crossDayDeleted, NOON), `Purges after ${clockOf(crossDayDeadline)}, ${dateOf(crossDayDeadline)}`);
+ck("cross-day tooltip includes a comma", formatTrashPurgeTitle(crossDayDeleted, NOON).includes(","), true);
+
+// Past due: no stale clock — name the opportunistic sweep instead.
+ck("past-due tooltip is the sweep wording", formatTrashPurgeTitle(NOON - 8 * DAY_MS, NOON), "Past due \u2014 sweeps at the next capture");
+// Exactly at the deadline (0 remaining) is treated as past due.
+ck("exactly-deadline tooltip past due", formatTrashPurgeTitle(NOON - 7 * DAY_MS, NOON), "Past due \u2014 sweeps at the next capture");
+
+// The tooltip describes the SAME deadline the tail counts down to.
+const tailLabel = trashTtlState(sameDayDeleted, NOON).label;
+ck("same-day tail is hour-grain (imminent)", tailLabel, "4h left");
+ck("tooltip + tail agree on the same moment (both derive from deadline)", formatTrashPurgeTitle(sameDayDeleted, NOON).startsWith("Purges after"), true);
+
+// Malformed input -> empty string (caller omits the title attr).
+ck("NaN deletedAt -> empty tooltip", formatTrashPurgeTitle(NaN, NOON), "");
+ck("Infinity deletedAt -> empty tooltip", formatTrashPurgeTitle(Infinity, NOON), "");
+ck("zero retention -> empty tooltip", formatTrashPurgeTitle(NOON, NOON, 0), "");
+ck("negative retention -> empty tooltip", formatTrashPurgeTitle(NOON, NOON, -5), "");
+
+rmSync(dir, { recursive: true, force: true });
 
 console.log(`trash-ttl sanity: ${p}/${t} passed`);
 if (p !== t) process.exit(1);
