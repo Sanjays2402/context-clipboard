@@ -20,7 +20,7 @@ import { curlCommandForClip } from "./curl-command";
 import { noteAsMarkdownBlockquote } from "./note-markdown";
 import { clipAndNoteAsMarkdown } from "./clip-note-markdown";
 import { curlWithNoteCommentForClip } from "./curl-note-comment";
-import { clipWeightSummary } from "./clip-weight";
+import { clipWeightSummary, clipWeightSummaryMarkdown } from "./clip-weight";
 
 export interface SendableClip {
   id: string;
@@ -414,6 +414,11 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // bounded target. Hidden for images (data-URL noise) + empty bodies
   // via clipWeightSummary's null gate — no dimmed dead row.
   const weight = clipWeightSummary(c);
+  // Markdown variant of the weight summary — same figures, bold numbers
+  // ("**1,240** chars · **198** words · **1.2** KB") for doc/issue/PR paste,
+  // mirroring the content-stats Markdown stat-line. Same null gate as the
+  // plain weight row so the two surface/hide in lock-step.
+  const weightMd = clipWeightSummaryMarkdown(c);
   return [
     {
       id: "open-source",
@@ -611,6 +616,20 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: weight ?? undefined,
       available: !!weight,
+    },
+    {
+      // "Copy weight as Markdown" — the bold-number sibling of the weight
+      // row, mirroring content-stats' Markdown stat-line ("**1,240** chars
+      // · **198** words · **1.2** KB") so the figure renders bold in a doc /
+      // issue / PR. Same null gate as the plain row (clipWeightSummary), so
+      // both surface together for text/link clips and hide together for
+      // images + empty bodies.
+      id: "weight-md",
+      label: "Copy weight as Markdown",
+      hint: "**1,240** chars \u00b7 198 words \u00b7 1.2 KB",
+      kind: "copy",
+      payload: weightMd ?? undefined,
+      available: !!weightMd,
     },
   ];
 }

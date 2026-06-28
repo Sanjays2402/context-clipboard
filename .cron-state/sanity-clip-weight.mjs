@@ -11,7 +11,7 @@ async function load(entry, name) {
   await build({ entryPoints: [entry], bundle: true, format: "esm", outfile: out, logLevel: "silent" });
   return import(pathToFileURL(out).href);
 }
-const { clipWeight, clipWeightSummary } = await load("src/lib/clip-weight.ts", "clip-weight");
+const { clipWeight, clipWeightSummary, clipWeightSummaryMarkdown } = await load("src/lib/clip-weight.ts", "clip-weight");
 const { buildSendActions } = await load("src/lib/send-to.ts", "send-to");
 
 let pass = 0,
@@ -81,6 +81,23 @@ const imgActs = buildSendActions({ id: "2", kind: "image", content: "data:image/
 const wi = imgActs.find((a) => a.id === "weight");
 eq(wi.available, false, "weight unavailable for image");
 eq(wi.payload, undefined, "weight payload undefined for image");
+
+// --- markdown variant: bold numbers, units plain, same figures/order ---
+eq(clipWeightSummaryMarkdown({ kind: "text", content: "hello world" }), "**11** chars \u00b7 **2** words \u00b7 **11** B", "md ascii bold figures");
+eq(clipWeightSummaryMarkdown({ kind: "text", content: "x" }), "**1** char \u00b7 **1** word \u00b7 **1** B", "md singular grammar");
+eq(clipWeightSummaryMarkdown({ kind: "text", content: "x".repeat(1240) }), "**1,240** chars \u00b7 **1** word \u00b7 **1.2** KB", "md KB grouped+bold");
+// strip the ** -> reproduces the plain summary exactly (md/plain parity).
+const mdParity = clipWeightSummaryMarkdown({ kind: "text", content: "x".repeat(1500) }).replace(/\*\*/g, "");
+eq(mdParity, clipWeightSummary({ kind: "text", content: "x".repeat(1500) }), "md strip-** == plain summary");
+// md variant gates exactly like the plain one.
+eq(clipWeightSummaryMarkdown({ kind: "image", content: "data:..." }), null, "md image null");
+eq(clipWeightSummaryMarkdown({ kind: "text", content: "" }), null, "md empty null");
+// send-to weight-md row present + carries the bold payload for a text clip.
+const wmd = acts.find((a) => a.id === "weight-md");
+eq(!!wmd, true, "weight-md row present");
+eq(wmd.payload, "**11** chars \u00b7 **2** words \u00b7 **11** B", "weight-md payload is bold summary");
+const imgWmd = imgActs.find((a) => a.id === "weight-md");
+eq(imgWmd.available, false, "weight-md unavailable for image");
 
 rmSync(dir, { recursive: true, force: true });
 console.log(`clip-weight sanity: ${pass}/${pass + fail} pass`);

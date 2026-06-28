@@ -155,10 +155,11 @@ try {
   // bg-tab added between incognito and site-search → 14 total.
   // Then `note-md` added (15) → `clip-note-md` added (16) →
   // `curl-note` added between `curl` and `fenced-code` (17) →
-  // `weight` (chars + bytes) appended last (18).
+  // `weight` (chars + words + bytes) appended (18) → `weight-md`
+  // (bold-number Markdown variant) appended last (19).
   // Each row is gated by its own availability check so adding new rows
   // here only matters for the total-count assertion.
-  total++; if (textActs.length === 18) pass++;
+  total++; if (textActs.length === 19) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   // The new weight row is present + available for a text clip with a body.

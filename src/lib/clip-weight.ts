@@ -103,3 +103,37 @@ export function clipWeightSummary(c: ClipWeightInput | null | undefined): string
   const wordPart = `${groupThousands(w.words)} word${w.words === 1 ? "" : "s"}`;
   return `${charPart} \u00b7 ${wordPart} \u00b7 ${formatCopyBytes(w.bytes)}`;
 }
+
+/**
+ * Bold the NUMERIC prefix of a formatCopyBytes string, unit plain:
+ * "1.2 KB" -> "**1.2** KB", "742 B" -> "**742** B". Splitting on the last
+ * space keeps the unit outside the emphasis; bold and plain differ ONLY by
+ * the `**`, so stripping them reproduces the plain figure exactly. Mirrors
+ * content-stats' private byteSegment(bold) so the weight row and the
+ * breadcrumb bold their byte figure identically.
+ */
+function boldBytes(bytes: number): string {
+  const s = formatCopyBytes(bytes);
+  const sp = s.lastIndexOf(" ");
+  if (sp < 0) return `**${s}**`;
+  return `**${s.slice(0, sp)}** ${s.slice(sp + 1)}`;
+}
+
+/**
+ * Markdown variant of the copy-weight summary, e.g. "**1,240** chars ·
+ * **198** words · **1.2** KB". Same figures + order + separator as
+ * clipWeightSummary, but each NUMBER is wrapped in `**` (units stay plain)
+ * so a doc / issue / PR renders the weight bold — mirroring the
+ * content-stats Markdown stat-line. Stripping the `**` reproduces the
+ * plain summary's three figures exactly (md/plain parity), so the two rows
+ * read the same clip identically, differing only in emphasis. Returns null
+ * in the same cases clipWeightSummary does (image, empty, bad input) so the
+ * Markdown row gates off the same predicate.
+ */
+export function clipWeightSummaryMarkdown(c: ClipWeightInput | null | undefined): string | null {
+  const w = clipWeight(c);
+  if (!w) return null;
+  const charPart = `**${groupThousands(w.chars)}** char${w.chars === 1 ? "" : "s"}`;
+  const wordPart = `**${groupThousands(w.words)}** word${w.words === 1 ? "" : "s"}`;
+  return `${charPart} \u00b7 ${wordPart} \u00b7 ${boldBytes(w.bytes)}`;
+}
