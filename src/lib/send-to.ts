@@ -20,6 +20,7 @@ import { curlCommandForClip } from "./curl-command";
 import { noteAsMarkdownBlockquote } from "./note-markdown";
 import { clipAndNoteAsMarkdown } from "./clip-note-markdown";
 import { curlWithNoteCommentForClip } from "./curl-note-comment";
+import { clipWeightSummary } from "./clip-weight";
 
 export interface SendableClip {
   id: string;
@@ -406,6 +407,13 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // half-broken combo rows. Same gate predicates as the standalone
   // rows so the combined row never lies about what's available.
   const clipNoteCombo = clipAndNoteAsMarkdown(c);
+  // Single-clip "copy weight" — chars + UTF-8 bytes ("1,240 chars ·
+  // 1.2 KB"). Mirrors the bulk copy/export byte receipts for ONE clip:
+  // the detail content-stats breadcrumb shows chars/words/lines but no
+  // byte figure, and bytes are what matter when pasting into a size-
+  // bounded target. Hidden for images (data-URL noise) + empty bodies
+  // via clipWeightSummary's null gate — no dimmed dead row.
+  const weight = clipWeightSummary(c);
   return [
     {
       id: "open-source",
@@ -589,6 +597,20 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: clipNoteCombo,
       available: !!clipNoteCombo,
+    },
+    {
+      // "Copy weight (chars + bytes)" — the WYSIWYG payload IS the
+      // summary string ("1,240 chars · 1.2 KB"), so clicking the row
+      // copies exactly what its weight reads. chars = code points
+      // (content-stats), bytes = UTF-8 (same helper the bulk receipts
+      // use) so every weight figure in the UI counts identically. Hidden
+      // for images + empty bodies via clipWeightSummary's null gate.
+      id: "weight",
+      label: "Copy weight (chars + bytes)",
+      hint: "1,240 chars \u00b7 1.2 KB",
+      kind: "copy",
+      payload: weight ?? undefined,
+      available: !!weight,
     },
   ];
 }
