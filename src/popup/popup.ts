@@ -81,6 +81,7 @@ import { buildBulkPreviewMessage } from "../lib/bulk-preview";
 import { groupAuditByDay } from "../lib/audit-rollup";
 import { groupTrashByHost } from "../lib/trash-host-rollup";
 import { trashTtlState } from "../lib/trash-ttl";
+import { sortTrashByRunway } from "../lib/trash-sort";
 import { extractHostPattern, looksLikeUrl } from "../lib/host-pattern";
 import { computeTtlBanner } from "../lib/ttl-banner";
 import {
@@ -4242,7 +4243,17 @@ async function renderTrash(): Promise<void> {
     trashList.innerHTML = "";
     return;
   }
-  trashList.innerHTML = items.slice(0, 50).map((t) => trashRow(t, live)).join("");
+  // Float the about-to-purge rows (imminent < 24h + already-expired) to
+  // the TOP, most-urgent first, leaving the calm bulk in its incoming
+  // newest-deleted-first order. db.listTrash returns oldest-deleted LAST,
+  // so without this the rows with the LEAST runway sank below the 50-row
+  // render cap — exactly the rows that most need a glance before they're
+  // gone for good. sortTrashByRunway delegates the urgency math to the
+  // same lib/trash-ttl the row tint uses, so the row that SORTS urgent is
+  // the row that TINTS urgent. Sort BEFORE the slice so a floated urgent
+  // row can't be capped out.
+  const ordered = sortTrashByRunway(items, Date.now(), TRASH_RETENTION_MS);
+  trashList.innerHTML = ordered.slice(0, 50).map((t) => trashRow(t, live)).join("");
 }
 
 /**
