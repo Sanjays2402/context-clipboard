@@ -44,6 +44,7 @@
 
 import { detectCodeLang } from "./util";
 import { exportFenceLang, OVERRIDE_NONE, OVERRIDE_AUTO } from "./lang-override";
+import { utf8ByteLength, formatCopyBytes } from "./bulk-clipboard";
 
 export interface BulkMarkdownClip {
   id: string;
@@ -78,6 +79,21 @@ export interface BulkMarkdownPlan {
    * emoji counts as one — same contract as the plain bulk-copy plan.
    */
   chars: number;
+  /**
+   * UTF-8 byte length of the joined `text` (separators included). The
+   * plain bulk-copy path (lib/bulk-clipboard) already pairs its char
+   * count with a byte weight on BOTH the hover preview and the completion
+   * toast — "how much will I paste" (chars) vs "how heavy is it" (bytes,
+   * the figure that matters when a paste target chokes on a multi-byte
+   * payload). The Markdown path showed chars only, so the two batch-copy
+   * buttons disagreed on what they reported. Counting bytes here — over
+   * exactly the joined document that hits the clipboard, fences/citations
+   * and separators included — closes that gap so Copy and Copy-as-Markdown
+   * read the same two figures. Mirrors lib/bulk-clipboard's utf8ByteLength
+   * byte-for-byte (shared import), so a Markdown doc and a plain join of
+   * the same bytes weigh identically.
+   */
+  bytes: number;
 }
 
 /**
@@ -204,21 +220,27 @@ export function planBulkMarkdown(
     // Code-point length of exactly what hits the clipboard (separators
     // included), so the toast receipt is byte-honest.
     chars: [...text].length,
+    // UTF-8 byte weight of exactly what hits the clipboard — the same
+    // figure the plain bulk-copy plan carries, so the two batch-copy
+    // buttons report identical pre/post numbers.
+    bytes: utf8ByteLength(text),
   };
 }
 
 /**
  * Human toast for a completed (or empty) bulk-Markdown copy. Mirrors
  * the grammar of the plain bulk-copy toast, including the joined
- * CHARACTER total tail so the Markdown receipt reads the same way.
+ * CHARACTER total AND the UTF-8 byte weight so the Markdown receipt
+ * reads the same way the plain Copy receipt does (pre/post parity, and
+ * cross-button parity — both batch-copy buttons report both figures).
  *
- *   3 rendered, 1240 chars -> "Copied 3 clips as Markdown - 1,240 chars"
- *   1 rendered, 80 chars   -> "Copied 1 clip as Markdown - 80 chars"
- *   0 rendered             -> "Nothing to copy as Markdown"
+ *   3 rendered, 1240 chars, 1.2 KB -> "Copied 3 clips as Markdown - 1,240 chars - 1.2 KB"
+ *   1 rendered, 80 chars, 80 B     -> "Copied 1 clip as Markdown - 80 chars - 80 B"
+ *   0 rendered                     -> "Nothing to copy as Markdown"
  */
 export function formatBulkMarkdownToast(plan: BulkMarkdownPlan): string {
   if (plan.rendered === 0) return "Nothing to copy as Markdown";
-  return `Copied ${plan.rendered} clip${plan.rendered === 1 ? "" : "s"} as Markdown \u2014 ${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"}`;
+  return `Copied ${plan.rendered} clip${plan.rendered === 1 ? "" : "s"} as Markdown \u2014 ${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"} \u2014 ${formatCopyBytes(plan.bytes)}`;
 }
 
 /**
@@ -227,12 +249,13 @@ export function formatBulkMarkdownToast(plan: BulkMarkdownPlan): string {
  * synchronously). The click handler does its own authoritative read
  * over the FULL selection at fire time, so the toast count stays
  * truthful even when the selection extends past the filter window.
- * Includes the joined CHARACTER total so the hover preview matches the
- * completion receipt — same contract as the plain bulk-copy button.
+ * Includes the joined CHARACTER total AND the UTF-8 byte weight so the
+ * hover preview matches the completion receipt — same two-figure
+ * contract (`chars · bytes`) the plain bulk-copy button uses.
  */
 export function formatBulkMarkdownButtonTitle(plan: BulkMarkdownPlan): string {
   if (!plan.hasContent) return "Copy selected clips as Markdown";
-  return `Copy ${plan.rendered} clip${plan.rendered === 1 ? "" : "s"} as Markdown (${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"})`;
+  return `Copy ${plan.rendered} clip${plan.rendered === 1 ? "" : "s"} as Markdown (${groupThousandsLocal(plan.chars)} char${plan.chars === 1 ? "" : "s"} \u00b7 ${formatCopyBytes(plan.bytes)})`;
 }
 
 /**
