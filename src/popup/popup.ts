@@ -198,6 +198,7 @@ import {
 } from "../lib/bulk-separator-preview";
 import { isToday, isYesterday, isThisWeek, isLastWeek, isThisMonth, isLastMonth } from "../lib/today-filter";
 import { widenSuggestion } from "../lib/widen-bucket";
+import { emptyReassurance } from "../lib/empty-reassurance";
 import { noteWarnBanner } from "../lib/note-warn-banner";
 import {
   cheatsheetRowMatches,
@@ -2101,6 +2102,16 @@ async function render(): Promise<void> {
         `<br/><button type="button" class="empty-action" data-act="exit-archive">Show daily list</button>` +
         `</div>`;
     } else {
+      // Some empty results are GOOD NEWS, not a failed search. `is:expired`
+      // surfaces clips whose TTL already lapsed — the ones the GC will
+      // sweep next; running it is a "what's about to be lost?" rescue
+      // pass, so an empty result means nothing is past due. Show a warm
+      // all-clear ("Nothing past due") instead of the generic operator
+      // wall, which would frame a clean bill of health as a failure.
+      // emptyReassurance gates to EXACTLY the lone operator so a compound
+      // (is:expired host:x) — where the headline would over-claim — falls
+      // through to the generic hint.
+      const reassure = emptyReassurance(searchEl.value);
       // A lone calendar bucket (is:today / is:yesterday / is:thisweek)
       // that came up empty doesn't want a different operator — it wants
       // the same view with a wider net. Offer a one-tap "Widen to …" chip
@@ -2110,7 +2121,12 @@ async function render(): Promise<void> {
       // compound filter never silently loses its other constraints, and
       // returns the source bucket's human noun for the headline.
       const widen = widenSuggestion(searchEl.value);
-      if (widen.canWiden) {
+      if (reassure.reassure) {
+        hint =
+          `<div class="empty empty-reassure">${escapeHtml(reassure.headline)}` +
+          `<br/><small>${escapeHtml(reassure.subtext)}</small>` +
+          `</div>`;
+      } else if (widen.canWiden) {
         hint =
           `<div class="empty">No clips from ${escapeHtml(widen.fromLabel)}.` +
           `<br/><small>Nothing landed in this calendar bucket — try a wider window.</small>` +

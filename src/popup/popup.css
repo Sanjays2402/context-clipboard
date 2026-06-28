@@ -1354,6 +1354,20 @@ body.compact-rows .day-header {
 .empty.archive-empty {
   color: var(--text-secondary);
 }
+/* Reassurance empty-state: some filters are "all clear when empty" — e.g.
+ * is:expired finding nothing means no clip is past due. The headline takes
+ * a calm success tint so the result reads as good news ("Nothing past
+ * due"), not a failed search; the subtext stays in the normal muted
+ * secondary so the all-clear is legible without shouting. No operator wall
+ * here — there's nothing to fix. */
+.empty.empty-reassure {
+  color: var(--success);
+  font-weight: 600;
+}
+.empty.empty-reassure small {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
 .empty-action {
   display: inline-flex;
   align-items: center;
