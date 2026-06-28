@@ -60,18 +60,24 @@ export interface NoteTintPreviewRow {
 }
 
 /**
- * The fixed stub notes the preview paints. Two trip the tint (a production
- * caveat + a "do not paste" warning + a staging URL), one stays plain (an
- * ordinary reminder) so the swatch shows the tinted/plain contrast that
- * makes the rule legible. The verdict for EACH is computed live from
- * lib/note-warning, so the preview rows always match what the palette +
- * composer banner would do — no hard-coded "this one is red" that could
- * drift from the detector.
+ * The fixed stub notes the preview paints. Three trip the tint (a production
+ * caveat, a "do not paste" warning, a staging URL) plus a hash-prefixed
+ * "#prod" flag, one stays plain (an ordinary reminder) so the swatch shows
+ * the tinted/plain contrast that makes the rule legible — and the "#prod"
+ * row proves the hashtag spelling tints too. The verdict for EACH is
+ * computed live from lib/note-warning, so the preview rows always match what
+ * the palette + composer banner would do — no hard-coded "this one is red"
+ * that could drift from the detector.
  */
 const PREVIEW_NOTES: readonly string[] = [
   "prod only — never paste into the live console",
   "do not paste this token anywhere public",
   "staging URL, swap before shipping",
+  // Hash-prefixed inline flag: the detector accepts "#prod" the same as a
+  // bare "prod" (users write hashtags as informal markers), so the preview
+  // shows that spelling tints too — otherwise a user who only ever writes
+  // "#staging" would wonder why the swatch's examples don't look like theirs.
+  "deploy notes #prod handle with care",
   "reminder: ask Dana about the Q3 numbers",
 ];
 

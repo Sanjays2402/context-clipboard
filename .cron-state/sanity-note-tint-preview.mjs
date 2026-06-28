@@ -66,7 +66,14 @@ ok(byNote("do not paste").flagged, "do-not-paste warning is flagged");
 eq(byNote("do not paste").keyword, "do not", "do-not keyword = do not");
 ok(byNote("staging URL").flagged, "staging URL is flagged");
 eq(byNote("staging URL").keyword, "staging", "staging keyword = staging");
+// hash-prefixed flag: "#prod" tints exactly like a bare "prod", proving the
+// hashtag spelling trips the same detector (keyword canonical-cased "prod").
+ok(byNote("#prod").flagged, "hash-prefixed #prod is flagged");
+eq(byNote("#prod").keyword, "prod", "#prod keyword canonicalises to prod");
 ok(!byNote("Q3 numbers").flagged, "ordinary reminder is NOT flagged");
+// four flagged rows + one plain baseline (the #prod row added the hashtag case).
+eq(rows.filter((r) => r.flagged).length, 4, "four flagged rows incl. #prod");
+eq(rows.filter((r) => !r.flagged).length, 1, "one plain baseline row");
 
 // --- row caption grammar: names the keyword on flagged, empty on plain ---
 eq(noteTintPreviewRowCaption(byNote("prod only")), "tinted: prod", "flagged row caption names keyword");
