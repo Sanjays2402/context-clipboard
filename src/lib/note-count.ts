@@ -92,6 +92,17 @@ export interface NoteCountState {
    * this so the two booleans can never paint two colours at once.
    */
   tier: NoteCountTier;
+  /**
+   * Fill fraction for a progress-bar gauge, in [0, 1]. `length / cap`
+   * clamped so the bar never overflows its track: a draft AT or OVER the
+   * cap reads a full bar (1), an empty draft an empty one (0). This is the
+   * visceral runway cue that pairs with the numeric `label` — the same
+   * `tier` colours the bar (muted -> amber -> red) so the gauge and the
+   * counter can never disagree. Driving the width from the shared state
+   * (not a popup recompute) keeps the bar, the colour, and the number in
+   * lock-step. A degenerate / non-finite cap yields 0 (no misleading fill).
+   */
+  ratio: number;
   /** Ready-to-render label, e.g. "1,240 / 2,000". */
   label: string;
 }
@@ -121,12 +132,19 @@ export function noteCountState(
   // collapses the two into one mutually-exclusive paint decision.
   const nearCap = !overCap && length >= nearThreshold;
   const tier: NoteCountTier = overCap ? "over" : nearCap ? "near" : "normal";
+  // Progress-bar fill, clamped to [0, 1]: a draft at/over the cap reads a
+  // full bar (never overflows the track), an empty draft an empty one. A
+  // degenerate cap (<= 0 / non-finite — already coerced to CLIP_NOTE_MAX_LEN
+  // above, so cap is always positive here) would still divide safely, but
+  // guard anyway so a future change can't emit NaN width.
+  const ratio = cap > 0 ? Math.min(1, Math.max(0, length / cap)) : 0;
   return {
     length,
     max: cap,
     overCap,
     nearCap,
     tier,
+    ratio,
     label: `${groupThousands(length)} / ${groupThousands(cap)}`,
   };
 }

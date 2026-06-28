@@ -78,6 +78,24 @@ eq(noteCountState("x".repeat(101), 100).tier, "over", "101/100 -> over");
 eq(noteCountState("", 1).tier, "normal", "empty at cap 1 -> normal (not near)");
 eq(noteCountState("x", 1).tier, "near", "1 char at cap 1 -> near");
 
+// --- ratio: clamped [0,1] fill driving the progress-bar gauge ---
+eq(noteCountState("").ratio, 0, "empty -> ratio 0");
+eq(noteCountState("x".repeat(1000)).ratio, 0.5, "1000/2000 -> ratio 0.5");
+eq(noteCountState("x".repeat(1800)).ratio, 0.9, "1800/2000 -> ratio 0.9 (near threshold)");
+eq(noteCountState("x".repeat(2000)).ratio, 1, "2000 (== cap) -> ratio 1 (full bar)");
+eq(noteCountState("x".repeat(2001)).ratio, 1, "2001 (over) -> ratio clamped to 1");
+eq(noteCountState("x".repeat(5000)).ratio, 1, "way over -> ratio still clamped to 1");
+// ratio scales with a custom cap.
+eq(noteCountState("x".repeat(25), 100).ratio, 0.25, "25/100 -> ratio 0.25");
+eq(noteCountState("x".repeat(150), 100).ratio, 1, "150/100 -> ratio clamped to 1");
+// ratio never goes negative / NaN on degenerate input.
+eq(noteCountState(null).ratio, 0, "null draft -> ratio 0");
+// ratio is always within [0,1] across a sweep (the bar can never overflow).
+for (const n of [0, 1, 500, 1799, 1800, 2000, 2001, 9999]) {
+  const r = noteCountState("x".repeat(n)).ratio;
+  eq(r >= 0 && r <= 1, true, `ratio in [0,1] at len ${n}`);
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(`note-near-cap sanity: ${pass}/${pass + fail} pass`);
 if (fail > 0) process.exit(1);

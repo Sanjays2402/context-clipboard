@@ -5849,6 +5849,39 @@ button.audit-row.jumpable:focus-visible {
   color: var(--danger, #e06b6b);
   font-weight: 600;
 }
+/* Note-length progress gauge — a slim track under the tag suggestions that
+ * fills as the draft approaches the 2,000-char cap. A more visceral runway
+ * cue than the number alone: you SEE the bar creep toward full before the
+ * counter even turns amber. Width + colour both come from the shared
+ * lib/note-count state (the clamped `ratio` + the `tier`), so the bar, the
+ * counter colour, and the "N / 2,000" number are always in lock-step. */
+.note-count-bar {
+  height: 3px;
+  margin: 2px 0 6px;
+  background: var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 999px;
+  overflow: hidden;
+}
+.note-count-bar-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent, #6ea8fe);
+  transition: width 90ms ease-out, background-color 120ms ease;
+}
+/* Mirror the counter's tier colours: amber as a runway warning (>= 90%),
+ * red once over the cap (the sanitizer will slice the tail on save). */
+.note-count-bar.near-cap .note-count-bar-fill {
+  background: var(--accent-strong, #f5b400);
+}
+.note-count-bar.over-cap .note-count-bar-fill {
+  background: var(--danger, #e06b6b);
+}
+@media (prefers-reduced-motion: reduce) {
+  .note-count-bar-fill {
+    transition: none;
+  }
+}
 .note-composer-hint {
   flex: 1 1 auto;
   font-size: 10.5px;

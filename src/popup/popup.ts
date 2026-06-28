@@ -584,6 +584,8 @@ const noteTemplatePill = $("note-template-pill");
 const noteWarnRow = $("note-warn-row");
 const noteWarnBannerEl = $("note-warn-banner");
 const noteCharCount = $("note-char-count");
+const noteCountBar = $("note-count-bar");
+const noteCountBarFill = $("note-count-bar-fill");
 
 // State ----------------------------------------------------------------
 let currentKind: ClipKind | "all" = "all";
@@ -6366,6 +6368,19 @@ function refreshNoteCharCount(): void {
   // runway before the red "over" band where the sanitizer slices the tail.
   noteCharCount.classList.toggle("near-cap", state.tier === "near");
   noteCharCount.classList.toggle("over-cap", state.tier === "over");
+  // Progress-bar gauge: a more visceral runway cue than the number alone.
+  // Width comes from the SAME shared state's clamped `ratio` (length/cap),
+  // and the bar carries the same tier class as the counter so the fill
+  // colour (muted -> amber -> red) and the number can never disagree. The
+  // track stays hidden for an empty draft (0% bar is just noise) and
+  // appears the moment there's something to gauge.
+  const hasDraft = state.length > 0;
+  noteCountBar.hidden = !hasDraft;
+  if (hasDraft) {
+    noteCountBarFill.style.width = `${(state.ratio * 100).toFixed(2)}%`;
+    noteCountBar.classList.toggle("near-cap", state.tier === "near");
+    noteCountBar.classList.toggle("over-cap", state.tier === "over");
+  }
 }
 
 /**
