@@ -154,11 +154,18 @@ try {
   // json-line was added after json → curl added after url-only →
   // bg-tab added between incognito and site-search → 14 total.
   // Then `note-md` added (15) → `clip-note-md` added (16) →
-  // `curl-note` added between `curl` and `fenced-code` (17).
+  // `curl-note` added between `curl` and `fenced-code` (17) →
+  // `weight` (chars + bytes) appended last (18).
   // Each row is gated by its own availability check so adding new rows
   // here only matters for the total-count assertion.
-  total++; if (textActs.length === 17) pass++;
+  total++; if (textActs.length === 18) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
+
+  // The new weight row is present + available for a text clip with a body.
+  const weightAct = textActs.find((a) => a.id === 'weight');
+  check('actions: weight row present', !!weightAct, true);
+  check('actions: weight is a copy row', weightAct && weightAct.kind, 'copy');
+  check('actions: weight available for text', weightAct && weightAct.available, true);
 
   const openAct = textActs.find((a) => a.id === 'open-source');
   check('actions: open-source available for text+url', openAct.available, true);
