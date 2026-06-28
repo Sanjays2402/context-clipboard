@@ -191,6 +191,7 @@ import {
   planBulkCopy,
   formatBulkCopyToast,
   formatBulkCopyButtonTitle,
+  appendCopyBudgetWarning,
 } from "../lib/bulk-clipboard";
 import {
   planBulkMarkdown,
@@ -12111,7 +12112,10 @@ bulkCopy.addEventListener("click", async () => {
   }
   try {
     await navigator.clipboard.writeText(plan.text);
-    toast(formatBulkCopyToast(plan));
+    // Append a soft >1MB heads-up when the joined payload is large — the
+    // copy succeeds (the OS clipboard handles megabytes), but some paste
+    // targets truncate, so the user isn't surprised by a clipped paste.
+    toast(appendCopyBudgetWarning(formatBulkCopyToast(plan), plan.bytes));
   } catch (err) {
     console.error("[context-clipboard] bulk copy failed", err);
     toast("Copy failed", "error");
@@ -12147,7 +12151,9 @@ bulkCopyMd.addEventListener("click", async () => {
   }
   try {
     await navigator.clipboard.writeText(plan.text);
-    toast(formatBulkMarkdownToast(plan));
+    // Same >1MB heads-up as the plain Copy path — both copy plans carry the
+    // joined byte weight, so the warning covers either batch-copy button.
+    toast(appendCopyBudgetWarning(formatBulkMarkdownToast(plan), plan.bytes));
   } catch (err) {
     console.error("[context-clipboard] bulk markdown copy failed", err);
     toast("Copy failed", "error");

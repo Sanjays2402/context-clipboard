@@ -1,0 +1,99 @@
+// Sanity: lib/bulk-clipboard byte-budget warning for large bulk copies.
+// Bundles the REAL module so the budget predicate + toast-tail helper are
+// exercised against shipping code. Covers both copy paths via the generic
+// string-layering helper (works on plain + Markdown toasts alike).
+import { build } from "esbuild";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const dir = mkdtempSync(join(tmpdir(), "ctxclip-copybudget-"));
+const out = join(dir, "bulk-clipboard.mjs");
+await build({ entryPoints: ["src/lib/bulk-clipboard.ts"], bundle: true, format: "esm", outfile: out, logLevel: "silent" });
+const {
+  BULK_COPY_BUDGET_BYTES,
+  exceedsCopyBudget,
+  appendCopyBudgetWarning,
+  planBulkCopy,
+  formatBulkCopyToast,
+} = await import(pathToFileURL(out).href);
+
+let pass = 0,
+  fail = 0;
+const eq = (a, b, msg) => {
+  const A = JSON.stringify(a),
+    B = JSON.stringify(b);
+  if (A === B) pass++;
+  else {
+    fail++;
+    console.error(`FAIL ${msg}: got ${A} want ${B}`);
+  }
+};
+const ok = (cond, msg) => {
+  if (cond) pass++;
+  else {
+    fail++;
+    console.error(`FAIL ${msg}`);
+  }
+};
+
+const MIB = 1024 * 1024;
+
+// --- the budget constant is 1 MiB ---
+eq(BULK_COPY_BUDGET_BYTES, MIB, "budget is 1 MiB");
+
+// --- predicate: strictly greater-than the budget ---
+eq(exceedsCopyBudget(0), false, "0 bytes -> within budget");
+eq(exceedsCopyBudget(MIB - 1), false, "just under -> within");
+eq(exceedsCopyBudget(MIB), false, "exactly at budget -> within (not over)");
+eq(exceedsCopyBudget(MIB + 1), true, "just over -> exceeds");
+eq(exceedsCopyBudget(5 * MIB), true, "5 MiB -> exceeds");
+// defensive: non-finite / negative never warns
+eq(exceedsCopyBudget(NaN), false, "NaN -> within (no spurious warning)");
+eq(exceedsCopyBudget(-100), false, "negative -> within");
+eq(exceedsCopyBudget(Infinity), false, "Infinity -> within (not finite)");
+
+// --- toast tail: unchanged within budget, warned over ---
+eq(appendCopyBudgetWarning("Copied 3 clips", 500), "Copied 3 clips", "within budget -> message unchanged");
+eq(
+  appendCopyBudgetWarning("Copied 3 clips", MIB),
+  "Copied 3 clips",
+  "at budget -> message unchanged (not over)",
+);
+const warned = appendCopyBudgetWarning("Copied 3 clips", Math.round(1.4 * MIB));
+ok(warned.startsWith("Copied 3 clips"), "warned toast keeps the original receipt");
+ok(/large paste/.test(warned), "warned toast names a large paste");
+ok(/1\.4 MB/.test(warned), "warned toast shows the size (matches formatCopyBytes)");
+ok(/truncate/.test(warned), "warned toast mentions truncation risk");
+
+// --- works on ANY toast string (covers the Markdown path too) ---
+eq(
+  appendCopyBudgetWarning("Copied 2 clips as Markdown", 100),
+  "Copied 2 clips as Markdown",
+  "Markdown toast unchanged within budget",
+);
+ok(
+  /large paste/.test(appendCopyBudgetWarning("Copied 2 clips as Markdown", 3 * MIB)),
+  "Markdown toast gets the same warning when over",
+);
+
+// --- end-to-end: a real >1MB plan triggers the warning on its own toast ---
+const bigBody = "x".repeat(MIB + 5000); // > 1 MiB of ASCII -> > 1 MiB bytes
+const bigPlan = planBulkCopy([{ id: "1", kind: "text", content: bigBody }]);
+ok(bigPlan.bytes > MIB, "big plan exceeds the budget in bytes");
+const bigToast = appendCopyBudgetWarning(formatBulkCopyToast(bigPlan), bigPlan.bytes);
+ok(/large paste/.test(bigToast), "real big-plan toast carries the warning");
+
+// --- a small real plan stays clean ---
+const smallPlan = planBulkCopy([{ id: "1", kind: "text", content: "hello" }]);
+ok(smallPlan.bytes < MIB, "small plan within budget");
+eq(
+  appendCopyBudgetWarning(formatBulkCopyToast(smallPlan), smallPlan.bytes),
+  formatBulkCopyToast(smallPlan),
+  "small real-plan toast unchanged",
+);
+
+rmSync(dir, { recursive: true, force: true });
+console.log(`copy-budget sanity: ${pass}/${pass + fail} pass`);
+if (fail > 0) process.exit(1);

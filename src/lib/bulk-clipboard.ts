@@ -232,3 +232,44 @@ function groupThousandsLocal(n: number): string {
   const digits = Math.abs(Math.trunc(n)).toString();
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
+
+/**
+ * Soft byte budget for a bulk clipboard payload — 1 MiB. Above this, some
+ * paste targets choke or silently truncate: chat composers with a server-
+ * side message cap, a commit-message field, a textarea with a maxlength, a
+ * form that rejects the POST. The copy itself always succeeds (the OS
+ * clipboard handles megabytes fine); the budget only gates whether we add
+ * a heads-up so the user isn't surprised when their paste lands clipped.
+ */
+export const BULK_COPY_BUDGET_BYTES = 1024 * 1024;
+
+/**
+ * Does the joined payload exceed the soft budget? Both copy plans
+ * (planBulkCopy + planBulkMarkdown) carry a `bytes` field measured over
+ * exactly what hits the clipboard, so this predicate works for either
+ * batch-copy path. Defensive: a non-finite / negative figure is never
+ * "over" (no spurious warning on a malformed count).
+ */
+export function exceedsCopyBudget(bytes: number): boolean {
+  return Number.isFinite(bytes) && bytes > BULK_COPY_BUDGET_BYTES;
+}
+
+/**
+ * Conditionally append a byte-budget heads-up to a completed-copy toast.
+ * When the payload is within budget the message is returned UNCHANGED (the
+ * common case shows no extra noise); when it's over, a tail naming the size
+ * is appended — "… — large paste (1.4 MB); some targets may truncate" — so
+ * the user knows a clipped paste is a payload-size issue, not a copy
+ * failure.
+ *
+ * Generic over the toast STRING (not the plan) so it layers onto BOTH
+ * copy paths' toasts — formatBulkCopyToast and formatBulkMarkdownToast —
+ * from one helper, keeping those formatters (and their existing row-count
+ * tests) untouched. The size uses the same formatCopyBytes the receipt
+ * already shows, so the figure in the warning matches the figure in the
+ * receipt exactly.
+ */
+export function appendCopyBudgetWarning(message: string, bytes: number): string {
+  if (!exceedsCopyBudget(bytes)) return message;
+  return `${message} \u2014 large paste (${formatCopyBytes(bytes)}); some targets may truncate`;
+}
