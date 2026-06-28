@@ -7,9 +7,10 @@
  * driving the visual treatment.
  *
  * Tiers
- *   - "expired"      → already past expiresAt; surfaces "Expired — GC
- *                      at next capture" so the user knows the clip is
- *                      effectively gone-but-still-here.
+ *   - "expired"      → already past expiresAt; surfaces "Expired N ago"
+ *                      with an actionable "Pin to keep it" rescue hint so
+ *                      the user knows the clip is gone-but-still-here AND
+ *                      that pinning saves it before the next GC sweep.
  *   - "imminent"     → < 1 hour left. Soft-red surface, "Expires in
  *                      Xm" — the warn band that catches the user before
  *                      something they care about quietly disappears.
@@ -77,8 +78,16 @@ export function computeTtlBanner(
     return {
       tier: "expired",
       remainingMs,
-      label: "Expired — GC at next capture",
-      detail: `Was due ${formatPast(-remainingMs)} ago`,
+      // Lead with HOW LONG it's been past due (sharper than a flat
+      // "Expired — GC at next capture": "Expired 23m ago" tells the user
+      // the clip is gone-but-still-here and how stale that state is).
+      label: `Expired ${formatPast(-remainingMs)} ago`,
+      // Actionable rescue hint, not a passive doom statement. The banner
+      // carries a "Keep" pin button right beside this copy; pinning pauses
+      // the TTL (pin > TTL), so the clip survives the next GC sweep. Tell
+      // the user that escape exists at the exact moment they're looking at
+      // an expired clip — mirrors the is:expired "rescue or let go" framing.
+      detail: "Pin to keep it — otherwise the GC sweeps it at the next capture",
       expiresAt: c.expiresAt,
     };
   }
