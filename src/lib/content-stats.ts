@@ -37,7 +37,20 @@
  *     "1,240" reads cleanly; we use a fixed en-US grouping (commas)
  *     to stay deterministic across the sanity suite + match the rest
  *     of the popup chrome.
+ *   - The breadcrumb ALSO carries a UTF-8 byte figure as its final
+ *     segment ("… · 1.2 KB"). The char count answers "how long is
+ *     this?"; the byte count answers "how heavy is this?" — the number
+ *     that matters when pasting into a size-bounded target. The detail
+ *     Send-to "Copy weight" row already surfaces chars + bytes for a
+ *     single clip; appending bytes here means the at-a-glance breadcrumb
+ *     and that row AGREE (same utf8ByteLength + formatCopyBytes the bulk
+ *     copy/export receipts use, so every weight figure in the UI counts
+ *     identically). A multi-byte glyph makes bytes > chars, which is
+ *     exactly the "this paste is heavier than its length suggests"
+ *     signal the byte count exists for.
  */
+
+import { utf8ByteLength, formatCopyBytes } from "./bulk-clipboard";
 
 export interface ContentStatsInput {
   kind: "text" | "image" | "link";
@@ -107,6 +120,30 @@ function countUnit(n: number, unit: string): string {
   return `${groupThousands(n)} ${unit}${n === 1 ? "" : "s"}`;
 }
 
+/** UTF-8 byte length of a clip's raw body (image / nullish content -> 0). */
+function bytesOf(c: ContentStatsInput | null | undefined): number {
+  const body = typeof c?.content === "string" ? c.content : "";
+  return utf8ByteLength(body);
+}
+
+/**
+ * The byte segment that tails the breadcrumb, e.g. "1.2 KB" / "742 B".
+ * When `bold` is true the NUMERIC prefix is wrapped in `**` (the unit
+ * stays plain) — "**1.2** KB" — so the Markdown breadcrumb bolds the
+ * figure the eye scans for, matching how the char/word/line segments
+ * bold only their numbers. Splitting on the last space keeps the unit
+ * (B / KB / MB / GB) outside the emphasis. Plain + bold differ ONLY by
+ * the `**`, so stripping them reproduces the plain segment exactly (the
+ * md/plain parity contract the breadcrumb's copy paths rely on).
+ */
+function byteSegment(bytes: number, bold: boolean): string {
+  const s = formatCopyBytes(bytes);
+  if (!bold) return s;
+  const sp = s.lastIndexOf(" ");
+  if (sp < 0) return `**${s}**`;
+  return `**${s.slice(0, sp)}** ${s.slice(sp + 1)}`;
+}
+
 /**
  * Format the breadcrumb string for the detail stats row, e.g.
  * "1,240 chars · 198 words · 12 lines". Returns null when there are
@@ -131,6 +168,10 @@ export function formatContentStats(
   ];
   // Only surface the line count when it adds information (> 1 line).
   if (s.lines > 1) parts.push(countUnit(s.lines, "line"));
+  // Byte weight always tails the breadcrumb — "how heavy is this?" beside
+  // "how long is this?". Same utf8ByteLength + formatCopyBytes the Send-to
+  // weight row + the bulk receipts use, so every weight figure agrees.
+  parts.push(byteSegment(bytesOf(c), false));
   return parts.join(" \u00b7 ");
 }
 
@@ -197,6 +238,10 @@ export function formatContentStatsMarkdown(
     boldCountUnit(s.words, "word"),
   ];
   if (s.lines > 1) parts.push(boldCountUnit(s.lines, "line"));
+  // Byte weight tails the Markdown breadcrumb too, with the figure bolded
+  // (unit plain) — "**1.2** KB" — so stripping the ** reproduces the plain
+  // breadcrumb's byte segment exactly, preserving the md/plain parity.
+  parts.push(byteSegment(bytesOf(c), true));
   return parts.join(" \u00b7 ");
 }
 
