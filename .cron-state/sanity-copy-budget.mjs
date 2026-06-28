@@ -106,6 +106,17 @@ ok(/truncate/.test(warnedTitle), "title warning mentions truncation risk");
 // defensive: NaN never warns the title either
 eq(appendCopyBudgetTitleWarning("Copy", NaN), "Copy", "title NaN -> unchanged");
 
+// --- single-clip skip: a deliberate 1-clip pick never warns ---
+const overOne = Math.round(1.4 * MIB);
+eq(appendCopyBudgetWarning("Copied 1 clip", overOne, 1), "Copied 1 clip", "1 clip over budget -> no warning");
+ok(/large paste/.test(appendCopyBudgetWarning("Copied 2 clips", overOne, 2)), "2 clips over budget -> warns");
+eq(appendCopyBudgetTitleWarning("Copy 1 clip", overOne, 1), "Copy 1 clip", "title 1 clip -> no warning");
+ok(/over 1 MB/.test(appendCopyBudgetTitleWarning("Copy 3 clips", overOne, 3)), "title 3 clips -> warns");
+// count <= 0 (nothing copyable) also stays quiet
+eq(appendCopyBudgetWarning("Nothing", overOne, 0), "Nothing", "0 clips -> no warning");
+// default count (omitted) still warns — back-compat
+ok(/large paste/.test(appendCopyBudgetWarning("Copied", overOne)), "omitted count defaults to warn");
+
 rmSync(dir, { recursive: true, force: true });
 console.log(`copy-budget sanity: ${pass}/${pass + fail} pass`);
 if (fail > 0) process.exit(1);

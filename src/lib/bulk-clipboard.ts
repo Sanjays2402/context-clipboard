@@ -268,8 +268,15 @@ export function exceedsCopyBudget(bytes: number): boolean {
  * tests) untouched. The size uses the same formatCopyBytes the receipt
  * already shows, so the figure in the warning matches the figure in the
  * receipt exactly.
+ *
+ * `count` is the number of clips that hit the clipboard. A SINGLE-clip
+ * copy is the user's deliberate choice — they picked one big snippet, they
+ * know it's big — so the warning stays off there (count <= 1). The heads-up
+ * earns its place on an ACCIDENTAL fat multi-select, where 1.4 MB is a
+ * surprise. Defaults to 2 (warn) so existing callers keep their behaviour.
  */
-export function appendCopyBudgetWarning(message: string, bytes: number): string {
+export function appendCopyBudgetWarning(message: string, bytes: number, count: number = 2): string {
+  if (count <= 1) return message;
   if (!exceedsCopyBudget(bytes)) return message;
   return `${message} \u2014 large paste (${formatCopyBytes(bytes)}); some targets may truncate`;
 }
@@ -285,8 +292,13 @@ export function appendCopyBudgetWarning(message: string, bytes: number): string 
  * gate as the toast so the hover and the post-copy receipt agree. Generic
  * over the title STRING so it layers onto either copy button's title
  * helper from one place, leaving those formatters untouched.
+ *
+ * `count` mirrors appendCopyBudgetWarning: a single-clip copy is the
+ * user's deliberate pick (no surprise), so the hint stays off (count <= 1);
+ * it earns its place on an accidental fat multi-select. Defaults to 2.
  */
-export function appendCopyBudgetTitleWarning(title: string, bytes: number): string {
+export function appendCopyBudgetTitleWarning(title: string, bytes: number, count: number = 2): string {
+  if (count <= 1) return title;
   if (!exceedsCopyBudget(bytes)) return title;
   return `${title} \u00b7 over 1 MB (${formatCopyBytes(bytes)}) \u2014 some targets may truncate`;
 }

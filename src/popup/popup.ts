@@ -11504,13 +11504,13 @@ function updateBulkBar(): void {
   // selection at fire time, so the toast count stays truthful even
   // when the selection extends past the filter window.
   const copyPlan = planBulkCopy(visibleSelected);
-  bulkCopy.title = appendCopyBudgetTitleWarning(formatBulkCopyButtonTitle(copyPlan), copyPlan.bytes);
+  bulkCopy.title = appendCopyBudgetTitleWarning(formatBulkCopyButtonTitle(copyPlan), copyPlan.bytes, copyPlan.copied);
   // Bulk-copy-as-Markdown title — same visible-slice contract as the
   // plain copy button; the click handler reads the full selection at
   // fire time so the toast count stays truthful past the filter window.
   // Same >1MB pre-commit hint as plain Copy so both buttons warn on hover.
   const mdPlan = planBulkMarkdown(visibleSelected);
-  bulkCopyMd.title = appendCopyBudgetTitleWarning(formatBulkMarkdownButtonTitle(mdPlan), mdPlan.bytes);
+  bulkCopyMd.title = appendCopyBudgetTitleWarning(formatBulkMarkdownButtonTitle(mdPlan), mdPlan.bytes, mdPlan.rendered);
   // Lock button title — adapts to the selection's current lock-state
   // distribution so a hover reveals what the click will do BEFORE
   // the user commits to it. Counts run over the FULL selection
@@ -12125,7 +12125,7 @@ bulkCopy.addEventListener("click", async () => {
     // Append a soft >1MB heads-up when the joined payload is large — the
     // copy succeeds (the OS clipboard handles megabytes), but some paste
     // targets truncate, so the user isn't surprised by a clipped paste.
-    toast(appendCopyBudgetWarning(formatBulkCopyToast(plan), plan.bytes));
+    toast(appendCopyBudgetWarning(formatBulkCopyToast(plan), plan.bytes, plan.copied));
   } catch (err) {
     console.error("[context-clipboard] bulk copy failed", err);
     toast("Copy failed", "error");
@@ -12163,7 +12163,7 @@ bulkCopyMd.addEventListener("click", async () => {
     await navigator.clipboard.writeText(plan.text);
     // Same >1MB heads-up as the plain Copy path — both copy plans carry the
     // joined byte weight, so the warning covers either batch-copy button.
-    toast(appendCopyBudgetWarning(formatBulkMarkdownToast(plan), plan.bytes));
+    toast(appendCopyBudgetWarning(formatBulkMarkdownToast(plan), plan.bytes, plan.rendered));
   } catch (err) {
     console.error("[context-clipboard] bulk markdown copy failed", err);
     toast("Copy failed", "error");
