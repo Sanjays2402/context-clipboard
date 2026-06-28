@@ -50,6 +50,17 @@ export interface TtlBannerState {
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
+/**
+ * The pin-rescue cue, echoed across the actionable tiers. The banner
+ * always renders a "Keep" pin button beside the copy (pinning pauses the
+ * TTL — pin > TTL — so the clip survives the next GC sweep), but on the
+ * imminent / soon tiers that escape was only discoverable by hovering the
+ * button. Surfacing the cue in the copy makes the rescue visible at the
+ * moment of urgency, mirroring the expired tier's "Pin to keep it"
+ * framing. Kept as a single constant so the tiers can't drift on the
+ * phrasing. */
+export const TTL_RESCUE_HINT = "pin to keep it";
+
 export interface TtlBannerInput {
   pinned: boolean;
   expiresAt?: number;
@@ -97,7 +108,9 @@ export function computeTtlBanner(
       tier: "imminent",
       remainingMs,
       label: `Expires in ${formatShort(remainingMs)}`,
-      detail: `at ${formatClock(c.expiresAt)}`,
+      // Echo the pin-rescue cue beside the clock so the escape is visible
+      // at the most urgent tier (< 1h) without hovering the Keep button.
+      detail: `at ${formatClock(c.expiresAt)} \u2014 ${TTL_RESCUE_HINT}`,
       expiresAt: c.expiresAt,
     };
   }
@@ -107,7 +120,9 @@ export function computeTtlBanner(
       tier: "soon",
       remainingMs,
       label: `Expires in ${formatShort(remainingMs)}`,
-      detail: `today at ${formatClock(c.expiresAt)}`,
+      // Same rescue cue on the soon tier (< 24h) for parity with imminent
+      // + expired — every actionable tier now tells the user the way out.
+      detail: `today at ${formatClock(c.expiresAt)} \u2014 ${TTL_RESCUE_HINT}`,
       expiresAt: c.expiresAt,
     };
   }
