@@ -535,24 +535,51 @@ surface can never drift from the real signal.
 Gate: tsc --noEmit clean; chrome + firefox builds green (popup 507.8KB, bg 48.0KB, content 31.2KB). 104/104 new/touched sanity (27+29+27+0+21; cheatsheet-detail new, note-warn-banner unchanged 27). Neighbour regression green: send-to 144, json-line 45, content-stats 74, note-near-cap 45, cheatsheet-bulk 22, cheatsheet-settings 22, cheatsheet-filter 27, bulk-clipboard 64, bulk-md-chars 15, bulk-export-title 15, bulk-preview 30. Pushed 6b73a1d..e445b88.
 Deferred: none — all 5 are solid, demoable, revertible slices.
 
-### New (added this tick — 2026-06-28 12:44 PT refill, FRESH frontend)
+### TICK LOG 2026-06-28 16:35 PT — 5/5 shipped (frontend UX, pre/post parity + discoverability + safety)
+Five orthogonal slices across send-to, bulk-bar (x2), cheatsheet, and
+settings. Each is a pure-module change + a thin wire; three slices made an
+existing helper count- or markdown-aware without touching its formatters.
+- `371de67` Send-to: "Copy weight as Markdown" bold-number variant. The Copy-weight row read chars/words/bytes plain; docs want them bold. New clipWeightSummaryMarkdown emits **1,240** chars . **198** words . **1.2** KB, mirroring the content-stats md stat-line. Bold figures only (units plain) so strip-** == plain summary (md/plain parity); same null gate so both rows surface/hide together. send-to/json-line row counts 18->19. 36/36 clip-weight.
+- `4c5fdb0` Bulk-bar: >1MB hint on the Copy/Copy-MD button HOVER. The toast warned after the copy; the hover didn't. New appendCopyBudgetTitleWarning tails "over 1 MB (1.4 MB)" onto both copy titles when the visible payload exceeds the same 1 MiB budget the toast uses, generic over the title string so it covers both buttons. 28/28 copy-budget.
+- `957c36b` Cheatsheet: name the missed query in the no-match note. Was a flat "No shortcuts match that filter."; now cheatsheetNoMatchText echoes "No shortcut matches 'foo'." like the clip-list empty state. Trim+lowercase, 24-char cap, quote/control-char strip. 10/10 (bundles the real module).
+- `db4686a` Settings: hashtag-style #prod stub in the note-tint preview. Users write inline flags as hashtags; added a "#prod" stub so the swatch proves the hashtag spelling tints too. Verdict still delegated to the live detector — four flagged (incl. #prod -> "prod"), one plain. 36/36.
+- `bb10273` Bulk-bar: skip the >1MB warning on a single-clip copy. A 1MB single clip is deliberate; both budget helpers now take count, count<=1 short-circuits before the size gate (toast + hover), default 2 keeps back-compat. 34/34.
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 510.2KB, bg 48.0KB, content 31.2KB). 305/305 new/touched sanity (36+144+45+34+10+36). Neighbours green: cheatsheet-filter 27, cheatsheet-bulk 22, cheatsheet-settings 22, content-stats 74, note-near-cap 45, empty-reassurance 24, bulk-md-chars 15, bulk-export-title 15, bulk-preview 30. Pushed cbcb094..bb10273.
+Deferred: none — all 5 are solid, demoable, revertible slices.
+
+### New (added this tick — 2026-06-28 16:35 PT refill, FRESH frontend)
 Follow-ups the loops this tick opened, plus orthogonal gaps. Spread across
-send-to, settings, cheatsheet, note-composer, bulk-bar, detail, trash.
-- [ ] Detail send-to: a "Copy weight as Markdown" variant (`**1,240** chars · **198** words · **1.2 KB**`) mirroring the content-stats Markdown stat-line — now trivial since the weight summary carries words + byteSegment(bold) exists
+send-to, bulk-bar, cheatsheet, settings, detail, trash, note-composer.
+- [ ] Detail send-to: a "Copy weight as cURL comment" for link clips (`# 1,240 chars · 1.2 KB`) so the size rides with the request in a runbook — now trivial since clipWeightSummary exists
+- [ ] Content-stats breadcrumb: an Alt-click "Copy stats as Markdown" Cmd+K command (keyboard parity with the send-to weight-md row, mirror of the breadcrumb Alt-click)
+- [ ] Bulk-bar: a settings toggle for the copy byte-budget threshold (some paste into a 256KB cap; others never hit 1MB) — opt-in, defaults to 1 MiB
+- [ ] Bulk-bar: the >1MB hint should round the count test to FULL selection, not just visible — a fat off-screen multi-select can still surprise; read count from selectedIds.size
+- [ ] Cheatsheet no-match note: a "clear filter" affordance inline (the note names the dead query; a one-tap reset would close the loop)
+- [ ] Settings note-tint preview: hovering a flagged row surfaces the full note-warning tooltip (formatNoteWarningTooltip) so the preview teaches the paste-time hover too
+- [ ] Settings: combine the density + note-tint previews into one "what your list looks like" panel (two swatches today; a combined view shows the interaction)
+- [ ] Note-composer: the soft-red border echo could pulse once (200ms fade-in) the first time a keyword trips, reduced-motion aware
+- [ ] Trash: a "Purge expired-TTL clips" quick action (mirror of Purge >24h) — clips past their own TTL are a distinct bucket; pairs with the runway sort
+- [ ] Detail send-to: a "Copy weight as plain" vs "as Markdown" — verify the two stay byte-identical on strip-** and dedupe onto one formatter if drift appears
+- [ ] Cheatsheet filter: remember the last filter across opens within a session (resets to empty on every `?`) — opt-in, no IDB
+- [ ] Note-composer: char-count progress bar carries the soft-red tint when a warning keyword trips (today bar=length, border=caution; unify when both fire)
+- [ ] Bulk-bar: a "Copy weight as Markdown" bulk receipt variant (the per-clip row now has it; the bulk toast could bold its figures for doc paste)
+- [ ] Settings note-tint preview: a "+ edit keywords" affordance once the per-host warning-keyword list ships
+- [ ] Detail content-stats: surface the source URL/title in the click-to-copy summary for link clips (today body-stats only)
+
 - [ ] Settings note-tint preview: a "+ edit keywords" affordance once the per-host warning-keyword list ships (the preview is the natural place to surface the editable list)
 - [ ] Settings note-tint preview: hovering a flagged row could surface the FULL note-warning tooltip (formatNoteWarningTooltip) so the preview teaches the exact paste-time hover too
 - [ ] Cheatsheet "Detail header": the OCR / Re-fetch / Reveal / Wrap glyphs are conditionally-shown (hidden until the clip qualifies) — a follow-up could document them in a sub-note so users know they appear for image/redacted/wide clips
 - [ ] Note-composer: the soft-red border echo could also pulse once (single 200ms fade-in) the FIRST time a keyword trips, so a user mid-sentence notices the state change — reduced-motion aware
-- [ ] Bulk-bar: surface the >1MB heads-up on the Copy/Copy-MD HOVER too (the button title), not just the post-copy toast, so the user sees it before committing (both plans carry bytes; the title helpers already run on hover)
+- [x] Bulk-bar: surface the >1MB heads-up on the Copy/Copy-MD HOVER too (the button title), not just the post-copy toast, so the user sees it before committing (both plans carry bytes; the title helpers already run on hover) — `4c5fdb0`
 - [ ] Bulk-bar: a settings toggle for the copy byte-budget threshold (some users paste into targets with a 256KB cap; others never hit 1MB) — opt-in, defaults to 1 MiB
 - [ ] Detail send-to weight: a "Copy weight as cURL comment" for link clips (`# 1,240 chars · 1.2 KB`) so the size rides with the request in a runbook
 - [ ] Settings: a live preview of the DENSITY + note-tint together in one "what your list looks like" panel (currently two separate swatches; a combined view shows the real interaction)
-- [ ] Cheatsheet filter: when a filter matches ZERO rows, a one-line "no shortcut matches 'foo'" instead of a silent empty body (parallels the search empty-state work)
+- [x] Cheatsheet filter: when a filter matches ZERO rows, a one-line "no shortcut matches 'foo'" instead of a silent empty body (parallels the search empty-state work) — `957c36b`
 - [ ] Note-composer: the char-count progress bar could carry the same soft-red tint as the border when a warning keyword trips (today the bar tracks LENGTH, the border tracks CAUTION — two independent signals; unifying the colour when both fire would read cleaner)
 - [ ] Trash: a "Purge expired-TTL clips" quick action (mirror of Purge >24h) — clips whose OWN TTL already lapsed are a distinct bucket from old-trash; pairs with the runway sort that floats them
 - [ ] Detail content-stats breadcrumb: now that the Send-to weight row carries words too, the breadcrumb's click-to-copy summary and the weight row's payload are byte-identical on chars/words — verify + dedupe the two format paths onto one helper
-- [ ] Bulk-bar: "Copy selected" should skip the >1MB warning when the selection is a single clip (a 1MB single clip is the user's deliberate choice; the warning is most useful for an accidental fat multi-select)
-- [ ] Settings note-tint preview: a fourth stub row using a HASHTAG-style inline warning (`#prod`) so the preview shows the hash-prefixed spelling tints too (the detector accepts both)
+- [x] Bulk-bar: "Copy selected" should skip the >1MB warning when the selection is a single clip (a 1MB single clip is the user's deliberate choice; the warning is most useful for an accidental fat multi-select) — `bb10273`
+- [x] Settings note-tint preview: a fourth stub row using a HASHTAG-style inline warning (`#prod`) so the preview shows the hash-prefixed spelling tints too (the detector accepts both) — `db4686a`
 
 Closed five loops the 02:52 tick's follow-up list opened, each on a
 distinct surface — search, detail breadcrumb, note-composer, trash,
@@ -574,7 +601,7 @@ note-composer, detail send-to, content-stats, trash, cheatsheet, search,
 settings — deliberately keeping no single surface dominant.
 - [ ] Note-composer: the new progress bar could carry a tiny inline tick-mark at the 90% (amber) threshold so the user sees WHERE "getting close" begins, not just that the fill changed colour
 - [x] Detail send-to weight row: include word count too ("198 words · 1,240 chars · 1.2 KB") so the single-clip weight matches the content-stats triple now that the breadcrumb tails bytes — `3f785bc`
-- [ ] Detail send-to: a "Copy weight as Markdown" variant ("**1,240** chars · **1.2 KB**") mirroring the content-stats Markdown stat-line — now trivial since byteSegment(bold) exists
+- [x] Detail send-to: a "Copy weight as Markdown" variant (`**1,240** chars · **198** words · **1.2 KB**`) mirroring the content-stats Markdown stat-line — now trivial since the weight summary carries words + byteSegment(bold) exists — `371de67`
 - [ ] Search: `is:archived` empty-reassurance ("Nothing archived yet") — extend REASSURANCE_MAP a third entry so the all-clear family covers the archive view too (currently archive has its own bespoke empty copy; unify onto the shared map)
 - [ ] Trash: surface the absolute purge-clock in the row's MAIN title too (the row-level recapture tooltip wins on hover outside the tail; a user hovering the preview never sees the purge time)
 - [x] Cheatsheet `.cheat-act` token: a "Detail header" group naming the icon-only action glyphs (Redact / Scrub / Archive / Send / Lock / Pin) so the unlabelled buttons get discovered — `b62f806`
