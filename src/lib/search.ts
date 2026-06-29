@@ -33,6 +33,18 @@ import {
   localLastMonthStart,
 } from "./today-filter";
 
+/**
+ * Predicate: does this clip's body span more than one line? Image clips
+ * (data-URL body) never match. CRLF/CR normalised to LF, then any interior
+ * newline -> multiline. Shared by the `is:multiline` filter so search and
+ * any UI line-count badge agree on the definition.
+ */
+export function multilineMatches(c: Pick<ClipItem, "kind" | "content">): boolean {
+  if (c.kind === "image") return false;
+  const body = typeof c.content === "string" ? c.content : "";
+  return body.replace(/\r\n?/g, "\n").includes("\n");
+}
+
 export interface ParsedQuery {
   freeText: string;
   kind?: ClipKind;
@@ -507,6 +519,16 @@ export interface ParsedQuery {
    */
   langOverrideOnly: boolean;
   /**
+   * Surface only clips whose body spans MORE THAN ONE line. Triggered by
+   * `is:multiline`. Mirrors the content-stats breadcrumb's line count: a
+   * body with at least one interior newline (CRLF/CR normalised) matches;
+   * single-line snippets, links, and images don't. The "find the blocks,
+   * not the one-liners" filter — surfacing captured tables, code,
+   * transcripts, anything worth opening over copying inline. Predicate
+   * shared with multilineMatches so search + any UI badge agree.
+   */
+  multilineOnly: boolean;
+  /**
    * Directional narrowings of `is:langoverride` — surface only the clips
    * forced to a SPECIFIC state, not just "has any override". Richer than
    * the wrap on/off split because a language override can name any one of
@@ -650,6 +672,7 @@ export function parseQuery(raw: string): ParsedQuery {
     hostScrubbedOnly: false,
     wrapOverrideOnly: false,
     langOverrideOnly: false,
+    multilineOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -754,6 +777,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "hostpinned") out.hostPinnedOnly = true;
       else if (v === "hostredacted") out.hostRedactedOnly = true;
       else if (v === "hostscrubbed") out.hostScrubbedOnly = true;
+      else if (v === "multiline") out.multilineOnly = true;
       else if (v === "wrapoverride") out.wrapOverrideOnly = true;
       else if (v === "wrapoverride:on" || v === "wrapoverride:off") {
         // Directional variants: narrow to a forced ON / OFF state. Also
@@ -1086,6 +1110,10 @@ export function applyQuery(
     if (q.ocrOnly && !c.ocrText) return false;
     if (q.templateOnly && !c.template) return false;
     if (q.noTemplate && c.template) return false;
+    // `is:multiline` — body spans >1 line. Image clips (data-URL body)
+    // never match; text/link bodies count via the shared predicate so the
+    // filter agrees with the content-stats breadcrumb's line count.
+    if (q.multilineOnly && !multilineMatches(c)) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
     // `is:expired` — strict subset of is:expiring: a finite expiresAt
     // that's already at/past `now`. These linger until the GC sweeps
@@ -1193,6 +1221,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.hostPinnedOnly) bits.push("hostpinned");
   if (q.hostRedactedOnly) bits.push("hostredacted");
   if (q.hostScrubbedOnly) bits.push("hostscrubbed");
+  if (q.multilineOnly) bits.push("multiline");
   if (q.wrapOverrideOnly) {
     bits.push(
       q.wrapOverrideDir === "on"
