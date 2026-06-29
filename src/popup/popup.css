@@ -1093,6 +1093,32 @@ main:focus {
   opacity: 0.7;
 }
 
+/* Tabular clips (single-line CSV/TSV rows) get their OWN faint left-stripe,
+   the list-row companion to the Tabular quick-chip + is:tabular. Same shape
+   as the code stripe but a distinct tint (neutral --success green vs the
+   code accent gold) so the eye can tell "snippet" from "spreadsheet row" at
+   a glance. Mutually exclusive with .is-code (code wins — see render()), so
+   a row never carries both. The success green is the calmest non-accent hue
+   in the palette and reads as "structured data" without competing with the
+   gold code accent or the danger red. */
+.clip.is-tabular::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--success);
+  opacity: 0.3;
+  transition: opacity 0.18s ease;
+}
+
+.clip.is-tabular:hover::before,
+.clip.is-tabular.active::before {
+  opacity: 0.65;
+}
+
 /* Day-group dividers — a sticky, uppercase micro-label that marks
    where each calendar-day run begins in time-ordered lists. Sticks to
    the top of the scroll container so the user always knows which day

@@ -982,9 +982,21 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
   // the filter all agree. Images never match (data-URL body). A purely
   // visual hint: the kind glyph already shows, this just lets the eye skim
   // the daily list and spot snippets among prose at a glance.
-  const codeStripe = codeMatches(c) ? " is-code" : "";
+  //
+  // Tabular rows get their OWN faint stripe (different tint) — the list-row
+  // companion to the Tabular quick-chip + is:tabular. The two stripes are
+  // MUTUALLY EXCLUSIVE: a pathological single-line input could satisfy both
+  // codeMatches and looksLikeTableRow (e.g. `let a, b, c`), so code wins to
+  // keep at most one stripe per row (a clip painted as code shouldn't also
+  // claim to be a spreadsheet row). Computed once so codeMatches isn't
+  // double-called.
+  const kindStripe = codeMatches(c)
+    ? " is-code"
+    : tabularMatches(c)
+      ? " is-tabular"
+      : "";
   return `
-    <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}${c.archived ? " archived" : ""}${codeStripe}" data-id="${c.id}" data-idx="${idx}">
+    <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}${c.archived ? " archived" : ""}${kindStripe}" data-id="${c.id}" data-idx="${idx}">
       ${selectedIds.size > 0 ? `<div class="select-mark">${selectedIds.has(c.id) ? icons.check() : ""}</div>` : ""}
       ${thumb}
       <div class="body">
