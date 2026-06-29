@@ -47,6 +47,13 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 Status: ` ` open / `~` in-progress / `x` shipped
 
 ### TICK LOG
+- 2026-06-29 02:50 PT — 5/5 shipped (frontend UX). 882529f "Prose (N)"
+  quick-chip (proseMatches, twin of Code, partitions text/link), b124138
+  "Copy first paragraph" send-to (first-paragraph.ts, blank-line split),
+  51338c1 "Copy as TSV row" send-to (tsv-row.ts, tab-paste for sheets),
+  c06a1c7 "Copy title only" send-to (clip-title.ts, SEO suffix strip),
+  ab0b8fc sentence count in content-stats (countSentences, >1 only).
+  Send-to 28->31 rows; chips +Prose. tsc + chrome/firefox builds green.
 - 2026-06-29 00:07 PT — 5/5 shipped (frontend UX). cb5b011 is:code/is:prose
   filters (detectCodeLang-backed, langOverride wins), 1e56618 "Code" quick-chip
   with live count, 79a1428 "Copy as CSV row" send-to (RFC-4180), 66745e4 "Copy
@@ -59,13 +66,13 @@ Status: ` ` open / `~` in-progress / `x` shipped
   firefox builds green. last-line 8 + list-format 9 + singleline 11 + longread 9.
 
 ### New (2026-06-29 00:07 PT refill — fresh frontend, content-aware)
-- [ ] Quick-chip: "Prose (N)" companion to the new Code chip (toggles is:prose)
-- [ ] Send-to: "Copy first paragraph" (split on blank line, prose lead block)
-- [ ] Send-to: "Copy as TSV row" (tab-delimited sibling of CSV/Markdown table rows)
-- [ ] Detail content-stats: sentence count for prose clips (chars/words/sentences/lines)
+- [x] Quick-chip: "Prose (N)" companion to the new Code chip (toggles is:prose) — `882529f`
+- [x] Send-to: "Copy first paragraph" (split on blank line, prose lead block) — `b124138`
+- [x] Send-to: "Copy as TSV row" (tab-delimited sibling of CSV/Markdown table rows) — `51338c1`
+- [x] Detail content-stats: sentence count for prose clips (chars/words/sentences/lines) — `ab0b8fc`
 - [ ] Detail body: monochrome "code" / "prose" badge in meta row, click to filter
 - [ ] Bulk-bar: "Copy selected as CSV" — header-less rows joined for spreadsheet paste
-- [ ] Send-to: "Copy title only" (source.title, strip URL) for cite-by-name
+- [x] Send-to: "Copy title only" (source.title, strip URL) for cite-by-name — `c06a1c7`
 - [ ] List row: code clips get a faint mono left-stripe (kind glyph already shows)
 - [ ] Search: is:csv / is:tsv operators (looksLikeTableRow predicate, parity)
 - [ ] Detail: "Copy N..M lines" range picker for multi-line clips (gutter select)
