@@ -24,6 +24,7 @@ import { clipWeightSummary, clipWeightSummaryMarkdown } from "./clip-weight";
 import { clipAsBlockquote } from "./clip-blockquote";
 import { firstLineOf } from "./first-line";
 import { lastLineOf } from "./last-line";
+import { bulletListForClip } from "./list-format";
 
 export interface SendableClip {
   id: string;
@@ -460,6 +461,9 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // trailing URL, or final prompt the user wants alone. Same gate as first-line
   // (hidden for images, empty, single-line) so the two end-rows pair together.
   const lastLine = lastLineOf(c);
+  // Multi-line clip → Markdown bullet list (one "- item" per non-blank line).
+  // Captured steps / names / checklist lines paste as a real list, not a wall.
+  const bullets = bulletListForClip(c);
   return [
     {
       id: "open-source",
@@ -592,6 +596,18 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: quote,
       available: !!quote,
+    },
+    {
+      // Multi-line clip → Markdown bullet list, one "- item" per non-blank
+      // line. The list sibling of quote (blockquote) + fenced-code (code):
+      // captured steps / names / checklist lines paste as a clean list, not
+      // a wall. Single-line clips hide the row (a one-item list is clutter).
+      id: "bullet-list",
+      label: "Copy as bullet list",
+      hint: "- one item per line",
+      kind: "copy",
+      payload: bullets ?? undefined,
+      available: !!bullets,
     },
     {
       id: "raw-text",
