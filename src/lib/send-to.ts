@@ -24,7 +24,7 @@ import { clipWeightSummary, clipWeightSummaryMarkdown } from "./clip-weight";
 import { clipAsBlockquote } from "./clip-blockquote";
 import { firstLineOf } from "./first-line";
 import { lastLineOf } from "./last-line";
-import { bulletListForClip } from "./list-format";
+import { bulletListForClip, numberedListForClip } from "./list-format";
 
 export interface SendableClip {
   id: string;
@@ -464,6 +464,8 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // Multi-line clip → Markdown bullet list (one "- item" per non-blank line).
   // Captured steps / names / checklist lines paste as a real list, not a wall.
   const bullets = bulletListForClip(c);
+  // Ordered companion to bullets — "1. item" per line. Same multi-line gate.
+  const numbered = numberedListForClip(c);
   return [
     {
       id: "open-source",
@@ -608,6 +610,17 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: bullets ?? undefined,
       available: !!bullets,
+    },
+    {
+      // Ordered companion to bullet-list — "1. item" per line for steps /
+      // ranked lists / numbered procedures. Same multi-line gate so the two
+      // list rows pair; ordinals are 1-based and sequential.
+      id: "numbered-list",
+      label: "Copy as numbered list",
+      hint: "1. one item per line",
+      kind: "copy",
+      payload: numbered ?? undefined,
+      available: !!numbered,
     },
     {
       id: "raw-text",

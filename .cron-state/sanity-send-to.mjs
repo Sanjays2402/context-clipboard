@@ -159,7 +159,7 @@ try {
   // (bold-number Markdown variant) appended last (19).
   // Each row is gated by its own availability check so adding new rows
   // here only matters for the total-count assertion.
-  total++; if (textActs.length === 24) pass++;
+  total++; if (textActs.length === 25) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   // The new weight row is present + available for a text clip with a body.
@@ -417,7 +417,7 @@ try {
   // tight "copy variants" cluster.
   check('actions: raw-text follows fenced-code',
     tmplActs.findIndex((a) => a.id === 'raw-text') - tmplActs.findIndex((a) => a.id === 'fenced-code'),
-    3);
+    4);
   check('actions: raw-text comes before table-row',
     tmplActs.findIndex((a) => a.id === 'table-row') - tmplActs.findIndex((a) => a.id === 'raw-text'),
     3);
