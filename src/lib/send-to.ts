@@ -25,6 +25,7 @@ import { clipWeightSummary, clipWeightSummaryMarkdown } from "./clip-weight";
 import { clipAsBlockquote } from "./clip-blockquote";
 import { firstLineOf } from "./first-line";
 import { firstSentenceForClip, lastSentenceForClip } from "./first-sentence";
+import { firstParagraphForClip } from "./first-paragraph";
 import { lastLineOf } from "./last-line";
 import { bulletListForClip, numberedListForClip } from "./list-format";
 
@@ -468,6 +469,11 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // sentence clips (plain Copy covers those). Sibling of first-line for
   // prose where line-1 is an arbitrary cut.
   const firstSentence = firstSentenceForClip(c);
+  // First PARAGRAPH — the lead block (everything up to the first blank
+  // line), keeping internal line breaks. The block-level twin of first-
+  // sentence: prose articles paste a paragraph TL;DR. Hidden for images,
+  // empty, and single-paragraph clips so plain Copy covers those.
+  const firstParagraph = firstParagraphForClip(c);
   // Last (non-blank) line of a multi-line clip — the closing total, sign-off,
   // trailing URL, or final prompt the user wants alone. Same gate as first-line
   // (hidden for images, empty, single-line) so the two end-rows pair together.
@@ -667,6 +673,18 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: firstSentence ?? undefined,
       available: !!firstSentence,
+    },
+    {
+      // First PARAGRAPH — lead block up to the first blank line, internal
+      // line breaks kept. Where first-sentence stops at one sentence, this
+      // grabs the whole lead block (TL;DR for articles / release notes).
+      // Hidden for images, empty, and single-paragraph clips.
+      id: "first-paragraph",
+      label: "Copy first paragraph",
+      hint: "lead block of a multi-paragraph clip",
+      kind: "copy",
+      payload: firstParagraph ?? undefined,
+      available: !!firstParagraph,
     },
     {
       // Last non-blank line only — the closing total, sign-off, trailing URL,
