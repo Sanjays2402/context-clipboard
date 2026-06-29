@@ -29,6 +29,7 @@ import { firstSentenceForClip, lastSentenceForClip } from "./first-sentence";
 import { firstParagraphForClip } from "./first-paragraph";
 import { lastLineOf } from "./last-line";
 import { bulletListForClip, numberedListForClip } from "./list-format";
+import { titleForClip } from "./clip-title";
 
 export interface SendableClip {
   id: string;
@@ -415,6 +416,10 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const fence = fencedCodeForClip(c);
   const rawText = rawTextForClip(c);
   const urlOnly = urlOnlyForClip(c);
+  // Bare source title (SEO suffix stripped) — cite-by-name, no URL. The
+  // text companion to url-only / md-link. Hidden when there's no title or
+  // it's just the URL again (url-only covers that).
+  const titleOnly = titleForClip(c);
   // Bare host of the source URL (www. trimmed), e.g. "docs.github.com" —
   // provenance without the deep-link noise. Hidden for hostless clips.
   const domain = domainForClip(c);
@@ -559,6 +564,17 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: urlOnly,
       available: !!urlOnly,
+    },
+    {
+      // Bare page title, SEO suffix stripped — "as the Vercel docs say".
+      // Cite-by-name companion to url-only (bare URL) and md-link
+      // ([title](url)). Hidden when there's no title or it's just the URL.
+      id: "title-only",
+      label: "Copy title only",
+      hint: "the page name, no URL",
+      kind: "copy",
+      payload: titleOnly,
+      available: !!titleOnly,
     },
     {
       // Bare source host, "www." trimmed. Lighter than the full URL: cite
