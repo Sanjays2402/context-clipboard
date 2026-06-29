@@ -16,6 +16,7 @@ import { detectCodeLang } from "./util";
 import { exportFenceLang } from "./lang-override";
 import { tableRowForClip } from "./table-row";
 import { csvRowForClip } from "./csv-row";
+import { tsvRowForClip } from "./tsv-row";
 import { jsonLineEnvelopeForClip } from "./json-line";
 import { curlCommandForClip } from "./curl-command";
 import { noteAsMarkdownBlockquote } from "./note-markdown";
@@ -422,6 +423,10 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // quoting. Same tabular gate as table-row, so the two pair: drop a
   // row into a doc as Markdown OR into a spreadsheet/.csv as CSV.
   const csvRow = csvRowForClip(c);
+  // Tab-delimited sibling — cleanest paste into spreadsheet cells. Same
+  // tabular gate as table-row/csv-row so all three pair: Markdown for
+  // docs, CSV for files, TSV for Excel/Sheets.
+  const tsvRow = tsvRowForClip(c);
   const json = jsonEnvelopeForClip(c);
   const jsonLine = jsonLineEnvelopeForClip(c);
   const curl = curlCommandForClip(c);
@@ -732,6 +737,18 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: csvRow,
       available: !!csvRow,
+    },
+    {
+      // TSV row — tab-separated, the cleanest paste into spreadsheet
+      // cells. Same tabular gate so it pairs with table-row + csv-row:
+      // Markdown for docs, CSV for files, TSV for Excel/Sheets. A comma
+      // body normalises to tabs.
+      id: "tsv-row",
+      label: "Copy as TSV row",
+      hint: "tab-separated cells",
+      kind: "copy",
+      payload: tsvRow,
+      available: !!tsvRow,
     },
     {
       id: "json",
