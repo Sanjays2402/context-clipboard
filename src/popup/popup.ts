@@ -2178,7 +2178,7 @@ async function render(): Promise<void> {
           `</div>`;
       } else {
         hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:code</code> / <code>is:prose</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:expired</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:code</code> / <code>is:prose</code> / <code>is:csv</code> / <code>is:tsv</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:expired</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
       }
     }
@@ -7871,6 +7871,33 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:prose");
+      },
+    },
+    {
+      // `is:csv` — surface clips whose single-line body reads as a
+      // comma-separated tabular row, the same gate behind the "Copy as
+      // CSV row" send-to. The "show me the spreadsheet rows I pasted" pass.
+      id: "filter-csv",
+      label: "Show CSV rows",
+      hint: "is:csv — comma-separated tabular clips",
+      group: "Filter",
+      keywords: "is:csv comma tabular spreadsheet row cells delimited table",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:csv");
+      },
+    },
+    {
+      // `is:tsv` — the tab-delimited twin of is:csv. Together they cover
+      // exactly the clips the table-row send-to family lights up for.
+      id: "filter-tsv",
+      label: "Show TSV rows",
+      hint: "is:tsv — tab-separated tabular clips",
+      group: "Filter",
+      keywords: "is:tsv tab tabular spreadsheet row cells delimited excel sheets",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:tsv");
       },
     },
     {

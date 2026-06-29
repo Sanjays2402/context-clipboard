@@ -20,6 +20,7 @@
  */
 import type { ClipItem, ClipKind } from "./types";
 import { hostFrom, detectCodeLang } from "./util";
+import { csvMatches, tsvMatches } from "./table-kind";
 import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
@@ -631,6 +632,22 @@ export interface ParsedQuery {
    */
   proseOnly: boolean;
   /**
+   * Surface only clips whose single-line body reads as a COMMA-separated
+   * tabular row — `is:csv`. Uses the same `looksLikeTableRow` gate the
+   * detail "Copy as CSV row" send-to row uses, so the filter and the menu
+   * agree on what counts as tabular. Disjoint from `is:tsv` (a tab-bearing
+   * row is tsv, never csv) — the pair partitions the tabular set. Images /
+   * multi-line / empty bodies match neither.
+   */
+  csvOnly: boolean;
+  /**
+   * Surface only clips whose single-line body reads as a TAB-separated
+   * tabular row — `is:tsv`. The tab-delimited twin of `is:csv`; together
+   * they cover exactly the clips the table-row send-to family lights up
+   * for. Images / multi-line / empty bodies match neither.
+   */
+  tsvOnly: boolean;
+  /**
    * Directional narrowings of `is:langoverride` — surface only the clips
    * forced to a SPECIFIC state, not just "has any override". Richer than
    * the wrap on/off split because a language override can name any one of
@@ -779,6 +796,8 @@ export function parseQuery(raw: string): ParsedQuery {
     longReadOnly: false,
     codeOnly: false,
     proseOnly: false,
+    csvOnly: false,
+    tsvOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -888,6 +907,8 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "longread") out.longReadOnly = true;
       else if (v === "code") out.codeOnly = true;
       else if (v === "prose") out.proseOnly = true;
+      else if (v === "csv") out.csvOnly = true;
+      else if (v === "tsv") out.tsvOnly = true;
       else if (v === "wrapoverride") out.wrapOverrideOnly = true;
       else if (v === "wrapoverride:on" || v === "wrapoverride:off") {
         // Directional variants: narrow to a forced ON / OFF state. Also
@@ -1235,6 +1256,13 @@ export function applyQuery(
     // `is:prose` — non-code text/link body. Exact inverse of is:code;
     // both exclude images so the pair partitions only text/link clips.
     if (q.proseOnly && !proseMatches(c)) return false;
+    // `is:csv` — single-line comma-separated tabular body. Same
+    // looksLikeTableRow gate the "Copy as CSV row" send-to uses; disjoint
+    // from is:tsv (tab-bearing rows are tsv). Images/multi-line excluded.
+    if (q.csvOnly && !csvMatches(c)) return false;
+    // `is:tsv` — single-line TAB-separated tabular body. The tab-delimited
+    // twin of is:csv; together they cover the table-row send-to family.
+    if (q.tsvOnly && !tsvMatches(c)) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
     // `is:expired` — strict subset of is:expiring: a finite expiresAt
     // that's already at/past `now`. These linger until the GC sweeps
@@ -1347,6 +1375,8 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.longReadOnly) bits.push("longread");
   if (q.codeOnly) bits.push("code");
   if (q.proseOnly) bits.push("prose");
+  if (q.csvOnly) bits.push("csv");
+  if (q.tsvOnly) bits.push("tsv");
   if (q.wrapOverrideOnly) {
     bits.push(
       q.wrapOverrideDir === "on"
