@@ -51,6 +51,7 @@
  */
 
 import { utf8ByteLength, formatCopyBytes } from "./bulk-clipboard";
+import { readingTimeLabel } from "./reading-time";
 
 export interface ContentStatsInput {
   kind: "text" | "image" | "link";
@@ -172,6 +173,10 @@ export function formatContentStats(
   // "how long is this?". Same utf8ByteLength + formatCopyBytes the Send-to
   // weight row + the bulk receipts use, so every weight figure agrees.
   parts.push(byteSegment(bytesOf(c), false));
+  // Reading-time tail for long-form prose ("~6 min read"). Self-selects to
+  // word-heavy clips via the 60-word floor; null (short clips, code) skips.
+  const read = readingTimeLabel(s.words);
+  if (read) parts.push(read);
   return parts.join(" \u00b7 ");
 }
 
@@ -242,6 +247,11 @@ export function formatContentStatsMarkdown(
   // (unit plain) — "**1.2** KB" — so stripping the ** reproduces the plain
   // breadcrumb's byte segment exactly, preserving the md/plain parity.
   parts.push(byteSegment(bytesOf(c), true));
+  // Reading-time tail — same label as the plain breadcrumb (no figure to
+  // bold), so stripping the ** still reproduces the plain line, keeping
+  // md/plain parity intact.
+  const read = readingTimeLabel(s.words);
+  if (read) parts.push(read);
   return parts.join(" \u00b7 ");
 }
 
