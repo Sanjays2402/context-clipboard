@@ -15,6 +15,7 @@ import type { ClipItem } from "./types";
 import { detectCodeLang } from "./util";
 import { exportFenceLang } from "./lang-override";
 import { tableRowForClip } from "./table-row";
+import { csvRowForClip } from "./csv-row";
 import { jsonLineEnvelopeForClip } from "./json-line";
 import { curlCommandForClip } from "./curl-command";
 import { noteAsMarkdownBlockquote } from "./note-markdown";
@@ -415,6 +416,10 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // provenance without the deep-link noise. Hidden for hostless clips.
   const domain = domainForClip(c);
   const tableRow = tableRowForClip(c);
+  // CSV sibling of the Markdown table row — `a,b,c` with RFC-4180
+  // quoting. Same tabular gate as table-row, so the two pair: drop a
+  // row into a doc as Markdown OR into a spreadsheet/.csv as CSV.
+  const csvRow = csvRowForClip(c);
   const json = jsonEnvelopeForClip(c);
   const jsonLine = jsonLineEnvelopeForClip(c);
   const curl = curlCommandForClip(c);
@@ -664,6 +669,17 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: tableRow,
       available: !!tableRow,
+    },
+    {
+      // CSV row — `a,b,c` with RFC-4180 quoting. Same tabular gate as
+      // table-row, so the two pair: Markdown row for docs, CSV row for
+      // spreadsheets / .csv files. A TSV body normalises to commas.
+      id: "csv-row",
+      label: "Copy as CSV row",
+      hint: "cell,cell,cell",
+      kind: "copy",
+      payload: csvRow,
+      available: !!csvRow,
     },
     {
       id: "json",
