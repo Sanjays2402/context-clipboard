@@ -73,3 +73,48 @@ export function firstSentenceForClip(c: SentenceClip | null | undefined): string
   const body = typeof c.content === "string" ? c.content : "";
   return firstSentenceOf(body) ?? undefined;
 }
+
+/**
+ * Last sentence of `body`, or null when there isn't a clean separate
+ * one. The conclusion / CTA / sign-off twin of firstSentenceOf: split
+ * the body into sentences and take the final non-empty one. Same flatten
+ * (newlines → spaces) and single-letter-initial guard so the two agree on
+ * sentence boundaries. Returns null when the body is one sentence (the
+ * last IS the whole body — plain Copy covers it).
+ */
+export function lastSentenceOf(body: string): string | null {
+  const flat = body.replace(/\s+/g, " ").trim();
+  if (flat === "") return null;
+  const ends: number[] = []; // index AFTER each terminator
+  for (let i = 0; i < flat.length; i++) {
+    const ch = flat[i];
+    if (ch === "." || ch === "!" || ch === "?") {
+      const next = flat[i + 1];
+      const atEnd = next === undefined;
+      if (!atEnd && next !== " ") continue;
+      if (ch === "." && !atEnd) {
+        const before = flat.slice(0, i);
+        if (/(^|\s)[A-Za-z]$/.test(before)) continue;
+      }
+      ends.push(i + 1);
+    }
+  }
+  // No interior boundary → one sentence; or only a single terminator at
+  // the very end → still one sentence. Need a cut BEFORE the final text.
+  const cut = ends.length >= 2 ? ends[ends.length - 2] : ends.length === 1 && ends[0] < flat.length ? ends[0] : -1;
+  if (cut < 0) return null;
+  const sentence = flat.slice(cut).trim();
+  if (sentence === "" || sentence.length >= flat.length) return null;
+  return sentence;
+}
+
+/**
+ * Last-sentence payload for a clip, or undefined for images / empty /
+ * single-sentence clips so the send-to row hides — gate pairs with
+ * firstSentenceForClip so the two surface together for multi-sentence prose.
+ */
+export function lastSentenceForClip(c: SentenceClip | null | undefined): string | undefined {
+  if (!c || c.kind === "image") return undefined;
+  const body = typeof c.content === "string" ? c.content : "";
+  return lastSentenceOf(body) ?? undefined;
+}

@@ -24,7 +24,7 @@ import { curlWithNoteCommentForClip } from "./curl-note-comment";
 import { clipWeightSummary, clipWeightSummaryMarkdown } from "./clip-weight";
 import { clipAsBlockquote } from "./clip-blockquote";
 import { firstLineOf } from "./first-line";
-import { firstSentenceForClip } from "./first-sentence";
+import { firstSentenceForClip, lastSentenceForClip } from "./first-sentence";
 import { lastLineOf } from "./last-line";
 import { bulletListForClip, numberedListForClip } from "./list-format";
 
@@ -472,6 +472,9 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // trailing URL, or final prompt the user wants alone. Same gate as first-line
   // (hidden for images, empty, single-line) so the two end-rows pair together.
   const lastLine = lastLineOf(c);
+  // Last SENTENCE — the conclusion / CTA / sign-off. Prose end-twin of
+  // first-sentence; same flatten + gate so the two surface together.
+  const lastSentence = lastSentenceForClip(c);
   // Multi-line clip → Markdown bullet list (one "- item" per non-blank line).
   // Captured steps / names / checklist lines paste as a real list, not a wall.
   const bullets = bulletListForClip(c);
@@ -676,6 +679,18 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: lastLine ?? undefined,
       available: !!lastLine,
+    },
+    {
+      // Last SENTENCE — the conclusion / CTA / sign-off of a prose clip,
+      // where "last line" is an arbitrary wrap cut. Prose end-twin of
+      // first-sentence; hidden for images, empty, and single-sentence
+      // clips so the pair surfaces only for multi-sentence prose.
+      id: "last-sentence",
+      label: "Copy last sentence",
+      hint: "closing sentence of a prose clip",
+      kind: "copy",
+      payload: lastSentence ?? undefined,
+      available: !!lastSentence,
     },
     {
       // Format a single-line tabular body (TSV / CSV) as a
