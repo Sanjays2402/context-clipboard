@@ -21,6 +21,8 @@ import { noteAsMarkdownBlockquote } from "./note-markdown";
 import { clipAndNoteAsMarkdown } from "./clip-note-markdown";
 import { curlWithNoteCommentForClip } from "./curl-note-comment";
 import { clipWeightSummary, clipWeightSummaryMarkdown } from "./clip-weight";
+import { clipAsBlockquote } from "./clip-blockquote";
+import { firstLineOf } from "./first-line";
 
 export interface SendableClip {
   id: string;
@@ -419,6 +421,14 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // mirroring the content-stats Markdown stat-line. Same null gate as the
   // plain weight row so the two surface/hide in lock-step.
   const weightMd = clipWeightSummaryMarkdown(c);
+  // Body-as-blockquote: every line prefixed `> ` for quoting a snippet
+  // into a doc / PR / chat. Hidden for images + empty bodies. Sibling of
+  // the note-md row (which quotes the NOTE); this quotes the CONTENT.
+  const quote = clipAsBlockquote(c);
+  // First (non-blank) line of a multi-line clip — the heading / signature
+  // / subject the user often wants alone. Hidden for images, empty, and
+  // single-line clips (plain Copy already covers those).
+  const firstLine = firstLineOf(c);
   return [
     {
       id: "open-source",
@@ -530,12 +540,35 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       available: !!fence,
     },
     {
+      // Body as a Markdown blockquote (`> ` per line) — for quoting a
+      // captured paragraph into a doc / PR / chat as an attributed quote.
+      // The prose sibling of fenced-code (code) and the body-side mirror
+      // of note-md (which quotes the note). Hidden for images + empty.
+      id: "quote",
+      label: "Copy as quote",
+      hint: "> blockquote of the body",
+      kind: "copy",
+      payload: quote,
+      available: !!quote,
+    },
+    {
       id: "raw-text",
       label: "Copy as plain text",
       hint: "strip {{tokens}}",
       kind: "copy",
       payload: rawText,
       available: !!rawText,
+    },
+    {
+      // First non-blank line only — the heading / signature / subject of a
+      // multi-line clip. Hidden for single-line clips (plain Copy already
+      // gives the line) + images + empty bodies. Saves a copy-then-trim.
+      id: "first-line",
+      label: "Copy first line",
+      hint: "line 1 of a multi-line clip",
+      kind: "copy",
+      payload: firstLine ?? undefined,
+      available: !!firstLine,
     },
     {
       // Format a single-line tabular body (TSV / CSV) as a
