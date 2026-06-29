@@ -52,6 +52,7 @@
 
 import { utf8ByteLength, formatCopyBytes } from "./bulk-clipboard";
 import { readingTimeLabel } from "./reading-time";
+import { looksLikeTableRow, splitTableCells } from "./table-row";
 
 export interface ContentStatsInput {
   kind: "text" | "image" | "link";
@@ -166,6 +167,29 @@ function bytesOf(c: ContentStatsInput | null | undefined): number {
 }
 
 /**
+ * Column count for a tabular clip — how many cells its single-line
+ * delimited body splits into. Returns 0 for anything that isn't a tabular
+ * row (image, multi-line, prose, empty) so the caller knows to skip the
+ * segment.
+ *
+ * Reuses the exact looksLikeTableRow gate + splitTableCells split the
+ * table-row send-to family (Copy as table/CSV/TSV row) uses, so the
+ * column figure in the breadcrumb always matches the cells those copies
+ * produce — a clip the breadcrumb says is "3 cols" yields a 3-cell CSV
+ * row, full stop. We only surface the segment when there are >= 2 cells:
+ * a 1-cell "row" is degenerate (looksLikeTableRow already requires a
+ * delimiter, but a pathological "," splits to ["",""] which is honestly
+ * 2 cells; a lone value never reaches here).
+ */
+export function tabularColumns(c: ContentStatsInput | null | undefined): number {
+  if (!c) return 0;
+  if (c.kind === "image") return 0;
+  const body = typeof c.content === "string" ? c.content : "";
+  if (!looksLikeTableRow({ kind: c.kind, content: body })) return 0;
+  return splitTableCells(body).length;
+}
+
+/**
  * The byte segment that tails the breadcrumb, e.g. "1.2 KB" / "742 B".
  * When `bold` is true the NUMERIC prefix is wrapped in `**` (the unit
  * stays plain) — "**1.2** KB" — so the Markdown breadcrumb bolds the
@@ -211,6 +235,14 @@ export function formatContentStats(
   // (>1 sentence). Single-sentence + code (which rarely terminates with
   // . ! ?) stay quiet so the breadcrumb doesn't show "1 sentence" noise.
   if (s.sentences > 1) parts.push(countUnit(s.sentences, "sentence"));
+  // Column count for tabular clips ("3 cols") — the spreadsheet-shape
+  // signal beside the prose-shape ones. Only a single-line delimited row
+  // (the is:tabular / Copy-as-CSV-row gate) earns it; a 2+-cell split is
+  // the floor (a degenerate 1-cell "row" never reaches here). Tells the
+  // user how WIDE a captured row is at a glance — "is this the 3-column
+  // or the 12-column paste?" — without selecting-all and counting commas.
+  const cols = tabularColumns(c);
+  if (cols > 1) parts.push(countUnit(cols, "col"));
   // Byte weight always tails the breadcrumb — "how heavy is this?" beside
   // "how long is this?". Same utf8ByteLength + formatCopyBytes the Send-to
   // weight row + the bulk receipts use, so every weight figure agrees.
@@ -286,6 +318,11 @@ export function formatContentStatsMarkdown(
   ];
   if (s.lines > 1) parts.push(boldCountUnit(s.lines, "line"));
   if (s.sentences > 1) parts.push(boldCountUnit(s.sentences, "sentence"));
+  // Column count for tabular clips — same gate + floor as the plain
+  // breadcrumb, figure bolded (unit plain) so stripping the ** reproduces
+  // the plain segment exactly (md/plain parity).
+  const cols = tabularColumns(c);
+  if (cols > 1) parts.push(boldCountUnit(cols, "col"));
   // Byte weight tails the Markdown breadcrumb too, with the figure bolded
   // (unit plain) — "**1.2** KB" — so stripping the ** reproduces the plain
   // breadcrumb's byte segment exactly, preserving the md/plain parity.
