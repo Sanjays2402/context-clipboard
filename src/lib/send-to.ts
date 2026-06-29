@@ -24,6 +24,7 @@ import { curlWithNoteCommentForClip } from "./curl-note-comment";
 import { clipWeightSummary, clipWeightSummaryMarkdown } from "./clip-weight";
 import { clipAsBlockquote } from "./clip-blockquote";
 import { firstLineOf } from "./first-line";
+import { firstSentenceForClip } from "./first-sentence";
 import { lastLineOf } from "./last-line";
 import { bulletListForClip, numberedListForClip } from "./list-format";
 
@@ -462,6 +463,11 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // / subject the user often wants alone. Hidden for images, empty, and
   // single-line clips (plain Copy already covers those).
   const firstLine = firstLineOf(c);
+  // First SENTENCE — the prose lead/TL;DR. Newlines flatten to spaces so
+  // a wrapped sentence stays whole; hidden for images, empty, and single-
+  // sentence clips (plain Copy covers those). Sibling of first-line for
+  // prose where line-1 is an arbitrary cut.
+  const firstSentence = firstSentenceForClip(c);
   // Last (non-blank) line of a multi-line clip — the closing total, sign-off,
   // trailing URL, or final prompt the user wants alone. Same gate as first-line
   // (hidden for images, empty, single-line) so the two end-rows pair together.
@@ -645,6 +651,19 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: firstLine ?? undefined,
       available: !!firstLine,
+    },
+    {
+      // First SENTENCE — the prose lead, where "first line" is an
+      // arbitrary wrap cut. Lead/TL;DR for articles, release notes,
+      // paragraphs. Hidden for images, empty, and single-sentence
+      // clips (plain Copy already gives those). Newlines flatten so a
+      // sentence wrapped over two lines stays whole.
+      id: "first-sentence",
+      label: "Copy first sentence",
+      hint: "lead sentence of a prose clip",
+      kind: "copy",
+      payload: firstSentence ?? undefined,
+      available: !!firstSentence,
     },
     {
       // Last non-blank line only — the closing total, sign-off, trailing URL,
