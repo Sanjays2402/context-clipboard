@@ -1067,6 +1067,32 @@ main:focus {
     var(--shadow-md);
 }
 
+/* Code clips get a faint mono left-stripe so the eye can skim the daily
+   list and spot snippets among prose. The kind glyph already shows; this
+   is an extra at-a-glance hint that pairs with the detail code/prose badge
+   and the Code quick-chip (all driven by the same codeMatches predicate).
+   Painted via ::before so it doesn't disturb the flex layout; sits inside
+   the row's rounded corners and stays subtle (low-alpha accent). */
+.clip.is-code::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.35;
+  transition: opacity 0.18s ease;
+}
+
+/* On hover / active the stripe firms up a touch so it reads as part of the
+   row's focus state rather than a static decoration. */
+.clip.is-code:hover::before,
+.clip.is-code.active::before {
+  opacity: 0.7;
+}
+
 /* Day-group dividers — a sticky, uppercase micro-label that marks
    where each calendar-day run begins in time-ordered lists. Sticks to
    the top of the scroll container so the user always knows which day

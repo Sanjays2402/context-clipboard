@@ -968,8 +968,15 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
     peek = peekTooltip(previewText, { rowSliceLength: 140 });
   }
   const previewTitle = peek ? ` title="${escapeHtml(peek)}"` : "";
+  // Faint mono left-stripe for clips the classifier reads as code — the
+  // list-row companion to the detail code/prose badge + the Code quick-chip.
+  // Same codeMatches predicate behind is:code so the stripe, the chip, and
+  // the filter all agree. Images never match (data-URL body). A purely
+  // visual hint: the kind glyph already shows, this just lets the eye skim
+  // the daily list and spot snippets among prose at a glance.
+  const codeStripe = codeMatches(c) ? " is-code" : "";
   return `
-    <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}${c.archived ? " archived" : ""}" data-id="${c.id}" data-idx="${idx}">
+    <div class="clip ${c.pinned ? "pinned" : ""} ${active ? "active" : ""} ${selectedIds.has(c.id) ? "selected" : ""}${c.archived ? " archived" : ""}${codeStripe}" data-id="${c.id}" data-idx="${idx}">
       ${selectedIds.size > 0 ? `<div class="select-mark">${selectedIds.has(c.id) ? icons.check() : ""}</div>` : ""}
       ${thumb}
       <div class="body">
