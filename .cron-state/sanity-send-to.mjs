@@ -159,7 +159,7 @@ try {
   // (bold-number Markdown variant) appended last (19).
   // Each row is gated by its own availability check so adding new rows
   // here only matters for the total-count assertion.
-  total++; if (textActs.length === 19) pass++;
+  total++; if (textActs.length === 22) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   // The new weight row is present + available for a text clip with a body.
@@ -417,10 +417,10 @@ try {
   // tight "copy variants" cluster.
   check('actions: raw-text follows fenced-code',
     tmplActs.findIndex((a) => a.id === 'raw-text') - tmplActs.findIndex((a) => a.id === 'fenced-code'),
-    1);
+    2);
   check('actions: raw-text comes before table-row',
     tmplActs.findIndex((a) => a.id === 'table-row') - tmplActs.findIndex((a) => a.id === 'raw-text'),
-    1);
+    2);
   check('actions: table-row comes before json',
     tmplActs.findIndex((a) => a.id === 'json') - tmplActs.findIndex((a) => a.id === 'table-row'),
     1);
@@ -525,7 +525,7 @@ try {
     1);
   check('actions: curl follows url-only',
     textActs.findIndex((a) => a.id === 'curl') - textActs.findIndex((a) => a.id === 'url-only'),
-    1);
+    2);
   // `curl-note` now slots between curl and fenced-code; fenced-code
   // is 2 rows past curl, 1 row past curl-note.
   check('actions: curl-note follows curl',

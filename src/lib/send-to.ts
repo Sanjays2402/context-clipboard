@@ -279,6 +279,29 @@ export function urlOnlyForClip(c: SendableClip): string | undefined {
   return u;
 }
 
+/**
+ * "Copy domain" — just the bare host of the clip's source URL, with a
+ * leading "www." trimmed (e.g. "docs.github.com", "stackoverflow.com").
+ * Distinct from "Copy URL only" (full URL incl. path + query): when the
+ * user wants to remember WHERE a snippet came from without the deep-link
+ * noise — citing a source in a doc, allow-listing a host, eyeballing
+ * provenance. Link clips read the host from the body URL; text/image clips
+ * from source.url. Returns undefined for non-http(s) / scrubbed / hostless
+ * clips so the row hides — mirrors urlOnlyForClip's availability shape.
+ */
+export function domainForClip(c: SendableClip): string | undefined {
+  const raw =
+    c.kind === "link" ? (c.content || "").trim() : (c.source?.url || "").trim();
+  if (!raw || !/^https?:\/\//i.test(raw)) return undefined;
+  let host = "";
+  try {
+    host = new URL(raw).hostname.replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
+  return host || undefined;
+}
+
 export function jsonEnvelopeForClip(c: ClipForJson): string | undefined {
   // Envelope requires a payload — if the clip has nothing to put inside
   // (empty content AND no source AND not an image with data URL), skip.
@@ -386,6 +409,9 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   const fence = fencedCodeForClip(c);
   const rawText = rawTextForClip(c);
   const urlOnly = urlOnlyForClip(c);
+  // Bare host of the source URL (www. trimmed), e.g. "docs.github.com" —
+  // provenance without the deep-link noise. Hidden for hostless clips.
+  const domain = domainForClip(c);
   const tableRow = tableRowForClip(c);
   const json = jsonEnvelopeForClip(c);
   const jsonLine = jsonLineEnvelopeForClip(c);
@@ -497,6 +523,17 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: urlOnly,
       available: !!urlOnly,
+    },
+    {
+      // Bare source host, "www." trimmed. Lighter than the full URL: cite
+      // provenance, allow-list a site, or glance at where a snippet came
+      // from without the path/query noise. Hidden for hostless clips.
+      id: "domain",
+      label: "Copy domain",
+      hint: "docs.github.com",
+      kind: "copy",
+      payload: domain,
+      available: !!domain,
     },
     {
       // Build a single-line `curl '...'` for the clip's http(s) URL.
