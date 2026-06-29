@@ -45,6 +45,21 @@ export function multilineMatches(c: Pick<ClipItem, "kind" | "content">): boolean
   return body.replace(/\r\n?/g, "\n").includes("\n");
 }
 
+/**
+ * Predicate: is this clip a SINGLE-line snippet? The exact inverse of
+ * multilineMatches for text/link clips — one body, no interior newline.
+ * Image clips (data-URL body) are excluded from both (they're neither a
+ * one-liner nor a block). Empty text bodies count as single-line. Powers
+ * `is:singleline` so the user can isolate the quick one-off snippets from
+ * the captured blocks. Shares the same normalisation as multilineMatches
+ * so the two filters partition text/link clips cleanly.
+ */
+export function singleLineMatches(c: Pick<ClipItem, "kind" | "content">): boolean {
+  if (c.kind === "image") return false;
+  const body = typeof c.content === "string" ? c.content : "";
+  return !body.replace(/\r\n?/g, "\n").includes("\n");
+}
+
 export interface ParsedQuery {
   freeText: string;
   kind?: ClipKind;
@@ -529,6 +544,14 @@ export interface ParsedQuery {
    */
   multilineOnly: boolean;
   /**
+   * Surface only SINGLE-line clips — `is:singleline`, the inverse of
+   * is:multiline. Text/link bodies with no interior newline match; blocks
+   * and images don't. The "find the quick one-liners, not the walls"
+   * filter. Predicate shared with singleLineMatches so it partitions cleanly
+   * against is:multiline.
+   */
+  singleLineOnly: boolean;
+  /**
    * Directional narrowings of `is:langoverride` — surface only the clips
    * forced to a SPECIFIC state, not just "has any override". Richer than
    * the wrap on/off split because a language override can name any one of
@@ -673,6 +696,7 @@ export function parseQuery(raw: string): ParsedQuery {
     wrapOverrideOnly: false,
     langOverrideOnly: false,
     multilineOnly: false,
+    singleLineOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -778,6 +802,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "hostredacted") out.hostRedactedOnly = true;
       else if (v === "hostscrubbed") out.hostScrubbedOnly = true;
       else if (v === "multiline") out.multilineOnly = true;
+      else if (v === "singleline") out.singleLineOnly = true;
       else if (v === "wrapoverride") out.wrapOverrideOnly = true;
       else if (v === "wrapoverride:on" || v === "wrapoverride:off") {
         // Directional variants: narrow to a forced ON / OFF state. Also
@@ -1114,6 +1139,9 @@ export function applyQuery(
     // never match; text/link bodies count via the shared predicate so the
     // filter agrees with the content-stats breadcrumb's line count.
     if (q.multilineOnly && !multilineMatches(c)) return false;
+    // `is:singleline` — body has no interior newline. Exact inverse of the
+    // multiline gate; images excluded from both. Empty bodies are single-line.
+    if (q.singleLineOnly && !singleLineMatches(c)) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
     // `is:expired` — strict subset of is:expiring: a finite expiresAt
     // that's already at/past `now`. These linger until the GC sweeps
@@ -1222,6 +1250,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.hostRedactedOnly) bits.push("hostredacted");
   if (q.hostScrubbedOnly) bits.push("hostscrubbed");
   if (q.multilineOnly) bits.push("multiline");
+  if (q.singleLineOnly) bits.push("singleline");
   if (q.wrapOverrideOnly) {
     bits.push(
       q.wrapOverrideDir === "on"
