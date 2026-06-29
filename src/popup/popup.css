@@ -3224,6 +3224,44 @@ kbd {
   color: var(--accent);
 }
 
+/* Code/prose classification badge — a small monochrome chip in the detail
+   meta telling the user which bucket the open clip falls in. Clicking it
+   filters the list to is:code / is:prose. Sits flush under the content-stats
+   breadcrumb; lowercase + mono to match the extension's quiet chrome. */
+.detail-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  margin: 8px 0 0 18px;
+  padding: 2px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--muted);
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.detail-kind-badge:hover {
+  color: var(--text);
+  background: var(--glass-strong);
+  border-color: var(--accent);
+}
+
+.detail-kind-badge:active {
+  color: var(--accent);
+}
+
+/* Subtle bucket tint: code clips read with the accent, prose stays neutral
+   — enough to tell them apart at a glance without shouting. */
+.detail-kind-badge[data-kind="code"] {
+  color: var(--accent);
+}
+
 /* Word-wrap toggle: when the user turns wrapping OFF (for tabular /
    log / wide-code clips), the body scrolls horizontally instead of
    reflowing. Applied as a modifier class on .detail-body so the

@@ -115,6 +115,7 @@ import {
   type SimilarNav,
 } from "../lib/similar-nav";
 import { formatContentStats, contentStatsClipboard, formatContentStatsCopyToast, formatContentStatsMarkdown } from "../lib/content-stats";
+import { clipKindBadge } from "../lib/clip-kind-badge";
 import { formatFocusPosition } from "../lib/focus-position";
 import { computeScrollEdges, pageScrollTarget } from "../lib/scroll-shadow";
 import { computeRange, idsForRange, rangeIdsToAdd } from "../lib/range-select";
@@ -406,6 +407,7 @@ const detailHistory = $<HTMLButtonElement>("detail-history");
 const detailLock = $<HTMLButtonElement>("detail-lock");
 const detailBody = $("detail-body");
 const detailStats = $("detail-stats");
+const detailKindBadge = $<HTMLButtonElement>("detail-kind-badge");
 const detailLangRow = $("detail-lang-row");
 const detailLang = $<HTMLSelectElement>("detail-lang");
 const detailLangHint = $("detail-lang-hint");
@@ -1025,6 +1027,37 @@ function renderContentStats(c: ClipItem): void {
   // actually a one-click copy target.
   detailStats.dataset.copyable = "1";
   detailStats.title = "Click to copy this summary \u00b7 Alt-click for Markdown";
+}
+
+/**
+ * Paint the code/prose classification badge in the detail meta. Text/link
+ * clips get a small monochrome "code" / "prose" chip telling the user at a
+ * glance which bucket this clip falls in; clicking it jumps the list to the
+ * matching is:code / is:prose filter — the single-clip companion to the
+ * Code/Prose quick-chips. Image clips (neither bucket) hide the chip.
+ *
+ * Delegates the bucket decision to lib/clip-kind-badge, which reuses the
+ * exact codeMatches/proseMatches predicates behind the filter + quick-chip
+ * counts, so the badge can never disagree with what is:code / is:prose
+ * would surface. The op is stashed on a data attribute for the click
+ * handler (which applies it via toggleSearchOp + closes detail).
+ */
+function renderClipKindBadge(c: ClipItem): void {
+  const badge = clipKindBadge(c);
+  if (!badge) {
+    detailKindBadge.hidden = true;
+    detailKindBadge.textContent = "";
+    detailKindBadge.removeAttribute("data-op");
+    detailKindBadge.removeAttribute("data-kind");
+    detailKindBadge.title = "";
+    return;
+  }
+  detailKindBadge.hidden = false;
+  detailKindBadge.textContent = badge.label;
+  detailKindBadge.dataset.op = badge.op;
+  // data-kind drives the accent color (code vs prose) in CSS.
+  detailKindBadge.dataset.kind = badge.kind;
+  detailKindBadge.title = badge.title;
 }
 
 /**
@@ -2491,6 +2524,7 @@ async function openDetail(id: string) {
   }
   renderDetailLangControl(c);
   renderContentStats(c);
+  renderClipKindBadge(c);
   // Word-wrap toggle only applies to the text <pre> body — images
   // have no wrappable lines, so hide the button for image clips and
   // always paint them wrapped (a no-op for an <img>). For text/link
@@ -10200,6 +10234,20 @@ detailStats.addEventListener("click", async (e) => {
     console.error("[context-clipboard] stats copy failed", err);
     toast("Copy failed", "error");
   }
+});
+
+// Code/prose badge in the detail meta — click jumps the list to the
+// matching is:code / is:prose filter (the single-clip companion to the
+// Code/Prose quick-chips). We close the detail view first so the user
+// lands back on the now-filtered list, then toggle the operator (a
+// second click on the same badge while the filter is already applied
+// clears it, matching the quick-chip toggle semantics).
+detailKindBadge.addEventListener("click", () => {
+  if (detailKindBadge.hidden) return;
+  const op = detailKindBadge.dataset.op;
+  if (!op) return;
+  closeDetail();
+  toggleSearchOp(op);
 });
 
 detailCopy.addEventListener("click", async () => {
