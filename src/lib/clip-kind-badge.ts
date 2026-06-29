@@ -21,6 +21,8 @@
  */
 
 import { codeMatches, proseMatches } from "./search";
+import { effectiveLang } from "./lang-override";
+import { detectCodeLang } from "./util";
 
 export interface ClipKindBadgeInput {
   kind: "text" | "image" | "link";
@@ -38,6 +40,14 @@ export interface ClipKindBadge {
   op: string;
   /** Hover/title affordance telegraphing the click. */
   title: string;
+  /**
+   * The resolved language id for a code clip ("sql", "rust", ...), or
+   * undefined when the clip is prose, or code whose language couldn't be
+   * resolved (auto-detection declined and no override pinned it). Drives
+   * the inline "code · sql" suffix in the label; the popup also uses it
+   * for nothing else, but exposing it keeps the label/lang in lock-step.
+   */
+  lang?: string;
 }
 
 /**
@@ -61,11 +71,26 @@ export function clipKindBadge(
   // so there's no meaningful badge — hide the row.
   if (c.kind === "image") return null;
   if (codeMatches(c)) {
+    // Resolve the language the SAME way the detail body tints it:
+    // effectiveLang folds the per-clip langOverride over detectCodeLang,
+    // so the badge names exactly the language the syntax tint is using
+    // (a clip pinned to "rust" reads "code · rust" even if the detector
+    // would have guessed otherwise; a forced-off code clip — rare, since
+    // codeMatches already excludes langOverride "none" — has no tint and
+    // no suffix). When the body is code by structure but no language
+    // resolves (tint: false), we keep the bare "code" label rather than
+    // inventing a name.
+    const eff = effectiveLang(c.langOverride, detectCodeLang(c.content || ""));
+    const lang = eff.tint ? eff.lang : undefined;
+    const label = lang ? `code \u00b7 ${lang}` : "code";
     return {
       kind: "code",
-      label: "code",
+      label,
       op: "is:code",
-      title: "Detected as code \u00b7 click to filter to code clips",
+      lang,
+      title: lang
+        ? `Detected as ${lang} code \u00b7 click to filter to code clips`
+        : "Detected as code \u00b7 click to filter to code clips",
     };
   }
   // proseMatches is the inverse of codeMatches for text/link, so this is
