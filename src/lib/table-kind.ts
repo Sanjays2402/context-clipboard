@@ -64,3 +64,27 @@ export function csvMatches(c: TableRowInput): boolean {
   // guaranteed at least one delimiter, so "no tab" here implies a comma.
   return !TAB_RE.test(body);
 }
+
+/**
+ * `is:tabular` — the UNION of `is:csv` and `is:tsv`: any single-line
+ * delimited row, regardless of which delimiter it uses. This is exactly
+ * `looksLikeTableRow` (every clip the table-row send-to family lights up
+ * for), but exposed as its own operator so the user doesn't have to type
+ * `is:csv OR is:tsv` — the search bar has no OR, so the two narrow
+ * operators couldn't be combined into "all my spreadsheet rows" without
+ * this union.
+ *
+ * By construction `tabularMatches === csvMatches || tsvMatches` (the pair
+ * partitions the looksLikeTableRow set, so their union IS the whole set).
+ * We delegate straight to `looksLikeTableRow` rather than OR-ing the two
+ * predicates so there's a single gate — the union can never drift from the
+ * partition if a future delimiter (semicolon? pipe?) joins the family:
+ * adding it to looksLikeTableRow automatically folds it into `is:tabular`,
+ * and the csv/tsv split decides which narrow bucket it lands in.
+ *
+ * Pure: no DOM, no clipboard. Images / empty / multi-line bodies fail the
+ * gate (a table ROW is one line) and don't match.
+ */
+export function tabularMatches(c: TableRowInput): boolean {
+  return looksLikeTableRow(c);
+}

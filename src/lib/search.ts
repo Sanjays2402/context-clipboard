@@ -20,7 +20,7 @@
  */
 import type { ClipItem, ClipKind } from "./types";
 import { hostFrom, detectCodeLang } from "./util";
-import { csvMatches, tsvMatches } from "./table-kind";
+import { csvMatches, tsvMatches, tabularMatches } from "./table-kind";
 import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
@@ -648,6 +648,18 @@ export interface ParsedQuery {
    */
   tsvOnly: boolean;
   /**
+   * Surface every tabular clip regardless of delimiter — `is:tabular`,
+   * the UNION of `is:csv` and `is:tsv`. The search bar has no OR, so
+   * without this operator a user with a mix of comma- and tab-separated
+   * rows couldn't ask for "all my spreadsheet rows" in one query; they'd
+   * have to flip between is:csv and is:tsv. Gated via tabularMatches
+   * (=== looksLikeTableRow), the same gate behind the table-row send-to
+   * family, so `is:tabular` surfaces exactly the clips that light up
+   * "Copy as table row / CSV row / TSV row". Images / multi-line / empty
+   * bodies don't match.
+   */
+  tabularOnly: boolean;
+  /**
    * Directional narrowings of `is:langoverride` — surface only the clips
    * forced to a SPECIFIC state, not just "has any override". Richer than
    * the wrap on/off split because a language override can name any one of
@@ -798,6 +810,7 @@ export function parseQuery(raw: string): ParsedQuery {
     proseOnly: false,
     csvOnly: false,
     tsvOnly: false,
+    tabularOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -909,6 +922,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "prose") out.proseOnly = true;
       else if (v === "csv") out.csvOnly = true;
       else if (v === "tsv") out.tsvOnly = true;
+      else if (v === "tabular") out.tabularOnly = true;
       else if (v === "wrapoverride") out.wrapOverrideOnly = true;
       else if (v === "wrapoverride:on" || v === "wrapoverride:off") {
         // Directional variants: narrow to a forced ON / OFF state. Also
@@ -1263,6 +1277,12 @@ export function applyQuery(
     // `is:tsv` — single-line TAB-separated tabular body. The tab-delimited
     // twin of is:csv; together they cover the table-row send-to family.
     if (q.tsvOnly && !tsvMatches(c)) return false;
+    // `is:tabular` — the UNION of is:csv + is:tsv: any single-line delimited
+    // row. Same gate (tabularMatches === looksLikeTableRow) the table-row
+    // send-to family uses, so it surfaces exactly the "Copy as table/CSV/TSV
+    // row" clips without forcing the user to OR the two narrow operators
+    // (the search bar has no OR). Images / multi-line / empty don't match.
+    if (q.tabularOnly && !tabularMatches(c)) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
     // `is:expired` — strict subset of is:expiring: a finite expiresAt
     // that's already at/past `now`. These linger until the GC sweeps
@@ -1377,6 +1397,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.proseOnly) bits.push("prose");
   if (q.csvOnly) bits.push("csv");
   if (q.tsvOnly) bits.push("tsv");
+  if (q.tabularOnly) bits.push("tabular");
   if (q.wrapOverrideOnly) {
     bits.push(
       q.wrapOverrideDir === "on"

@@ -2249,7 +2249,7 @@ async function render(): Promise<void> {
           `</div>`;
       } else {
         hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:code</code> / <code>is:prose</code> / <code>is:csv</code> / <code>is:tsv</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:expired</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:code</code> / <code>is:prose</code> / <code>is:csv</code> / <code>is:tsv</code> / <code>is:tabular</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:expired</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
       }
     }
@@ -7986,6 +7986,22 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:tsv");
+      },
+    },
+    {
+      // `is:tabular` — the UNION of is:csv + is:tsv. The search bar has no
+      // OR, so a user with a mix of comma- and tab-separated rows can't ask
+      // for "all my spreadsheet rows" by combining the two narrow operators
+      // — this single command surfaces every delimited row at once (same
+      // gate the "Copy as table row" send-to family uses).
+      id: "filter-tabular",
+      label: "Show tabular clips",
+      hint: "is:tabular — every spreadsheet row (CSV + TSV)",
+      group: "Filter",
+      keywords: "is:tabular table spreadsheet row cells delimited csv tsv comma tab union both",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:tabular");
       },
     },
     {
