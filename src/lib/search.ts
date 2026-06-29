@@ -60,6 +60,26 @@ export function singleLineMatches(c: Pick<ClipItem, "kind" | "content">): boolea
   return !body.replace(/\r\n?/g, "\n").includes("\n");
 }
 
+/** Word count above which a clip is "long-form" — matches reading-time's floor. */
+const LONGREAD_MIN_WORDS = 60;
+
+/**
+ * Predicate: is this clip long-form prose worth a "read"? Triggered by
+ * `is:longread`. A text/link body with at least 60 whitespace-delimited
+ * words — the same floor the detail content-stats reading-time badge uses,
+ * so a clip that shows "~N min read" matches the filter. Images excluded
+ * (no prose). The "show me the articles, transcripts, walls — not the
+ * snippets" filter; complements is:multiline (which counts lines, not words,
+ * so a 60-line config still isn't a longread but a 1-paragraph essay is).
+ */
+export function longReadMatches(c: Pick<ClipItem, "kind" | "content">): boolean {
+  if (c.kind === "image") return false;
+  const body = typeof c.content === "string" ? c.content : "";
+  const trimmed = body.trim();
+  if (trimmed === "") return false;
+  return trimmed.split(/\s+/).length >= LONGREAD_MIN_WORDS;
+}
+
 export interface ParsedQuery {
   freeText: string;
   kind?: ClipKind;
@@ -552,6 +572,13 @@ export interface ParsedQuery {
    */
   singleLineOnly: boolean;
   /**
+   * Surface only long-form clips — `is:longread`. Text/link bodies with at
+   * least 60 words (the reading-time badge's floor) so a clip showing
+   * "~N min read" matches. Images don't. Word-based, so it complements
+   * is:multiline (line-based): a captured article matches even on one line.
+   */
+  longReadOnly: boolean;
+  /**
    * Directional narrowings of `is:langoverride` — surface only the clips
    * forced to a SPECIFIC state, not just "has any override". Richer than
    * the wrap on/off split because a language override can name any one of
@@ -697,6 +724,7 @@ export function parseQuery(raw: string): ParsedQuery {
     langOverrideOnly: false,
     multilineOnly: false,
     singleLineOnly: false,
+    longReadOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -803,6 +831,7 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "hostscrubbed") out.hostScrubbedOnly = true;
       else if (v === "multiline") out.multilineOnly = true;
       else if (v === "singleline") out.singleLineOnly = true;
+      else if (v === "longread") out.longReadOnly = true;
       else if (v === "wrapoverride") out.wrapOverrideOnly = true;
       else if (v === "wrapoverride:on" || v === "wrapoverride:off") {
         // Directional variants: narrow to a forced ON / OFF state. Also
@@ -1142,6 +1171,8 @@ export function applyQuery(
     // `is:singleline` — body has no interior newline. Exact inverse of the
     // multiline gate; images excluded from both. Empty bodies are single-line.
     if (q.singleLineOnly && !singleLineMatches(c)) return false;
+    // `is:longread` — body has >=60 words (reading-time floor). Image-skip.
+    if (q.longReadOnly && !longReadMatches(c)) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
     // `is:expired` — strict subset of is:expiring: a finite expiresAt
     // that's already at/past `now`. These linger until the GC sweeps
@@ -1251,6 +1282,7 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.hostScrubbedOnly) bits.push("hostscrubbed");
   if (q.multilineOnly) bits.push("multiline");
   if (q.singleLineOnly) bits.push("singleline");
+  if (q.longReadOnly) bits.push("longread");
   if (q.wrapOverrideOnly) {
     bits.push(
       q.wrapOverrideDir === "on"
