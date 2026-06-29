@@ -70,6 +70,7 @@ import {
   type EncryptedEnvelope,
 } from "../lib/crypto";
 import { parseQuery, applyQuery, describeQuery, codeMatches, proseMatches } from "../lib/search";
+import { tabularMatches } from "../lib/table-kind";
 import { sortClips, sortLabel } from "../lib/sort";
 import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFilter, type ExportFormat, type ExportFilter } from "../lib/export";
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
@@ -1326,6 +1327,7 @@ function renderQuickChips(allClips: ClipItem[]) {
   let templates = 0;
   let codeCount = 0;
   let proseCount = 0;
+  let tabularCount = 0;
   let expiring = 0;
   let expired = 0;
   let archived = 0;
@@ -1349,6 +1351,13 @@ function renderQuickChips(allClips: ClipItem[]) {
     // Prose clips: the is:prose twin of the code count. Excludes images
     // (neither code nor prose) so Code + Prose partition only text/link.
     else if (proseMatches(c)) proseCount++;
+    // Tabular clips: every single-line delimited row (the is:tabular union
+    // of is:csv + is:tsv). Counted INDEPENDENTLY of code/prose — a tabular
+    // row reads as prose to the code classifier, so it's already in
+    // proseCount; the Tabular chip is an orthogonal cut across the same
+    // clips, not a fourth partition. Same tabularMatches gate the filter
+    // uses, so the chip count and is:tabular agree.
+    if (tabularMatches(c)) tabularCount++;
     if (typeof c.expiresAt === "number") expiring++;
     // Already-past-due subset of expiring: the GC will sweep these at
     // the next capture, but until then they linger — the `is:expired`
@@ -1412,6 +1421,21 @@ function renderQuickChips(allClips: ClipItem[]) {
       active: hasOp("is:prose"),
       count: proseCount,
       ariaLabel: "Filter to prose clips (writing, not code)",
+    });
+  // "Tabular" — the spreadsheet-row cut: the is:tabular union of is:csv +
+  // is:tsv, every single-line delimited row the table-row send-to family
+  // lights up for. A single chip (vs two narrow CSV/TSV chips) keeps the
+  // strip tight for narrow popups while still giving one-tap access to
+  // "show me everything I pasted out of a sheet". Hidden when nothing's
+  // tabular. Orthogonal to Code/Prose (a tabular row also counts as prose),
+  // so it can co-exist with both in the strip without double-claiming.
+  if (tabularCount > 0)
+    pills.push({
+      label: "Tabular",
+      op: "is:tabular",
+      active: hasOp("is:tabular"),
+      count: tabularCount,
+      ariaLabel: "Filter to tabular clips (CSV + TSV spreadsheet rows)",
     });
   if (expiring > 0)
     pills.push({
