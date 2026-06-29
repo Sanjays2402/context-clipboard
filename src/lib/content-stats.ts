@@ -65,6 +65,8 @@ export interface ContentStats {
   words: number;
   /** Newline-separated line count (0 for an empty body). */
   lines: number;
+  /** Sentence count (terminator-delimited, initials guarded). */
+  sentences: number;
 }
 
 /**
@@ -105,7 +107,43 @@ export function computeContentStats(body: string): ContentStats {
     const normalised = text.replace(/\r\n?/g, "\n");
     lines = normalised.split("\n").length;
   }
-  return { chars, words, lines };
+  return { chars, words, lines, sentences: countSentences(text) };
+}
+
+/**
+ * Count prose sentences in a body. Flattens whitespace, then counts
+ * terminators (. ! ?) that are at end-of-text or followed by a space,
+ * skipping a lone single-letter "initial" (J.) so abbreviations don't
+ * inflate the tally. Same boundary rules as first-sentence.ts so the
+ * count and that send-to row agree. A non-empty body with no terminator
+ * is 1 sentence; an empty body is 0. Consecutive terminators (!?) count
+ * once. Conservative, not a linguistics engine — a useful glance figure.
+ */
+export function countSentences(body: string): number {
+  const flat = typeof body === "string" ? body.replace(/\s+/g, " ").trim() : "";
+  if (flat === "") return 0;
+  let n = 0;
+  let pendingText = false;
+  for (let i = 0; i < flat.length; i++) {
+    const ch = flat[i];
+    const isTerm = ch === "." || ch === "!" || ch === "?";
+    if (isTerm) {
+      const next = flat[i + 1];
+      const atEnd = next === undefined;
+      if (!atEnd && next !== " ") { pendingText = true; continue; }
+      if (ch === "." && !atEnd && /(^|\s)[A-Za-z]$/.test(flat.slice(0, i))) {
+        pendingText = true;
+        continue;
+      }
+      n++;
+      pendingText = false;
+    } else if (ch !== " ") {
+      pendingText = true;
+    }
+  }
+  // Trailing text after the last terminator = one more (unterminated) sentence.
+  if (pendingText) n++;
+  return n;
 }
 
 /** Group an integer with commas: 1240 -> "1,240". Deterministic en-US. */
@@ -169,6 +207,10 @@ export function formatContentStats(
   ];
   // Only surface the line count when it adds information (> 1 line).
   if (s.lines > 1) parts.push(countUnit(s.lines, "line"));
+  // Sentence count earns a segment only for genuine multi-sentence prose
+  // (>1 sentence). Single-sentence + code (which rarely terminates with
+  // . ! ?) stay quiet so the breadcrumb doesn't show "1 sentence" noise.
+  if (s.sentences > 1) parts.push(countUnit(s.sentences, "sentence"));
   // Byte weight always tails the breadcrumb — "how heavy is this?" beside
   // "how long is this?". Same utf8ByteLength + formatCopyBytes the Send-to
   // weight row + the bulk receipts use, so every weight figure agrees.
@@ -243,6 +285,7 @@ export function formatContentStatsMarkdown(
     boldCountUnit(s.words, "word"),
   ];
   if (s.lines > 1) parts.push(boldCountUnit(s.lines, "line"));
+  if (s.sentences > 1) parts.push(boldCountUnit(s.sentences, "sentence"));
   // Byte weight tails the Markdown breadcrumb too, with the figure bolded
   // (unit plain) — "**1.2** KB" — so stripping the ** reproduces the plain
   // breadcrumb's byte segment exactly, preserving the md/plain parity.
