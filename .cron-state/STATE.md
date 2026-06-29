@@ -520,6 +520,19 @@ this tick's slices opened or touched, plus untouched long-standing gaps.
 - [x] Note-composer: a char-count tail like the detail note editor has (the composer has the token pill + warn banner but no length readout vs the 2,000 cap) — `86d2d18`
 
 
+### TICK LOG 2026-06-28 18:57 PT — 5/5 shipped (frontend UX, send-to + detail + search)
+Five orthogonal slices: three new Send-to copy rows, a detail-breadcrumb
+tail, and a search operator. Each ships a pure lib module + thin wire +
+dedicated sanity; the three send-to rows shifted the menu ordering, so the
+send-to regression suite count/gap asserts were bumped to match.
+- `45255cf` Send-to "Copy as quote": new lib/clip-blockquote prefixes every body line with "> " — quoting a captured paragraph into a doc/PR/chat. Prose sibling of fenced-code (code), body-side mirror of note-md (quotes the note). Images/empty hidden. 14/14.
+- `fa8dad6` Send-to "Copy first line": new lib/first-line hands over line 1 of a multi-line clip (heading/signature/subject). Hidden for single-line (plain Copy covers it), images, empty. 12/12.
+- `68ba169` Detail "~6 min read" tail: new lib/reading-time (200 wpm, round up, 60-word floor) tails the content-stats breadcrumb in plain + md. Self-selects to long-form prose; md parity intact (no bold figure). 13/13 + content-stats 74/74.
+- `9dd3c12` Send-to "Copy domain": domainForClip emits bare host (www. trimmed) — provenance without deep-link noise. Hidden for hostless. 11/11 + send-to suite bumped to 144/144 (22-row menu).
+- `44523e0` is:multiline filter: new operator + exported multilineMatches (CRLF-norm, images excluded). Surfaces tables/code/transcripts over one-liners. Parse/apply/describe + cheatsheet. 8/8; calendar/link suites regression-green.
+Gate: tsc --noEmit clean; chrome + firefox builds green (popup 513.6KB, bg 48.0KB, content 31.2KB). Pushed 035316e..44523e0.
+Deferred: none — all 5 solid, demoable, revertible.
+
 ### TICK LOG 2026-06-28 12:44 PT — 5/5 shipped (frontend UX, parity + discoverability + safety)
 Five orthogonal slices across five distinct surfaces — send-to, settings,
 cheatsheet, note-composer, bulk-bar — deliberately keeping no single
