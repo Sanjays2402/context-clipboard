@@ -116,6 +116,14 @@ export const icons = {
     svg(
       `<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 15v-6l3 3 3-3v6"/><path d="M17 9v4M15 12l2 2 2-2"/>`,
     ),
+  // Table / grid — a bordered rect with one interior horizontal + one
+  // vertical divider, reading as a 2x2 cell grid. Used by the bulk
+  // "Copy as CSV rows" button so it's visually distinct from the
+  // Markdown `M`-in-a-rect and the plain `copy` glyphs. Mono-stroke.
+  table: () =>
+    svg(
+      `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M11 10v10"/>`,
+    ),
   // Download — tray with a down-arrow landing in it. Used by the
   // lightbox "Save image" control (saves the local data URL to disk via
   // a[download]; no network). Distinct from `markdown`'s in-rect arrow.

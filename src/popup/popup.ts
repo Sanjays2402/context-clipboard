@@ -201,6 +201,11 @@ import {
   formatBulkMarkdownButtonTitle,
 } from "../lib/bulk-markdown";
 import {
+  planBulkCsv,
+  formatBulkCsvToast,
+  formatBulkCsvButtonTitle,
+} from "../lib/bulk-csv";
+import {
   bulkSeparatorPreview,
   bulkSeparatorCaption,
 } from "../lib/bulk-separator-preview";
@@ -546,6 +551,7 @@ const bulkTagFromNotesClear = $<HTMLButtonElement>("bulk-tag-from-notes-clear");
 const bulkStripHashtags = $<HTMLButtonElement>("bulk-strip-hashtags");
 const bulkCopy = $<HTMLButtonElement>("bulk-copy");
 const bulkCopyMd = $<HTMLButtonElement>("bulk-copy-md");
+const bulkCopyCsv = $<HTMLButtonElement>("bulk-copy-csv");
 const bulkExport = $<HTMLButtonElement>("bulk-export");
 const bulkExportTag = $<HTMLInputElement>("bulk-export-tag");
 const bulkDel = $<HTMLButtonElement>("bulk-del");
@@ -11649,6 +11655,16 @@ function updateBulkBar(): void {
   // Same >1MB pre-commit hint as plain Copy so both buttons warn on hover.
   const mdPlan = planBulkMarkdown(visibleSelected);
   bulkCopyMd.title = appendCopyBudgetTitleWarning(formatBulkMarkdownButtonTitle(mdPlan), mdPlan.bytes, mdPlan.rendered);
+  // Bulk-copy-as-CSV title — same visible-slice contract. Distinct from
+  // Copy / Copy-as-Markdown: it only acts on clips whose body reads as a
+  // tabular row (the is:csv / "Copy as CSV row" gate), so we HIDE the
+  // button entirely when nothing in the visible selection is tabular —
+  // a dead "Copy as CSV (0 rows)" button would just be noise. The click
+  // handler re-reads the full selection at fire time for the truthful
+  // toast count, same as the other two copy buttons.
+  const csvPlan = planBulkCsv(visibleSelected);
+  bulkCopyCsv.hidden = !csvPlan.hasContent;
+  bulkCopyCsv.title = appendCopyBudgetTitleWarning(formatBulkCsvButtonTitle(csvPlan), csvPlan.bytes, csvPlan.rows);
   // Lock button title — adapts to the selection's current lock-state
   // distribution so a hover reveals what the click will do BEFORE
   // the user commits to it. Counts run over the FULL selection
@@ -12304,6 +12320,38 @@ bulkCopyMd.addEventListener("click", async () => {
     toast(appendCopyBudgetWarning(formatBulkMarkdownToast(plan), plan.bytes, plan.rendered));
   } catch (err) {
     console.error("[context-clipboard] bulk markdown copy failed", err);
+    toast("Copy failed", "error");
+  }
+});
+
+// Bulk copy-as-CSV — for the clips in the selection whose body reads as a
+// tabular row (the same is:csv / "Copy as CSV row" gate), emit one CSV row
+// per clip joined with newlines so the block pastes straight into a
+// spreadsheet. Non-tabular clips (prose, images, multi-line) are skipped
+// and the toast names the gap. Same full-selection read + visible-list
+// ordering as the other two copy buttons so the rows read top-to-bottom.
+bulkCopyCsv.addEventListener("click", async () => {
+  const ids = [...selectedIds];
+  if (ids.length === 0) return;
+  const orderIndex = new Map<string, number>();
+  currentClips.forEach((c, i) => orderIndex.set(c.id, i));
+  const orderedIds = [...ids].sort((a, b) => {
+    const ia = orderIndex.has(a) ? orderIndex.get(a)! : Number.MAX_SAFE_INTEGER;
+    const ib = orderIndex.has(b) ? orderIndex.get(b)! : Number.MAX_SAFE_INTEGER;
+    return ia - ib;
+  });
+  const items = await Promise.all(orderedIds.map((id) => getClip(id)));
+  const plan = planBulkCsv(items);
+  if (!plan.hasContent) {
+    toast(formatBulkCsvToast(plan), "error");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(plan.text);
+    // Same >1MB heads-up as the other batch-copy paths.
+    toast(appendCopyBudgetWarning(formatBulkCsvToast(plan), plan.bytes, plan.rows));
+  } catch (err) {
+    console.error("[context-clipboard] bulk csv copy failed", err);
     toast("Copy failed", "error");
   }
 });
