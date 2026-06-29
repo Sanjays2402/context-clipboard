@@ -69,7 +69,7 @@ import {
   isEncryptedEnvelope,
   type EncryptedEnvelope,
 } from "../lib/crypto";
-import { parseQuery, applyQuery, describeQuery } from "../lib/search";
+import { parseQuery, applyQuery, describeQuery, codeMatches } from "../lib/search";
 import { sortClips, sortLabel } from "../lib/sort";
 import { toMarkdown, toCsv, mimeFor, extFor, applyExportFilter, describeExportFilter, type ExportFormat, type ExportFilter } from "../lib/export";
 import { expandTemplate, listTokens, type TemplateContext } from "../lib/templates";
@@ -1277,6 +1277,7 @@ function renderQuickChips(allClips: ClipItem[]) {
   let ocr = 0;
   let images = 0;
   let templates = 0;
+  let codeCount = 0;
   let expiring = 0;
   let expired = 0;
   let archived = 0;
@@ -1294,6 +1295,9 @@ function renderQuickChips(allClips: ClipItem[]) {
     if (c.ocrText) ocr++;
     if (c.kind === "image") images++;
     if (c.template) templates++;
+    // Code clips: same classifier the is:code filter + fenced-code copy
+    // use, so the chip count and the filter agree. Cheap per-clip sniff.
+    if (codeMatches(c)) codeCount++;
     if (typeof c.expiresAt === "number") expiring++;
     // Already-past-due subset of expiring: the GC will sweep these at
     // the next capture, but until then they linger — the `is:expired`
@@ -1335,6 +1339,17 @@ function renderQuickChips(allClips: ClipItem[]) {
       op: "is:template",
       active: hasOp("is:template"),
       count: templates,
+    });
+  // "Code" — clips the classifier reads as source/snippets. Sits beside
+  // Templates (both are the "paste me into an editor" cluster). Hidden
+  // when nothing's code so a prose-only history stays uncluttered.
+  if (codeCount > 0)
+    pills.push({
+      label: "Code",
+      op: "is:code",
+      active: hasOp("is:code"),
+      count: codeCount,
+      ariaLabel: "Filter to code clips (json/sql/ts/python/...)",
     });
   if (expiring > 0)
     pills.push({
