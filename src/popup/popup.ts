@@ -2148,7 +2148,7 @@ async function render(): Promise<void> {
           `</div>`;
       } else {
         hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:expired</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
+        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:code</code> / <code>is:prose</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:expired</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code></small></div>`
         : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
       }
     }
@@ -7815,6 +7815,32 @@ function buildPaletteActions(): PaletteAction[] {
       run: () => {
         closePalette();
         appendSearchOp("is:link");
+      },
+    },
+    {
+      // `is:code` — surface clips the same classifier behind the
+      // fenced-code copy + detail tint recognises as code. The "show me
+      // the snippets, not the prose" pass; pairs with is:prose.
+      id: "filter-code",
+      label: "Show code clips",
+      hint: "is:code — clips detected as code (json/sql/ts/py/...)",
+      group: "Filter",
+      keywords: "is:code snippet source language fenced syntax json sql python rust",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:code");
+      },
+    },
+    {
+      // `is:prose` — inverse of is:code. The "show me the writing" pass.
+      id: "filter-prose",
+      label: "Show prose clips",
+      hint: "is:prose — non-code text/link clips only",
+      group: "Filter",
+      keywords: "is:prose text writing not-code paragraphs articles non-code",
+      run: () => {
+        closePalette();
+        appendSearchOp("is:prose");
       },
     },
     {

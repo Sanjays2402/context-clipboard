@@ -19,7 +19,7 @@
  * All matching is local; nothing leaves the device.
  */
 import type { ClipItem, ClipKind } from "./types";
-import { hostFrom } from "./util";
+import { hostFrom, detectCodeLang } from "./util";
 import { hasClipNote } from "./clip-note";
 import { extractHashtagsFromNote } from "./tag-from-notes";
 import { hasWrapOverride, wrapOverrideMatches } from "./wrap-pref";
@@ -78,6 +78,43 @@ export function longReadMatches(c: Pick<ClipItem, "kind" | "content">): boolean 
   const trimmed = body.trim();
   if (trimmed === "") return false;
   return trimmed.split(/\s+/).length >= LONGREAD_MIN_WORDS;
+}
+
+/**
+ * Predicate: does this clip read as CODE? Triggered by `is:code`. We
+ * reuse the same `detectCodeLang` classifier that drives the fenced-code
+ * copy, syntax-soft-highlight, and lang-fence export — so a clip the UI
+ * already paints as code matches the filter, and a clip it leaves as
+ * prose doesn't. The user's per-clip `langOverride` wins: a clip pinned
+ * to a real language is code; a clip pinned forced-off ("none") never is,
+ * even if the heuristics would guess otherwise. Image clips never match
+ * (data-URL body). The "show me the snippets I can paste into an editor,
+ * not the paragraphs" filter — complements is:longread (its prose twin).
+ */
+export function codeMatches(
+  c: Pick<ClipItem, "kind" | "content"> & { langOverride?: string },
+): boolean {
+  if (c.kind === "image") return false;
+  // Honour an explicit per-clip override before sniffing the body so the
+  // filter agrees with what the detail-view tint / fenced-code already do.
+  if (c.langOverride) return c.langOverride !== "none";
+  const body = typeof c.content === "string" ? c.content : "";
+  return detectCodeLang(body) !== undefined;
+}
+
+/**
+ * Predicate: is this clip plain PROSE (not code)? Triggered by `is:prose`.
+ * The exact inverse of codeMatches for text/link clips — a body the code
+ * classifier declines AND that isn't pinned to a language. Image clips are
+ * excluded from BOTH (neither code nor prose) so the pair partitions only
+ * text/link clips cleanly. The "show me the writing, not the snippets"
+ * filter.
+ */
+export function proseMatches(
+  c: Pick<ClipItem, "kind" | "content"> & { langOverride?: string },
+): boolean {
+  if (c.kind === "image") return false;
+  return !codeMatches(c);
 }
 
 export interface ParsedQuery {
@@ -579,6 +616,21 @@ export interface ParsedQuery {
    */
   longReadOnly: boolean;
   /**
+   * Surface only clips the code-classifier recognises as CODE —
+   * `is:code`. Uses the same `detectCodeLang` heuristics + per-clip
+   * `langOverride` the fenced-code copy and detail tint use, so the
+   * filter agrees with what the UI already paints. Images excluded.
+   * Prose twin: `is:prose` (proseOnly).
+   */
+  codeOnly: boolean;
+  /**
+   * Surface only NON-code clips — `is:prose`, the inverse of is:code.
+   * Text/link bodies the classifier declines (and not pinned to a
+   * language). Images excluded from both so the pair partitions only
+   * text/link clips. "Show me the writing, not the snippets."
+   */
+  proseOnly: boolean;
+  /**
    * Directional narrowings of `is:langoverride` — surface only the clips
    * forced to a SPECIFIC state, not just "has any override". Richer than
    * the wrap on/off split because a language override can name any one of
@@ -725,6 +777,8 @@ export function parseQuery(raw: string): ParsedQuery {
     multilineOnly: false,
     singleLineOnly: false,
     longReadOnly: false,
+    codeOnly: false,
+    proseOnly: false,
   };
   const leftover: string[] = [];
   const now = Date.now();
@@ -832,6 +886,8 @@ export function parseQuery(raw: string): ParsedQuery {
       else if (v === "multiline") out.multilineOnly = true;
       else if (v === "singleline") out.singleLineOnly = true;
       else if (v === "longread") out.longReadOnly = true;
+      else if (v === "code") out.codeOnly = true;
+      else if (v === "prose") out.proseOnly = true;
       else if (v === "wrapoverride") out.wrapOverrideOnly = true;
       else if (v === "wrapoverride:on" || v === "wrapoverride:off") {
         // Directional variants: narrow to a forced ON / OFF state. Also
@@ -1173,6 +1229,12 @@ export function applyQuery(
     if (q.singleLineOnly && !singleLineMatches(c)) return false;
     // `is:longread` — body has >=60 words (reading-time floor). Image-skip.
     if (q.longReadOnly && !longReadMatches(c)) return false;
+    // `is:code` — body the code classifier recognises (or pinned to a
+    // language). Mirrors the fenced-code / tint UI; images never match.
+    if (q.codeOnly && !codeMatches(c)) return false;
+    // `is:prose` — non-code text/link body. Exact inverse of is:code;
+    // both exclude images so the pair partitions only text/link clips.
+    if (q.proseOnly && !proseMatches(c)) return false;
     if (q.expiringOnly && typeof c.expiresAt !== "number") return false;
     // `is:expired` — strict subset of is:expiring: a finite expiresAt
     // that's already at/past `now`. These linger until the GC sweeps
@@ -1283,6 +1345,8 @@ export function describeQuery(q: ParsedQuery): string {
   if (q.multilineOnly) bits.push("multiline");
   if (q.singleLineOnly) bits.push("singleline");
   if (q.longReadOnly) bits.push("longread");
+  if (q.codeOnly) bits.push("code");
+  if (q.proseOnly) bits.push("prose");
   if (q.wrapOverrideOnly) {
     bits.push(
       q.wrapOverrideDir === "on"
