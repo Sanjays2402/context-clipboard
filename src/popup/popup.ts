@@ -212,6 +212,7 @@ import {
 import { isToday, isYesterday, isThisWeek, isLastWeek, isThisMonth, isLastMonth } from "../lib/today-filter";
 import { widenSuggestion } from "../lib/widen-bucket";
 import { emptyReassurance } from "../lib/empty-reassurance";
+import { complementSuggestion } from "../lib/complement-suggestion";
 import { noteWarnBanner } from "../lib/note-warn-banner";
 import { noteCountState } from "../lib/note-count";
 import {
@@ -2211,10 +2212,34 @@ async function render(): Promise<void> {
       // compound filter never silently loses its other constraints, and
       // returns the source bucket's human noun for the headline.
       const widen = widenSuggestion(searchEl.value);
+      // A lone is:code / is:prose that came up empty while its TWIN bucket
+      // has clips doesn't want a different operator — it wants the OTHER
+      // half of the same split. Offer a one-tap "Show prose/code clips (N)"
+      // switch instead of the operator wall. complementSuggestion gates to
+      // EXACTLY a lone is:code / is:prose and only fires when the complement
+      // is non-empty (both empty -> generic hint). Counts come from `wide`
+      // (the whole-history window already loaded), the same tallies the
+      // Code/Prose quick-chips show, so the label count never lies.
+      let complementCode = 0;
+      let complementProse = 0;
+      for (const c of wide) {
+        if (codeMatches(c)) complementCode++;
+        else if (proseMatches(c)) complementProse++;
+      }
+      const complement = complementSuggestion(searchEl.value, {
+        code: complementCode,
+        prose: complementProse,
+      });
       if (reassure.reassure) {
         hint =
           `<div class="empty empty-reassure">${escapeHtml(reassure.headline)}` +
           `<br/><small>${escapeHtml(reassure.subtext)}</small>` +
+          `</div>`;
+      } else if (complement.suggest) {
+        hint =
+          `<div class="empty">${escapeHtml(complement.headline)}.` +
+          `<br/><small>${escapeHtml(complement.subtext)}</small>` +
+          `<br/><button type="button" class="empty-action" data-act="swap-complement" data-query="${escapeHtml(complement.complementOp)}">${escapeHtml(complement.label)}</button>` +
           `</div>`;
       } else if (widen.canWiden) {
         hint =
@@ -5853,6 +5878,22 @@ listEl.addEventListener("click", async (e) => {
   const widenAct = target.closest("button.empty-action[data-act=widen-bucket]") as HTMLElement | null;
   if (widenAct) {
     const next = widenAct.dataset.query || "";
+    if (next) {
+      searchEl.value = next;
+      activeIndex = 0;
+      await render();
+    }
+    return;
+  }
+  // Empty-state "Show prose/code clips (N)" — the lone is:code / is:prose
+  // came up empty but its twin bucket has clips, so swap the query to the
+  // complement operator carried on the button's data-query. The
+  // complementSuggestion helper already validated the swap at render time
+  // (it only offered the button when the complement is non-empty), so we
+  // just adopt the operator verbatim — same pattern as widen-bucket.
+  const swapAct = target.closest("button.empty-action[data-act=swap-complement]") as HTMLElement | null;
+  if (swapAct) {
+    const next = swapAct.dataset.query || "";
     if (next) {
       searchEl.value = next;
       activeIndex = 0;
