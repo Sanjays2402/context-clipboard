@@ -159,7 +159,7 @@ try {
   // (bold-number Markdown variant) appended last (19).
   // Each row is gated by its own availability check so adding new rows
   // here only matters for the total-count assertion.
-  total++; if (textActs.length === 22) pass++;
+  total++; if (textActs.length === 23) pass++;
   else console.error('FAIL textActs.length got', textActs.length);
 
   // The new weight row is present + available for a text clip with a body.
@@ -420,7 +420,7 @@ try {
     2);
   check('actions: raw-text comes before table-row',
     tmplActs.findIndex((a) => a.id === 'table-row') - tmplActs.findIndex((a) => a.id === 'raw-text'),
-    2);
+    3);
   check('actions: table-row comes before json',
     tmplActs.findIndex((a) => a.id === 'json') - tmplActs.findIndex((a) => a.id === 'table-row'),
     1);

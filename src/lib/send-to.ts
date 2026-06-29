@@ -23,6 +23,7 @@ import { curlWithNoteCommentForClip } from "./curl-note-comment";
 import { clipWeightSummary, clipWeightSummaryMarkdown } from "./clip-weight";
 import { clipAsBlockquote } from "./clip-blockquote";
 import { firstLineOf } from "./first-line";
+import { lastLineOf } from "./last-line";
 
 export interface SendableClip {
   id: string;
@@ -455,6 +456,10 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
   // / subject the user often wants alone. Hidden for images, empty, and
   // single-line clips (plain Copy already covers those).
   const firstLine = firstLineOf(c);
+  // Last (non-blank) line of a multi-line clip — the closing total, sign-off,
+  // trailing URL, or final prompt the user wants alone. Same gate as first-line
+  // (hidden for images, empty, single-line) so the two end-rows pair together.
+  const lastLine = lastLineOf(c);
   return [
     {
       id: "open-source",
@@ -606,6 +611,18 @@ export function buildSendActions(c: ClipForJson): SendAction[] {
       kind: "copy",
       payload: firstLine ?? undefined,
       available: !!firstLine,
+    },
+    {
+      // Last non-blank line only — the closing total, sign-off, trailing URL,
+      // or final prompt. End-of-clip mirror of first-line; same gate (hidden
+      // for single-line clips, images, empty bodies) so the two surface/hide
+      // together. Saves a copy-then-scroll-to-bottom-and-trim.
+      id: "last-line",
+      label: "Copy last line",
+      hint: "final line of a multi-line clip",
+      kind: "copy",
+      payload: lastLine ?? undefined,
+      available: !!lastLine,
     },
     {
       // Format a single-line tabular body (TSV / CSV) as a
