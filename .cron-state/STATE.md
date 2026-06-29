@@ -47,10 +47,30 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 Status: ` ` open / `~` in-progress / `x` shipped
 
 ### TICK LOG
+- 2026-06-29 00:07 PT — 5/5 shipped (frontend UX). cb5b011 is:code/is:prose
+  filters (detectCodeLang-backed, langOverride wins), 1e56618 "Code" quick-chip
+  with live count, 79a1428 "Copy as CSV row" send-to (RFC-4180), 66745e4 "Copy
+  first sentence" + 9be42fd "Copy last sentence" send-to rows + is:code cheatsheet.
+  Send-to menu 25->28 rows. tsc + chrome(523kb)/firefox builds green. sentence +
+  csv logic spot-checked (initials guard, single-sentence hide, quote escaping).
 - 2026-06-28 21:37 PT — 5/5 shipped (frontend UX). 918c815 last-line, 5a61dc1
   bullet-list, a5bc998 numbered-list send-to rows; b2de27c is:singleline,
   20c1d2e is:longread search. Menu 22->25 rows, 144/144 send-to. tsc + chrome/
   firefox builds green. last-line 8 + list-format 9 + singleline 11 + longread 9.
+
+### New (2026-06-29 00:07 PT refill — fresh frontend, content-aware)
+- [ ] Quick-chip: "Prose (N)" companion to the new Code chip (toggles is:prose)
+- [ ] Send-to: "Copy first paragraph" (split on blank line, prose lead block)
+- [ ] Send-to: "Copy as TSV row" (tab-delimited sibling of CSV/Markdown table rows)
+- [ ] Detail content-stats: sentence count for prose clips (chars/words/sentences/lines)
+- [ ] Detail body: monochrome "code" / "prose" badge in meta row, click to filter
+- [ ] Bulk-bar: "Copy selected as CSV" — header-less rows joined for spreadsheet paste
+- [ ] Send-to: "Copy title only" (source.title, strip URL) for cite-by-name
+- [ ] List row: code clips get a faint mono left-stripe (kind glyph already shows)
+- [ ] Search: is:csv / is:tsv operators (looksLikeTableRow predicate, parity)
+- [ ] Detail: "Copy N..M lines" range picker for multi-line clips (gutter select)
+- [ ] Cmd+K: "Show prose clips" symmetry already in; add count-aware hints to code/prose
+- [ ] Empty-state: code-only history suggests is:prose, prose-only suggests is:code
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
