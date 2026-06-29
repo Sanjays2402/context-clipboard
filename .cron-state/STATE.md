@@ -46,6 +46,12 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 
 Status: ` ` open / `~` in-progress / `x` shipped
 
+### TICK LOG
+- 2026-06-28 21:37 PT — 5/5 shipped (frontend UX). 918c815 last-line, 5a61dc1
+  bullet-list, a5bc998 numbered-list send-to rows; b2de27c is:singleline,
+  20c1d2e is:longread search. Menu 22->25 rows, 144/144 send-to. tsc + chrome/
+  firefox builds green. last-line 8 + list-format 9 + singleline 11 + longread 9.
+
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
 - [ ] Capture into a chosen collection at copy time (depends on collections)
