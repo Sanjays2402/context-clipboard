@@ -47,7 +47,19 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 Status: ` ` open / `~` in-progress / `x` shipped
 
 ### TICK LOG
-- 2026-06-29 05:10 PT — 5/5 shipped (frontend UX, code/prose/tabular
+- 2026-06-29 08:41 PT — 5/5 shipped (frontend UX, tabular cluster).
+  e869e79 is:tabular operator (lib/table-kind tabularMatches ===
+  looksLikeTableRow, the csv||tsv union the search bar can't OR;
+  parser+applyQuery+describe+Cmd+K+cheatsheet), e0c6e2b "Tabular (N)"
+  quick-chip (single chip, orthogonal to Code/Prose since a tabular row
+  also reads prose, hidden when zero), 9f92ff9 content-stats "N cols"
+  segment (splitTableCells count, same gate as Copy-as-CSV-row, plain+md
+  parity), dd6c3f5 detail code badge shows detected language inline
+  ("code · sql" via effectiveLang, op stays is:code), f75c772 list-row
+  tabular left-stripe (success-green, mutually exclusive w/ code stripe,
+  code wins). tsc + chrome(536.9kb)/firefox builds green. Decisions
+  spot-checked: tabular union == partition, chip count == filter, cols ==
+  CSV-row cells, badge lang == tint lang, stripe exclusivity.
   cluster). 780671a is:csv/is:tsv operators (lib/table-kind.ts, shares
   looksLikeTableRow gate w/ Copy-as-CSV/TSV send-to, partitions tabular
   set; +parse/apply/describe, 2 Cmd+K cmds, empty-wall, cheatsheet),
@@ -96,17 +108,17 @@ Status: ` ` open / `~` in-progress / `x` shipped
 ### New (2026-06-29 05:10 PT refill — fresh frontend, content-aware)
 Continuing the code/prose/tabular classification cluster but branching into
 new surfaces (column-detail, line-level ops, quick-chip parity, palette).
-- [ ] Quick-filter chips: "CSV (N)" / "TSV (N)" tier beside Code/Prose (csvMatches/tsvMatches counts, hidden when zero)
+- [x] Quick-filter chips: "Tabular (N)" single chip toggling is:tabular (orthogonal to Code/Prose; one chip simpler than two for narrow popups) — `e0c6e2b`
 - [ ] Detail: tabular clips get a rendered mini-table preview (split cells into a real <table> under the body, toggle raw/table)
-- [ ] Detail content-stats: column count for tabular clips ("3 cols" segment when looksLikeTableRow, beside chars/words)
+- [x] Detail content-stats: column count for tabular clips ("3 cols" segment when looksLikeTableRow, beside chars/words) — `9f92ff9`
 - [ ] Send-to: "Copy as Markdown table (with header)" — first row becomes the header + separator row for a 2+ row paste workflow
-- [ ] List row: tabular clips get a faint "grid" kind hint (sibling of the code left-stripe; different glyph/tint)
+- [x] List row: tabular clips get a faint "grid" kind hint (sibling of the code left-stripe; success-green tint, code wins on overlap) — `f75c772`
 - [ ] Detail: "Copy column N" picker for a tabular row (pick one cell by index, copy just that value)
 - [ ] Bulk-bar: "Copy selected as TSV" — tab-delimited sibling of the new bulk CSV (same gate, cleanest spreadsheet paste)
 - [ ] Empty-state: lone is:csv empty but tsv exists -> suggest is:tsv (and reverse) — complement-suggestion sibling for the tabular pair
-- [ ] Cmd+K: "Show tabular clips" — is:csv OR is:tsv union view (needs an is:tabular operator or a combined filter)
-- [ ] Detail code badge: show the DETECTED language inline ("code · sql") not just "code", click still filters is:code
-- [ ] Search: is:tabular operator (csvMatches || tsvMatches) — the union the Cmd+K command above wants
+- [x] Cmd+K: "Show tabular clips" — is:csv OR is:tsv union view (is:tabular operator) — `e869e79`
+- [x] Detail code badge: show the DETECTED language inline ("code · sql") not just "code", click still filters is:code — `dd6c3f5`
+- [x] Search: is:tabular operator (tabularMatches === looksLikeTableRow) — the union the Cmd+K command above wants — `e869e79`
 - [ ] List row: prose clips over the longread floor get a faint "~min" inline pill in the meta row (reading-time, already computed)
 - [ ] Detail: line-numbers gutter for multi-line code clips (toggle, pairs with the wrap toggle)
 - [ ] Send-to: "Copy first N lines" picker (1/3/5/10) for long multi-line clips — head-of-file workflow
