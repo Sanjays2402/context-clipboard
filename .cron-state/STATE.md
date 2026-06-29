@@ -47,6 +47,20 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 Status: ` ` open / `~` in-progress / `x` shipped
 
 ### TICK LOG
+- 2026-06-29 05:10 PT — 5/5 shipped (frontend UX, code/prose/tabular
+  cluster). 780671a is:csv/is:tsv operators (lib/table-kind.ts, shares
+  looksLikeTableRow gate w/ Copy-as-CSV/TSV send-to, partitions tabular
+  set; +parse/apply/describe, 2 Cmd+K cmds, empty-wall, cheatsheet),
+  c6eb8ba detail code/prose badge click-to-filter (lib/clip-kind-badge.ts,
+  reuses codeMatches/proseMatches, code tints accent), 2e5e189 list-row
+  faint mono left-stripe on code clips (.clip.is-code::before), 2401634
+  bulk Copy-as-CSV (lib/bulk-csv.ts, byte-identical to per-clip CSV row,
+  skips non-tabular honestly, new `table` glyph, hides when nothing
+  tabular), 94af3e9 empty-state complement suggestion (lib/complement-
+  suggestion.ts, lone is:code/is:prose empty -> one-tap switch to the
+  non-empty twin). tsc + chrome(534.9kb)/firefox builds green. Predicate
+  partition + bulk-csv join + complement decision spot-checked
+  (8/8 + 3 + 8/8).
 - 2026-06-29 02:50 PT — 5/5 shipped (frontend UX). 882529f "Prose (N)"
   quick-chip (proseMatches, twin of Code, partitions text/link), b124138
   "Copy first paragraph" send-to (first-paragraph.ts, blank-line split),
@@ -70,14 +84,37 @@ Status: ` ` open / `~` in-progress / `x` shipped
 - [x] Send-to: "Copy first paragraph" (split on blank line, prose lead block) — `b124138`
 - [x] Send-to: "Copy as TSV row" (tab-delimited sibling of CSV/Markdown table rows) — `51338c1`
 - [x] Detail content-stats: sentence count for prose clips (chars/words/sentences/lines) — `ab0b8fc`
-- [ ] Detail body: monochrome "code" / "prose" badge in meta row, click to filter
-- [ ] Bulk-bar: "Copy selected as CSV" — header-less rows joined for spreadsheet paste
+- [x] Detail body: monochrome "code" / "prose" badge in meta row, click to filter — `c6eb8ba`
+- [x] Bulk-bar: "Copy selected as CSV" — header-less rows joined for spreadsheet paste — `2401634`
 - [x] Send-to: "Copy title only" (source.title, strip URL) for cite-by-name — `c06a1c7`
-- [ ] List row: code clips get a faint mono left-stripe (kind glyph already shows)
-- [ ] Search: is:csv / is:tsv operators (looksLikeTableRow predicate, parity)
+- [x] List row: code clips get a faint mono left-stripe (kind glyph already shows) — `2e5e189`
+- [x] Search: is:csv / is:tsv operators (looksLikeTableRow predicate, parity) — `780671a`
 - [ ] Detail: "Copy N..M lines" range picker for multi-line clips (gutter select)
 - [ ] Cmd+K: "Show prose clips" symmetry already in; add count-aware hints to code/prose
-- [ ] Empty-state: code-only history suggests is:prose, prose-only suggests is:code
+- [x] Empty-state: code-only history suggests is:prose, prose-only suggests is:code — `94af3e9`
+
+### New (2026-06-29 05:10 PT refill — fresh frontend, content-aware)
+Continuing the code/prose/tabular classification cluster but branching into
+new surfaces (column-detail, line-level ops, quick-chip parity, palette).
+- [ ] Quick-filter chips: "CSV (N)" / "TSV (N)" tier beside Code/Prose (csvMatches/tsvMatches counts, hidden when zero)
+- [ ] Detail: tabular clips get a rendered mini-table preview (split cells into a real <table> under the body, toggle raw/table)
+- [ ] Detail content-stats: column count for tabular clips ("3 cols" segment when looksLikeTableRow, beside chars/words)
+- [ ] Send-to: "Copy as Markdown table (with header)" — first row becomes the header + separator row for a 2+ row paste workflow
+- [ ] List row: tabular clips get a faint "grid" kind hint (sibling of the code left-stripe; different glyph/tint)
+- [ ] Detail: "Copy column N" picker for a tabular row (pick one cell by index, copy just that value)
+- [ ] Bulk-bar: "Copy selected as TSV" — tab-delimited sibling of the new bulk CSV (same gate, cleanest spreadsheet paste)
+- [ ] Empty-state: lone is:csv empty but tsv exists -> suggest is:tsv (and reverse) — complement-suggestion sibling for the tabular pair
+- [ ] Cmd+K: "Show tabular clips" — is:csv OR is:tsv union view (needs an is:tabular operator or a combined filter)
+- [ ] Detail code badge: show the DETECTED language inline ("code · sql") not just "code", click still filters is:code
+- [ ] Search: is:tabular operator (csvMatches || tsvMatches) — the union the Cmd+K command above wants
+- [ ] List row: prose clips over the longread floor get a faint "~min" inline pill in the meta row (reading-time, already computed)
+- [ ] Detail: line-numbers gutter for multi-line code clips (toggle, pairs with the wrap toggle)
+- [ ] Send-to: "Copy first N lines" picker (1/3/5/10) for long multi-line clips — head-of-file workflow
+- [ ] Quick-chip: "Tabular (N)" single chip toggling is:tabular (simpler than two CSV/TSV chips for narrow popups)
+- [ ] Detail content-stats: "longest line N chars" segment for code clips (wide-line / wrap-decision signal)
+- [ ] Empty-state: lone is:tabular empty -> suggest is:prose or is:code if either has clips (3-way complement)
+- [ ] Detail: copy-as-JSON-array for a tabular clip (cells -> ["a","b","c"]) for quick paste into code
+
 
 ### Capture & enrichment
 - [ ] Collections / folders (manual buckets, per-clip multi-membership)
