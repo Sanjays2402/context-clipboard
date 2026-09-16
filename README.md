@@ -4,12 +4,16 @@ Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy rem
 
 **Site:** https://sanjays2402.github.io/context-clipboard/
 
-![status](https://img.shields.io/badge/status-v0.6.2-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
+![status](https://img.shields.io/badge/status-v0.6.3-amber) ![license](https://img.shields.io/badge/license-MIT-green) ![local-only](https://img.shields.io/badge/data-local%20only-1a8a3e) ![mv3](https://img.shields.io/badge/manifest-v3-4285f4)
 
 <p align="center">
   <img src="screenshots/hero-v2.png" alt="Context Clipboard — dark popup, light popup, settings" />
 </p>
 <p align="center"><sub>Dark popup · Light popup · Settings — captured at 2× from the actual production build</sub></p>
+
+## What's new in v0.6.3
+
+- **ISO dates in search** — `before:` / `after:` now accept calendar dates alongside relative durations: `before:2026-09-01`, `after:2026-01-01T00:00`. Invalid dates (e.g. `2026-02-30`) fall back to plain free-text instead of matching the wrong clips.
 
 ## What's new in v0.6.2
 
@@ -40,6 +44,7 @@ Smart clipboard manager for **Chrome, Brave, Edge, and Firefox**. Every copy rem
 - **Smart dedup** — re-copying the same content within a configurable window bumps hit count instead of duplicating
 - **In-page command palette** — `Cmd/Ctrl+Shift+V` opens a Spotlight-style overlay on any page; navigate + paste without leaving the tab
 - **Auto-tags** — hostname, `code`, `email`, `url`, `jwt`, `secret`, `phone`, `long`, `number` detected locally
+- **Smart search operators** — `kind:`, `host:`, `tag:`, `is:`, and time bounds (`before:7d`, `before:2026-09-01`, `after:2026-01-01T00:00`) right in the search box
 - **Tag filter chips** — top tags rendered above the list, click to filter
 - **Image OCR** — extract text from screenshots with Tesseract.js (lazy-loaded), searchable in history
 - **Pin important clips** — survive auto-prune and "Clear unpinned"

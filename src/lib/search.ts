@@ -10,8 +10,8 @@
  *   - host:<hostname>           (matches `hostFrom(source.url)` exactly)
  *   - tag:<tagname>             (repeatable — every tag must be present)
  *   - is:pinned|redacted|ocr    (repeatable)
- *   - before:<duration>         (older than N — e.g. before:7d, before:2h)
- *   - after:<duration>          (newer than N)
+ *   - before:<duration|date>    (older than — e.g. before:7d, before:2026-09-01)
+ *   - after:<duration|date>     (newer than — after:24h or after:2026-01-01T00:00)
  *
  * Anything left over is the free-text needle (matched against
  * preview/content/title/url/nearbyText/tags/ocrText).
@@ -772,6 +772,42 @@ function parseDuration(s: string): number | null {
   return n * mult;
 }
 
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+
+/**
+ * Strict ISO calendar date (local time) → Unix-ms. Accepts `YYYY-MM-DD`
+ * (local midnight) or `YYYY-MM-DDTHH:mm[:ss]`. Out-of-range components
+ * and calendar rollovers (2026-02-30) return null so the token falls
+ * through to free text — never a silently wrong threshold.
+ */
+function parseIsoDate(s: string): number | null {
+  const m = ISO_DATE_RE.exec(s.trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  const h = Number(m[4] ?? "0");
+  const mi = Number(m[5] ?? "0");
+  const sec = Number(m[6] ?? "0");
+  if (mo < 0 || mo > 11 || d < 1 || d > 31 || h > 23 || mi > 59 || sec > 59)
+    return null;
+  const dt = new Date(y, mo, d, h, mi, sec);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d)
+    return null;
+  return dt.getTime();
+}
+
+/**
+ * `before:`/`after:` accept a relative duration (`7d`) or an ISO calendar
+ * date (`2026-09-01`, `2026-09-01T15:30`). Durations resolve to
+ * `now - duration`; dates resolve to the date itself (local time).
+ */
+function thresholdMs(val: string, now: number): number | null {
+  const dur = parseDuration(val);
+  if (dur != null) return now - dur;
+  return parseIsoDate(val);
+}
+
 export function parseQuery(raw: string): ParsedQuery {
   const out: ParsedQuery = {
     freeText: "",
@@ -1003,12 +1039,12 @@ export function parseQuery(raw: string): ParsedQuery {
         }
       } else leftover.push(tok);
     } else if (key === "before") {
-      const d = parseDuration(val);
-      if (d != null) out.before = now - d;
+      const t = thresholdMs(val, now);
+      if (t != null) out.before = t;
       else leftover.push(tok);
     } else if (key === "after") {
-      const d = parseDuration(val);
-      if (d != null) out.after = now - d;
+      const t = thresholdMs(val, now);
+      if (t != null) out.after = t;
       else leftover.push(tok);
     } else {
       leftover.push(tok);
