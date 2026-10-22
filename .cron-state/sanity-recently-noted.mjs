@@ -3,6 +3,7 @@
 //
 // Run with: node .cron-state/sanity-recently-noted.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -25,7 +26,7 @@ try {
     countRecentlyNoted,
     formatRecentlyNotedLabel,
     RECENTLY_NOTED_DEFAULT_WINDOW_MS,
-  } = await import(join(tmp, "recently-noted.mjs"));
+  } = await import(pathToFileURL(join(tmp, "recently-noted.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

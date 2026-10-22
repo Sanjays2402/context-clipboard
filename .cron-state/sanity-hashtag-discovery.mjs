@@ -3,6 +3,7 @@
 //
 // Run with: node .cron-state/sanity-hashtag-discovery.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -24,7 +25,7 @@ try {
     discoverHashtagsInNotes,
     formatHashtagDiscoveryToast,
     formatHashtagDiscoveryHint,
-  } = await import(join(tmp, "hashtag-discovery.mjs"));
+  } = await import(pathToFileURL(join(tmp, "hashtag-discovery.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

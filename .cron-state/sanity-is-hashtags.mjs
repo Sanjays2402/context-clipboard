@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pathToFileURL } from "node:url";
 // Sanity for is:hashtags / is:nohashtags search operators.
 // Verifies the parser+applyQuery+describeQuery integration so the
 // search filter, the Tag-from-notes promotion path, and the Cmd+K
@@ -14,10 +15,10 @@ const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-is-hashtags-"));
 const out = join(tmp, "search.js");
 execSync(
-  `node_modules/.bin/esbuild src/lib/search.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
+  `node node_modules/esbuild/bin/esbuild src/lib/search.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
   { stdio: "ignore", cwd: repo },
 );
-const { parseQuery, applyQuery, describeQuery } = await import(out);
+const { parseQuery, applyQuery, describeQuery } = await import(pathToFileURL(out).href);
 
 let pass = 0;
 let fail = 0;

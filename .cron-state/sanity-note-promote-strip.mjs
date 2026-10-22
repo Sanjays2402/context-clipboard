@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pathToFileURL } from "node:url";
 // Sanity for lib/note-promote-strip pure module.
 // Verifies plan composition (extractHashtags + mergedTagsForClip +
 // stripHashtagsFromNote), gate predicate, and three formatters.
@@ -12,7 +13,7 @@ const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-promote-strip-"));
 const out = join(tmp, "ps.js");
 execSync(
-  `node_modules/.bin/esbuild src/lib/note-promote-strip.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
+  `node node_modules/esbuild/bin/esbuild src/lib/note-promote-strip.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
   { stdio: "ignore", cwd: repo },
 );
 const {
@@ -21,7 +22,7 @@ const {
   formatPromoteAndStripChipLabel,
   formatPromoteAndStripChipTooltip,
   formatPromoteAndStripToast,
-} = await import(out);
+} = await import(pathToFileURL(out).href);
 
 let pass = 0;
 let fail = 0;

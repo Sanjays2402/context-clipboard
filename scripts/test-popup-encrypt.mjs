@@ -41,7 +41,8 @@ const popupUrl = `http://127.0.0.1:${port}/popup/popup.html`;
 
 const browser = await chromium.launch({
   headless: true,
-  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  // Set CHROME_PATH to use a local Chrome; otherwise Playwright's bundled Chromium.
+  executablePath: process.env.CHROME_PATH || undefined,
 });
 const ctx = await browser.newContext();
 const page = await ctx.newPage();

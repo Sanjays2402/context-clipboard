@@ -8,7 +8,11 @@
     "build:chrome": "node scripts/build.mjs chrome",
     "build:firefox": "node scripts/build.mjs firefox",
     "watch": "node scripts/build.mjs --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/run-tests.mjs",
+    "test:e2e": "node scripts/run-tests.mjs --e2e-only",
+    "check": "npm run typecheck && npm run build && npm test"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",

@@ -5,6 +5,7 @@
 //
 // Run with: node .cron-state/sanity-host-rule-flags.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -26,7 +27,7 @@ try {
     buildHostRulePredicate,
     countHostRuleClips,
     flaggedHostsForClips,
-  } = await import(join(tmp, "host-rule-flags.mjs"));
+  } = await import(pathToFileURL(join(tmp, "host-rule-flags.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

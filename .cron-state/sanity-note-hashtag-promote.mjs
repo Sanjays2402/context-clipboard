@@ -3,6 +3,7 @@
 //
 // Run with: node .cron-state/sanity-note-hashtag-promote.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -26,7 +27,7 @@ try {
     formatNoteHashtagPromoteLabel,
     formatNoteHashtagPromoteTooltip,
     formatNoteHashtagPromoteToast,
-  } = await import(join(tmp, "note-hashtag-promote.mjs"));
+  } = await import(pathToFileURL(join(tmp, "note-hashtag-promote.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

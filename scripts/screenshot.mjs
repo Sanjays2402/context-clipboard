@@ -28,7 +28,8 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(7333, r));
 
 const browser = await chromium.launch({
-  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  // Set CHROME_PATH to use a local Chrome; otherwise Playwright's bundled Chromium.
+  executablePath: process.env.CHROME_PATH || undefined,
   headless: true,
 });
 const ctx = await browser.newContext({ viewport: { width: 420, height: 640 }, deviceScaleFactor: 2, colorScheme: "dark" });
@@ -76,7 +77,7 @@ await page.evaluate(async () => {
   const DB = "context-clipboard";
   function open() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open(DB, 3);
+      const r = indexedDB.open(DB);
       r.onupgradeneeded = () => {
         const db = r.result;
         if (!db.objectStoreNames.contains("clips")) {

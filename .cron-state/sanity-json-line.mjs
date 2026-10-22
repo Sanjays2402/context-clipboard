@@ -172,11 +172,11 @@ try {
   // table-row + json + json-line + curl + bg-tab + note-md +
   // clip-note-md + curl-note = 17, + weight (chars+words+bytes) = 18,
   // + weight-md (bold Markdown variant) = 19 total.
-  // Each row is gated by its own availability check; only the total
-  // count matters here.
+  // Each row is gated by its own availability check. Later features keep
+  // appending rows, so only require the 19 rows this feature relied on.
   total++;
-  if (acts.length === 19) pass++;
-  else console.error("FAIL acts.length got", acts.length, "want 19");
+  if (acts.length >= 19) pass++;
+  else console.error("FAIL acts.length got", acts.length, "want >= 19");
 
   const jsonLineRow = acts.find((a) => a.id === "json-line");
   checkTruthy("actions: json-line row exists", jsonLineRow);

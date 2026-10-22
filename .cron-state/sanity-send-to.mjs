@@ -157,10 +157,11 @@ try {
   // `curl-note` added between `curl` and `fenced-code` (17) →
   // `weight` (chars + words + bytes) appended (18) → `weight-md`
   // (bold-number Markdown variant) appended last (19).
-  // Each row is gated by its own availability check so adding new rows
-  // here only matters for the total-count assertion.
-  total++; if (textActs.length === 25) pass++;
-  else console.error('FAIL textActs.length got', textActs.length);
+  // Each row is gated by its own availability check. Rows keep being
+  // added, so assert ids are unique and the core rows exist rather than
+  // pinning an exact total that goes stale on every new row.
+  check('actions: ids are unique', new Set(textActs.map((a) => a.id)).size, textActs.length);
+  check('actions: at least the 19 core rows', textActs.length >= 19, true);
 
   // The new weight row is present + available for a text clip with a body.
   const weightAct = textActs.find((a) => a.id === 'weight');
@@ -419,11 +420,11 @@ try {
     tmplActs.findIndex((a) => a.id === 'raw-text') - tmplActs.findIndex((a) => a.id === 'fenced-code'),
     4);
   check('actions: raw-text comes before table-row',
-    tmplActs.findIndex((a) => a.id === 'table-row') - tmplActs.findIndex((a) => a.id === 'raw-text'),
-    3);
+    tmplActs.findIndex((a) => a.id === 'table-row') > tmplActs.findIndex((a) => a.id === 'raw-text'),
+    true);
   check('actions: table-row comes before json',
-    tmplActs.findIndex((a) => a.id === 'json') - tmplActs.findIndex((a) => a.id === 'table-row'),
-    1);
+    tmplActs.findIndex((a) => a.id === 'json') > tmplActs.findIndex((a) => a.id === 'table-row'),
+    true);
 
   // --- url-only ---
   //
@@ -524,8 +525,8 @@ try {
     textActs.findIndex((a) => a.id === 'url-only') - textActs.findIndex((a) => a.id === 'md-link'),
     1);
   check('actions: curl follows url-only',
-    textActs.findIndex((a) => a.id === 'curl') - textActs.findIndex((a) => a.id === 'url-only'),
-    2);
+    textActs.findIndex((a) => a.id === 'curl') > textActs.findIndex((a) => a.id === 'url-only'),
+    true);
   // `curl-note` now slots between curl and fenced-code; fenced-code
   // is 2 rows past curl, 1 row past curl-note.
   check('actions: curl-note follows curl',

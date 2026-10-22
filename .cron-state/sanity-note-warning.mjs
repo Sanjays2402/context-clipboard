@@ -3,6 +3,7 @@
 //
 // Run with: node .cron-state/sanity-note-warning.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -25,7 +26,7 @@ try {
     firstWarningKeyword,
     formatNoteWarningTooltip,
     NOTE_WARNING_KEYWORDS,
-  } = await import(join(tmp, "note-warning.mjs"));
+  } = await import(pathToFileURL(join(tmp, "note-warning.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

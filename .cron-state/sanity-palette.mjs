@@ -6,7 +6,7 @@
  * inline with esbuild's transform so we don't need a build step.
  */
 import { build } from "esbuild";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -32,7 +32,7 @@ await build({
   outfile: join(tmp, "out.mjs"),
   logLevel: "silent",
 });
-const mod = await import(join(tmp, "out.mjs"));
+const mod = await import(pathToFileURL(join(tmp, "out.mjs")).href);
 void mod;
 const { rankActions, scoreAction, boldedLabel } = globalThis.__P;
 

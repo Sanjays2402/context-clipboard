@@ -69,6 +69,16 @@ npm install
 npm run build         # builds dist/chrome and dist/firefox
 ```
 
+### Tests
+
+```bash
+npm run check         # typecheck + build + every unit/sanity test
+npm test              # just the tests (pass a name to filter: npm test -- send-to)
+npm run test:e2e      # Playwright popup tests against dist/chrome
+```
+
+`npm test` runs `scripts/test-*.mjs` and `.cron-state/sanity-*.mjs` in parallel. The e2e tests use Playwright's bundled Chromium (`npx playwright install chromium`), or set `CHROME_PATH` to a local Chrome/Edge. CI runs all of it on every push and PR.
+
 ### Chrome / Brave / Edge
 
 1. Open `chrome://extensions`

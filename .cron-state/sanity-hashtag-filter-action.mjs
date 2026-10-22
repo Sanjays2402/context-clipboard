@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pathToFileURL } from "node:url";
 // Sanity for hashtag-discovery's new hashtagFilterActionFor helper.
 // Verifies the per-tag palette action shape composes the right
 // searchOp + label/hint/keywords across the report-entry contract.
@@ -12,10 +13,10 @@ const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-hashtag-filter-"));
 const out = join(tmp, "hf.js");
 execSync(
-  `node_modules/.bin/esbuild src/lib/hashtag-discovery.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
+  `node node_modules/esbuild/bin/esbuild src/lib/hashtag-discovery.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
   { stdio: "ignore", cwd: repo },
 );
-const { discoverHashtagsInNotes, hashtagFilterActionFor } = await import(out);
+const { discoverHashtagsInNotes, hashtagFilterActionFor } = await import(pathToFileURL(out).href);
 
 let pass = 0;
 let fail = 0;

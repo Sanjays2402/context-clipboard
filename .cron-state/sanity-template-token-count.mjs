@@ -7,6 +7,7 @@
 // Grammar must match src/lib/templates.ts: /\{\{\s*([a-zA-Z][a-zA-Z0-9_-]*)\s*(?:\|([^}]*?))?\s*\}\}/g
 // Empty {{}}, digit-start {{1bad}}, unclosed {{x — all invalid.
 
+import { pathToFileURL } from "node:url";
 import { execSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,11 +17,11 @@ const repo = process.cwd();
 const src = join(repo, "src/lib/template-token-count.ts");
 const tmp = mkdtempSync(join(tmpdir(), "ttc-"));
 const outFile = join(tmp, "out.mjs");
-execSync(`node_modules/.bin/esbuild --bundle --format=esm --platform=neutral --target=es2022 --outfile=${outFile} ${src}`, {
+execSync(`node node_modules/esbuild/bin/esbuild --bundle --format=esm --platform=neutral --target=es2022 --outfile=${outFile} ${src}`, {
   cwd: repo,
   stdio: ["ignore", "ignore", "inherit"],
 });
-const { countTemplateTokens, formatTokenPillLabel, formatTokenPillTooltip } = await import(outFile);
+const { countTemplateTokens, formatTokenPillLabel, formatTokenPillTooltip } = await import(pathToFileURL(outFile).href);
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {

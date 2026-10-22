@@ -4,6 +4,7 @@
 //
 // Run with: node .cron-state/sanity-bulk-note.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -26,7 +27,7 @@ try {
     isBulkNoteActionable,
     formatBulkNoteToast,
     formatBulkNoteButtonTitle,
-  } = await import(join(tmp, "bulk-note.mjs"));
+  } = await import(pathToFileURL(join(tmp, "bulk-note.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

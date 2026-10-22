@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pathToFileURL } from "node:url";
 // Sanity for lib/bulk-strip-hashtags.
 // Verifies plan aggregation, per-clip action, gate predicate,
 // and toast/button-title formatters at every shape.
@@ -12,7 +13,7 @@ const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-bulk-strip-"));
 const out = join(tmp, "strip.js");
 execSync(
-  `node_modules/.bin/esbuild src/lib/bulk-strip-hashtags.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
+  `node node_modules/esbuild/bin/esbuild src/lib/bulk-strip-hashtags.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
   { stdio: "ignore", cwd: repo },
 );
 const {
@@ -21,7 +22,7 @@ const {
   isBulkStripHashtagsActionable,
   formatBulkStripHashtagsToast,
   formatBulkStripHashtagsButtonTitle,
-} = await import(out);
+} = await import(pathToFileURL(out).href);
 
 let pass = 0;
 let fail = 0;

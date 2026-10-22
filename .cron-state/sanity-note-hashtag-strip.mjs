@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pathToFileURL } from "node:url";
 // Sanity for note-hashtag-strip pure module.
 // Covers: stripping grammar, prose preservation, idempotence,
 // count-aware label/tooltip/toast formatters, defensive shapes.
@@ -12,7 +13,7 @@ const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-note-hashtag-strip-"));
 const out = join(tmp, "strip.js");
 execSync(
-  `node_modules/.bin/esbuild src/lib/note-hashtag-strip.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
+  `node node_modules/esbuild/bin/esbuild src/lib/note-hashtag-strip.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
   { stdio: "ignore", cwd: repo },
 );
 const {
@@ -22,7 +23,7 @@ const {
   formatStripHashtagsChipLabel,
   formatStripHashtagsChipTooltip,
   formatStripHashtagsToast,
-} = await import(out);
+} = await import(pathToFileURL(out).href);
 
 let pass = 0;
 let fail = 0;

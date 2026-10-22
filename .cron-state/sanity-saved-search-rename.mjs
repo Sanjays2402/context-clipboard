@@ -8,7 +8,7 @@
  * Run with: node .cron-state/sanity-saved-search-rename.mjs
  */
 import { build } from "esbuild";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve, join } from "node:path";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -101,7 +101,7 @@ await build({
   outfile: join(tmp, "out.mjs"),
   logLevel: "silent",
 });
-await import(join(tmp, "out.mjs"));
+await import(pathToFileURL(join(tmp, "out.mjs")).href);
 const DB = globalThis.__DB;
 
 // ----- Tests -------------------------------------------------------------

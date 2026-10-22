@@ -4,6 +4,7 @@
 //
 // Run with: node .cron-state/sanity-clip-note-markdown.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -24,7 +25,7 @@ try {
   const {
     clipAndNoteAsMarkdown,
     clipAndNoteAsMarkdownAvailable,
-  } = await import(join(tmp, "clip-note-markdown.mjs"));
+  } = await import(pathToFileURL(join(tmp, "clip-note-markdown.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {
@@ -187,8 +188,8 @@ try {
         target: "es2022",
         logLevel: "silent",
       });
-      const sendTo = await import(join(tmp2, "send-to.js"));
-      const noteMd = await import(join(tmp2, "note-markdown.js"));
+      const sendTo = await import(pathToFileURL(join(tmp2, "send-to.js")).href);
+      const noteMd = await import(pathToFileURL(join(tmp2, "note-markdown.js")).href);
       const c = {
         id: "c",
         kind: "text",

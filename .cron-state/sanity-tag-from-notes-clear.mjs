@@ -3,6 +3,7 @@
 //
 // Run with: node .cron-state/sanity-tag-from-notes-clear.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -26,7 +27,7 @@ try {
     isTagFromNotesAndClearActionable,
     formatTagFromNotesAndClearToast,
     formatTagFromNotesAndClearButtonTitle,
-  } = await import(join(tmp, "tag-from-notes-clear.mjs"));
+  } = await import(pathToFileURL(join(tmp, "tag-from-notes-clear.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

@@ -15,7 +15,13 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 - Local-only data. Zero outbound network for clip content.
 - Manifest V3. No remote-hosted code, no `eval`-style hacks.
 - Privacy posture intact: redaction / allow-block lists / one-way auto-redact.
-- TypeScript strict; `tsc --noEmit` + `npm run build` must be green before push.
+- TypeScript strict; `npm run check` (typecheck + build + the FULL `npm test`
+  suite, not just neighbour sanities) must be green before push. CI runs the
+  same gate plus `npm run test:e2e` on every push to `main`.
+- Assert relative order / minimum counts for send-to rows, never exact
+  totals or index offsets — new rows land every tick.
+- Test scripts must stay cross-platform: `import(pathToFileURL(p).href)`,
+  never `import(absPath)`; call esbuild via its JS API, not `node_modules/.bin`.
 - Dark-first popup design language. No emoji in extension chrome.
 
 ## Architecture at a glance (read before changing)

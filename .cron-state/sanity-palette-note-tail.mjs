@@ -3,6 +3,7 @@
 //
 // Run with: node .cron-state/sanity-palette-note-tail.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -24,7 +25,7 @@ try {
     paletteNoteTail,
     paletteNoteTailAvailable,
     PALETTE_NOTE_TAIL_DEFAULT_CAP,
-  } = await import(join(tmp, "palette-note-tail.mjs"));
+  } = await import(pathToFileURL(join(tmp, "palette-note-tail.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

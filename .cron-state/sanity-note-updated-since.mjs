@@ -4,6 +4,7 @@
 //
 // Run with: node .cron-state/sanity-note-updated-since.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -21,9 +22,7 @@ try {
     target: "es2022",
     logLevel: "silent",
   });
-  const { formatNoteUpdatedSince } = await import(
-    join(tmp, "note-updated-since.mjs")
-  );
+  const { formatNoteUpdatedSince } = await import(pathToFileURL(join(tmp, "note-updated-since.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

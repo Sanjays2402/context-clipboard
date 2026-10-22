@@ -3,6 +3,7 @@
 //
 // Run with: node .cron-state/sanity-is-nonoted.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -20,9 +21,7 @@ try {
     target: "es2022",
     logLevel: "silent",
   });
-  const { parseQuery, applyQuery, describeQuery } = await import(
-    join(tmp, "search.mjs")
-  );
+  const { parseQuery, applyQuery, describeQuery } = await import(pathToFileURL(join(tmp, "search.mjs")).href);
 
   // helpers ---------------------------------------------------------
   const clip = (id, note) => ({

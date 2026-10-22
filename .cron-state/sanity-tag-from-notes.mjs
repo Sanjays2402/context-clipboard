@@ -4,6 +4,7 @@
 //
 // Run with: node .cron-state/sanity-tag-from-notes.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -29,7 +30,7 @@ try {
     formatTagFromNotesToast,
     formatTagFromNotesButtonTitle,
     MAX_TAGS_PER_NOTE,
-  } = await import(join(tmp, "tag-from-notes.mjs"));
+  } = await import(pathToFileURL(join(tmp, "tag-from-notes.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

@@ -36,7 +36,8 @@ const popupUrl = `http://127.0.0.1:${port}/popup/popup.html`;
 
 const browser = await chromium.launch({
   headless: true,
-  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  // Set CHROME_PATH to use a local Chrome; otherwise Playwright's bundled Chromium.
+  executablePath: process.env.CHROME_PATH || undefined,
 });
 const ctx = await browser.newContext();
 const page = await ctx.newPage();
@@ -109,7 +110,7 @@ if (errors.length) {
 const setup = await page.evaluate(async () => {
   // Open the same DB the popup uses.
   const dbName = "context-clipboard";
-  const req = indexedDB.open(dbName, 3);
+  const req = indexedDB.open(dbName);
   await new Promise((r, j) => {
     req.onsuccess = () => r();
     req.onerror = () => j(req.error);
@@ -210,7 +211,7 @@ await page.evaluate(() => {
   window.chrome.runtime.sendMessage = async (msg, cb) => {
     origCalls.push(msg);
     if (msg?.action === "redactClip" || msg?.action === "unredactClip") {
-      const dbReq = indexedDB.open("context-clipboard", 3);
+      const dbReq = indexedDB.open("context-clipboard");
       await new Promise((r) => (dbReq.onsuccess = () => r()));
       const db = dbReq.result;
       const tx = db.transaction("clips", "readwrite");

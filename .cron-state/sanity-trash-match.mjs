@@ -12,6 +12,7 @@
 //
 // Run with: node .cron-state/sanity-trash-match.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -30,7 +31,7 @@ try {
     logLevel: "silent",
   });
   const { findLiveRecaptureForTrash, formatTrashRecaptureTooltip } =
-    await import(join(tmp, "trash-match.mjs"));
+    await import(pathToFileURL(join(tmp, "trash-match.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {

@@ -6,6 +6,7 @@
 //   isInSimilarNav(nav, id) -> bool
 //   syncSimilarNav(nav, id) -> updated nav or null
 
+import { pathToFileURL } from "node:url";
 import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,12 +16,12 @@ const repo = process.cwd();
 const src = join(repo, "src/lib/similar-nav.ts");
 const tmp = mkdtempSync(join(tmpdir(), "sn-"));
 const outFile = join(tmp, "out.mjs");
-execSync(`node_modules/.bin/esbuild --bundle --format=esm --platform=neutral --target=es2022 --outfile=${outFile} ${src}`, {
+execSync(`node node_modules/esbuild/bin/esbuild --bundle --format=esm --platform=neutral --target=es2022 --outfile=${outFile} ${src}`, {
   cwd: repo,
   stdio: ["ignore", "ignore", "inherit"],
 });
 const { buildSimilarNav, stepSimilarNav, formatSimilarPosLabel, formatTraverseButtonLabel, isInSimilarNav, syncSimilarNav } =
-  await import(outFile);
+  await import(pathToFileURL(outFile).href);
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {

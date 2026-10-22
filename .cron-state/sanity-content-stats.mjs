@@ -57,7 +57,7 @@ function check(name, got, want) {
 check("simple sentence chars", computeContentStats("hello world").chars, 11);
 check("simple sentence words", computeContentStats("hello world").words, 2);
 check("simple sentence lines", computeContentStats("hello world").lines, 1);
-check("empty body all zero", computeContentStats(""), { chars: 0, words: 0, lines: 0 });
+check("empty body all zero", computeContentStats(""), { chars: 0, words: 0, lines: 0, sentences: 0 });
 check("whitespace-only words zero", computeContentStats("   \n  ").words, 0);
 check("whitespace-only chars counted", computeContentStats("   ").chars, 3);
 
@@ -85,11 +85,11 @@ check("astral glyph word", computeContentStats("\u{1F370}").words, 1);
 
 // --- 5. statsForClip: kind gating ---------------------------------------
 check("image clip returns null", statsForClip({ kind: "image", content: "data:image/png;base64,AAAA" }), null);
-check("text clip returns stats", statsForClip({ kind: "text", content: "hi" }), { chars: 2, words: 1, lines: 1 });
+check("text clip returns stats", statsForClip({ kind: "text", content: "hi" }), { chars: 2, words: 1, lines: 1, sentences: 1 });
 check("link clip returns stats", statsForClip({ kind: "link", content: "https://x.com" }).chars, 13);
 check("null clip returns null", statsForClip(null), null);
 check("undefined clip returns null", statsForClip(undefined), null);
-check("non-string content coerced", statsForClip({ kind: "text", content: null }), { chars: 0, words: 0, lines: 0 });
+check("non-string content coerced", statsForClip({ kind: "text", content: null }), { chars: 0, words: 0, lines: 0, sentences: 0 });
 
 // --- 6. groupThousands ---------------------------------------------------
 check("group under 1000", groupThousands(240), "240");
@@ -135,7 +135,7 @@ check("prose word count", computeContentStats(prose).words, 15);
 
 const csvRow = "alice,30,engineer,remote";
 check("csv row one line", computeContentStats(csvRow).lines, 1);
-check("csv row format drops lines, tails bytes", formatContentStats({ kind: "text", content: csvRow }), "24 chars \u00b7 1 word \u00b7 24 B");
+check("csv row format drops lines, shows cols, tails bytes", formatContentStats({ kind: "text", content: csvRow }), "24 chars \u00b7 1 word \u00b7 4 cols \u00b7 24 B");
 
 // --- 9. idempotence / determinism ---------------------------------------
 const sample = "line1\nline2 has more words\nline3";

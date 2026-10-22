@@ -3,6 +3,7 @@
 //
 // Run with: node .cron-state/sanity-curl-note-comment.mjs
 
+import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { tmpdir } from "node:os";
@@ -25,7 +26,7 @@ try {
     curlWithNoteCommentAvailable,
     sanitiseForShellComment,
     CURL_COMMENT_DEFAULT_CAP,
-  } = await import(join(tmp, "curl-note-comment.mjs"));
+  } = await import(pathToFileURL(join(tmp, "curl-note-comment.mjs")).href);
 
   // Also build send-to.ts so we can verify the row appears in
   // buildSendActions for the right clip shapes.
@@ -38,7 +39,7 @@ try {
     target: "es2022",
     logLevel: "silent",
   });
-  const sendTo = await import(join(tmp, "send-to.mjs"));
+  const sendTo = await import(pathToFileURL(join(tmp, "send-to.mjs")).href);
 
   let pass = 0;
   const t = (msg, fn) => {
