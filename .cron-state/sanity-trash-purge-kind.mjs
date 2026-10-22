@@ -8,7 +8,7 @@
 // (treated as text), non-number/negative bytes (counted as 0).
 
 import { pathToFileURL } from "node:url";
-import { execSync } from "node:child_process";
+import { buildSync } from "esbuild";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,9 +17,14 @@ const repo = process.cwd();
 const src = join(repo, "src/lib/trash-purge-kind.ts");
 const tmp = mkdtempSync(join(tmpdir(), "tpk-"));
 const outFile = join(tmp, "out.mjs");
-execSync(`node node_modules/esbuild/bin/esbuild --bundle --format=esm --platform=neutral --target=es2022 --outfile=${outFile} ${src}`, {
-  cwd: repo,
-  stdio: ["ignore", "ignore", "inherit"],
+buildSync({
+  entryPoints: [src],
+  bundle: true,
+  format: "esm",
+  platform: "neutral",
+  target: "es2022",
+  outfile: outFile,
+  logLevel: "error",
 });
 const { summarizeTrashByKind, planTrashPurge, formatPurgeConfirm, formatPurgeButtonLabel } =
   await import(pathToFileURL(outFile).href);

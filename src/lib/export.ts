@@ -86,9 +86,19 @@ export function toMarkdown(clips: ClipItem[]): string {
   return out.join("\n");
 }
 
+/**
+ * Cells a spreadsheet would evaluate as a formula. Clip text, titles and
+ * nearby text come from arbitrary web pages, so an exported CSV opened in
+ * Excel/Sheets could otherwise run `=HYPERLINK(...)`/DDE payloads
+ * (CSV injection, CWE-1236). OWASP's mitigation: prefix a `'`.
+ */
+const FORMULA_LEAD_RE = /^[=+\-@\t\r]/;
+
 function csvEscape(v: string | number | boolean | undefined | null): string {
   if (v == null) return "";
-  const s = String(v);
+  let s = String(v);
+  // Only strings: numeric columns (hit_count, bytes, ...) may be negative.
+  if (typeof v === "string" && FORMULA_LEAD_RE.test(s)) s = `'${s}`;
   if (/[",\n\r]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }

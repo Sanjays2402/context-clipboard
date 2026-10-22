@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 // Verifies plan aggregation, per-clip action, gate predicate,
 // and toast/button-title formatters at every shape.
 
-import { execSync } from "node:child_process";
+import { buildSync } from "esbuild";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,10 +12,15 @@ import { join } from "node:path";
 const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-bulk-strip-"));
 const out = join(tmp, "strip.js");
-execSync(
-  `node node_modules/esbuild/bin/esbuild src/lib/bulk-strip-hashtags.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
-  { stdio: "ignore", cwd: repo },
-);
+buildSync({
+  entryPoints: ["src/lib/bulk-strip-hashtags.ts"],
+  bundle: true,
+  format: "esm",
+  platform: "neutral",
+  outfile: out,
+  absWorkingDir: repo,
+  logLevel: "silent",
+});
 const {
   planBulkStripHashtags,
   perClipActionForStrip,

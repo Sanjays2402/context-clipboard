@@ -15,6 +15,9 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 - Local-only data. Zero outbound network for clip content.
 - Manifest V3. No remote-hosted code, no `eval`-style hacks.
 - Privacy posture intact: redaction / allow-block lists / one-way auto-redact.
+- CSV *file* export neutralises formula cells (leading = + - @ tab CR get a
+  `'` prefix, CWE-1236). Clip text is attacker-controlled page content.
+- Version lives only in package.json; the build stamps it into manifests.
 - TypeScript strict; `npm run check` (typecheck + build + the FULL `npm test`
   suite, not just neighbour sanities) must be green before push. CI runs the
   same gate plus `npm run test:e2e` on every push to `main`.

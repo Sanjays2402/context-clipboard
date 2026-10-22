@@ -69,6 +69,12 @@ export function looksLikeTableRow(c: TableRowInput): boolean {
  * otherwise commas with optional surrounding whitespace. Returned
  * cells are trimmed; empty cells preserved so ",,foo" honestly
  * renders as "|  |  | foo |".
+ *
+ * Comma rows honour RFC 4180 quoting: `"Smith, John",42` is two
+ * cells, not three, and `""` inside a quoted cell unescapes to `"`.
+ * Without this, a row copied out of a real CSV file had its quoted
+ * cells shredded and "Copy as CSV row" re-escaped the fragments into
+ * garbage (`"""Smith","John""",42`).
  */
 export function splitTableCells(body: string): string[] {
   const trimmed = body.trim();
@@ -76,9 +82,58 @@ export function splitTableCells(body: string): string[] {
   if (TAB_RE.test(trimmed)) {
     return trimmed.split("\t").map((c) => c.trim());
   }
+  if (trimmed.includes('"')) {
+    const quoted = splitQuotedCsv(trimmed);
+    if (quoted) return quoted;
+  }
   // Single comma-split rule swallows optional surrounding spaces so
   // mixed inputs ("a,b, c") still cell-align correctly.
   return trimmed.split(/\s*,\s*/).map((c) => c.trim());
+}
+
+/**
+ * RFC 4180 split of one comma-delimited line. A cell is quoted only
+ * when its first non-space char is `"`; quotes elsewhere (`5" pipe`)
+ * stay literal. Returns null for malformed quoting (unterminated
+ * quote, or text after a closing quote) so the caller falls back to
+ * the plain split instead of guessing.
+ */
+function splitQuotedCsv(line: string): string[] | null {
+  const cells: string[] = [];
+  let i = 0;
+  for (;;) {
+    while (line[i] === " ") i++;
+    if (line[i] === '"') {
+      let cell = "";
+      i++;
+      for (;;) {
+        if (i >= line.length) return null;
+        if (line[i] === '"') {
+          if (line[i + 1] === '"') {
+            cell += '"';
+            i += 2;
+            continue;
+          }
+          i++;
+          break;
+        }
+        cell += line[i++];
+      }
+      while (line[i] === " ") i++;
+      if (i < line.length && line[i] !== ",") return null;
+      cells.push(cell);
+    } else {
+      const end = line.indexOf(",", i);
+      cells.push(line.slice(i, end === -1 ? line.length : end).trim());
+      i = end === -1 ? line.length : end;
+    }
+    if (i >= line.length) return cells;
+    i++; // past the comma
+    if (i >= line.length) {
+      cells.push("");
+      return cells;
+    }
+  }
 }
 
 /**

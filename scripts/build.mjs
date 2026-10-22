@@ -4,6 +4,7 @@
 //   node scripts/build.mjs chrome     -> just chrome
 //   node scripts/build.mjs firefox    -> just firefox
 //   node scripts/build.mjs --watch    -> rebuild on change (both)
+//   node scripts/build.mjs --release  -> no sourcemaps (store upload)
 
 import { build, context } from "esbuild";
 import { mkdir, copyFile, rm, readFile, writeFile, readdir } from "fs/promises";
@@ -16,8 +17,10 @@ const root = path.resolve(__dirname, "..");
 
 const args = process.argv.slice(2);
 const watch = args.includes("--watch");
+const release = args.includes("--release");
 const targets = args.filter((a) => !a.startsWith("--"));
 const wanted = targets.length ? targets : ["chrome", "firefox"];
+const pkg = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 
 const entries = {
   background: "src/background.ts",
@@ -41,7 +44,7 @@ async function buildTarget(target) {
     target: "es2022",
     outdir,
     platform: "browser",
-    sourcemap: true,
+    sourcemap: !release,
     logLevel: "info",
   };
 
@@ -62,10 +65,14 @@ async function buildTarget(target) {
     path.join(outdir, "popup/popup.css"),
   );
 
-  // Manifest
-  await copyFile(
-    path.join(root, `manifests/${target}.json`),
+  // Manifest — version comes from package.json so the two can't drift.
+  const manifest = JSON.parse(
+    await readFile(path.join(root, `manifests/${target}.json`), "utf8"),
+  );
+  manifest.version = pkg.version;
+  await writeFile(
     path.join(outdir, "manifest.json"),
+    JSON.stringify(manifest, null, 2) + "\n",
   );
 
   // Bundle Tesseract is deferred to a future release; OCR is disabled in v0.3.1.

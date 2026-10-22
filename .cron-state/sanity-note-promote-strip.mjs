@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 // Verifies plan composition (extractHashtags + mergedTagsForClip +
 // stripHashtagsFromNote), gate predicate, and three formatters.
 
-import { execSync } from "node:child_process";
+import { buildSync } from "esbuild";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,10 +12,15 @@ import { join } from "node:path";
 const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-promote-strip-"));
 const out = join(tmp, "ps.js");
-execSync(
-  `node node_modules/esbuild/bin/esbuild src/lib/note-promote-strip.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
-  { stdio: "ignore", cwd: repo },
-);
+buildSync({
+  entryPoints: ["src/lib/note-promote-strip.ts"],
+  bundle: true,
+  format: "esm",
+  platform: "neutral",
+  outfile: out,
+  absWorkingDir: repo,
+  logLevel: "silent",
+});
 const {
   planPromoteAndStrip,
   isPromoteAndStripActionable,

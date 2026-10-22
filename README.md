@@ -75,7 +75,10 @@ npm run build         # builds dist/chrome and dist/firefox
 npm run check         # typecheck + build + every unit/sanity test
 npm test              # just the tests (pass a name to filter: npm test -- send-to)
 npm run test:e2e      # Playwright popup tests against dist/chrome
+npm run package       # store-ready zips in dist/ (no sourcemaps)
 ```
+
+The extension version comes from `package.json`; the build stamps it into each manifest.
 
 `npm test` runs `scripts/test-*.mjs` and `.cron-state/sanity-*.mjs` in parallel. The e2e tests use Playwright's bundled Chromium (`npx playwright install chromium`), or set `CHROME_PATH` to a local Chrome/Edge. CI runs all of it on every push and PR.
 

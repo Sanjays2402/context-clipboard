@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 // Verifies the per-tag palette action shape composes the right
 // searchOp + label/hint/keywords across the report-entry contract.
 
-import { execSync } from "node:child_process";
+import { buildSync } from "esbuild";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,10 +12,15 @@ import { join } from "node:path";
 const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-hashtag-filter-"));
 const out = join(tmp, "hf.js");
-execSync(
-  `node node_modules/esbuild/bin/esbuild src/lib/hashtag-discovery.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
-  { stdio: "ignore", cwd: repo },
-);
+buildSync({
+  entryPoints: ["src/lib/hashtag-discovery.ts"],
+  bundle: true,
+  format: "esm",
+  platform: "neutral",
+  outfile: out,
+  absWorkingDir: repo,
+  logLevel: "silent",
+});
 const { discoverHashtagsInNotes, hashtagFilterActionFor } = await import(pathToFileURL(out).href);
 
 let pass = 0;

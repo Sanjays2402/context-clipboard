@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 // hashtag-discovery report can never disagree on what counts as a
 // hashtag — they all read from extractHashtagsFromNote.
 
-import { execSync } from "node:child_process";
+import { buildSync } from "esbuild";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,10 +14,15 @@ import { join } from "node:path";
 const repo = process.cwd();
 const tmp = mkdtempSync(join(tmpdir(), "sanity-is-hashtags-"));
 const out = join(tmp, "search.js");
-execSync(
-  `node node_modules/esbuild/bin/esbuild src/lib/search.ts --bundle --format=esm --platform=neutral --outfile=${out}`,
-  { stdio: "ignore", cwd: repo },
-);
+buildSync({
+  entryPoints: ["src/lib/search.ts"],
+  bundle: true,
+  format: "esm",
+  platform: "neutral",
+  outfile: out,
+  absWorkingDir: repo,
+  logLevel: "silent",
+});
 const { parseQuery, applyQuery, describeQuery } = await import(pathToFileURL(out).href);
 
 let pass = 0;
