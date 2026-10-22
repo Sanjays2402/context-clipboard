@@ -18,6 +18,9 @@ worth shipping, NOT scaffolding. Anything cosmetic-only doesn't belong here.
 - CSV *file* export neutralises formula cells (leading = + - @ tab CR get a
   `'` prefix, CWE-1236). Clip text is attacker-controlled page content.
 - Version lives only in package.json; the build stamps it into manifests.
+- User-facing changes get a line under `## Unreleased` in CHANGELOG.md.
+  Keep README.md as reference docs (no "What's new" sections); update its
+  search-operator / shortcut tables when adding an operator or key.
 - TypeScript strict; `npm run check` (typecheck + build + the FULL `npm test`
   suite, not just neighbour sanities) must be green before push. CI runs the
   same gate plus `npm run test:e2e` on every push to `main`.

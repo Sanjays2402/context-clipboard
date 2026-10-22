@@ -61,6 +61,13 @@ API). All data is local.
 Required so the popup and the in-page palette can paste a previously
 saved clip back to the system clipboard with one click.
 
+### clipboardRead
+
+Read only in direct response to a click in the popup: the quick-capture
+button saves whatever is on the system clipboard as a clip, and the
+"save link" composer pre-fills with the clipboard when it holds a URL.
+The clipboard is never read in the background or on a timer.
+
 ### contextMenus
 
 Adds a right-click "Capture selection / image / link" menu so the user
