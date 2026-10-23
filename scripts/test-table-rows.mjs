@@ -67,6 +67,11 @@ eq("csv matches comma row", csvMatches(text("a,b")), true);
 eq("csv rejects tab row", csvMatches(text("a\tb")), false);
 eq("tsv matches tab row", tsvMatches(text("a\tb")), true);
 eq("tabular is the union", [tabularMatches(text("a,b")), tabularMatches(text("a\tb")), tabularMatches(text("ab"))], [true, true, false]);
+eq("prose sentence with a comma is not tabular",
+  tabularMatches(text("They generate most of the cell's supply of ATP, used as a source of chemical energy.")), false);
+eq("short multi-word cells still tabular", tabularMatches(text("John Smith, 42, New York, Software Engineer")), true);
+eq("quoted long-ish cell within limit", tabularMatches(text('"Smith, John Q",42,NY')), true);
+eq("prose comma row gets no CSV action", csvRowForClip(text("Well, that went better than anyone in the room expected it to")), undefined);
 
 console.log("bulk-csv");
 const plan = planBulkCsv([

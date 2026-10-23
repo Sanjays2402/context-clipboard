@@ -61,7 +61,19 @@ export function looksLikeTableRow(c: TableRowInput): boolean {
   if (TAB_RE.test(body)) return true;
   // CSV-style: at least one comma. We DON'T require comma+space
   // because real exports often use bare commas.
-  return /,/.test(body);
+  if (!/,/.test(body)) return false;
+  // ...but a prose sentence has commas too ("They generate most of the
+  // cell's ATP, used as a source of energy."). Spreadsheet cells are
+  // short, so a cell running past a few words means prose, not a row.
+  return splitTableCells(body).every((cell) => wordCount(cell) <= MAX_CELL_WORDS);
+}
+
+/** A comma-row cell longer than this many words reads as prose. */
+const MAX_CELL_WORDS = 5;
+
+function wordCount(s: string): number {
+  const t = s.trim();
+  return t ? t.split(/\s+/).length : 0;
 }
 
 /**
