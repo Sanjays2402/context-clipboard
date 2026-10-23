@@ -50,12 +50,6 @@ KEYBOARD
 
 ## Per-permission justifications (Chrome Web Store form)
 
-### storage
-
-Stores the user's local settings and a small in-page palette toggle.
-Clipboard content is held in the browser's IndexedDB (not the `storage`
-API). All data is local.
-
 ### clipboardWrite
 
 Required so the popup and the in-page palette can paste a previously
@@ -86,10 +80,12 @@ Disabled by default; users opt in from Settings.
 
 ### Host permission `<all_urls>`
 
-The content script must run on every site the user actively copies from
-so it can read the page title, URL, favicon, and a short context snippet
-at the moment the user issues a copy. No data is collected from pages
-the user has not copied on. Per-host block / allow lists let users
+The content script runs on the pages the user visits so it can save the
+page title, URL and a short context snippet at the moment the user copies,
+show the in-page search box, and offer field suggestions (it notices field
+focus and pastes of saved clips). Nothing is stored from a page unless the
+user copies there or pastes a saved clip into a field, and nothing is sent
+to the developer. Per-host block / allow lists and site rules let users
 exclude any site.
 
 ### Single purpose

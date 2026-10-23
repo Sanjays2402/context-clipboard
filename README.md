@@ -155,16 +155,15 @@ Example: `host:stackoverflow.com is:code after:30d sqlite`
 
 ## Privacy and permissions
 
-All clips live in your browser's IndexedDB. Context Clipboard makes no network requests with your data and has no analytics. See [PRIVACY.md](PRIVACY.md) for the full policy.
+All clips live in your browser's IndexedDB. There's no server, account or analytics, and nothing is sent to the developer. Data leaves your device only when you choose an action that does so, such as searching Google for a clip or exporting a backup. [PRIVACY.md](PRIVACY.md) lists exactly what is stored and when anything leaves; use is subject to the [Terms of Use](TERMS.md).
 
 | Permission | Why |
 |---|---|
-| `<all_urls>` (content script) | Read the page title, URL, favicon and nearby text at the moment you copy. Block lists and site rules can exclude any site. |
+| `<all_urls>` (content script) | Save the page title, URL and nearby text when you copy, show the in-page search box, and offer field suggestions. Block lists and site rules can exclude any site. |
 | `clipboardWrite` | Put a saved clip back on the clipboard |
 | `clipboardRead` | Only when you click quick capture or the link composer in the popup |
 | `tabs` | Source title and URL of the active tab at capture time |
 | `contextMenus` | Right-click "Capture" items |
-| `storage` | Settings |
 | `sidePanel` (Chrome only) | Optional side panel mode |
 
 ## Development

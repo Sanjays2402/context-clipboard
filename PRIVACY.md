@@ -1,69 +1,114 @@
 # Privacy Policy — Context Clipboard
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-10-23
 
-Context Clipboard is a local-only browser extension. Your clipboard data
-never leaves your device.
+Context Clipboard is a browser extension that keeps a history of what you
+copy. This policy explains what it stores, where, and when anything leaves
+your device. See also the [Terms of Use](TERMS.md).
 
-## What we collect
+## The short version
 
-Nothing. There is no server, no analytics, no telemetry, no remote logging,
-no error reporting, and no third-party SDK.
+- The developer collects nothing. There is no server, account, analytics,
+  telemetry, error reporting, advertising or third-party SDK.
+- Everything the extension saves is stored locally in your browser on the
+  device where you installed it.
+- Data leaves your device only when **you** choose an action that does so,
+  such as searching the web for a clip or exporting a backup. Those are
+  listed below.
 
-## What stays on your device
+## What is stored on your device
 
-Everything the extension captures stays inside the browser's local
-IndexedDB storage on the machine you installed the extension on. That
-includes:
+All of this lives in the extension's IndexedDB storage in your browser
+profile:
 
-- The clipboard content you copied (text, link, or image).
-- The source URL, page title, page favicon, and a short surrounding text
-  snippet from the page you copied from.
-- Tags you add manually and tags auto-generated from the content (for
-  example `code`, `email`, `url`).
-- Local settings such as theme and per-host allow/block lists.
+- **Clips:** the text, link or image you copied or captured.
+- **Source details for each clip:** the page URL, page title, the page's
+  favicon address, and a short snippet of text near your selection.
+- **Things you add:** tags, notes, pins, locks, expiry times and saved
+  searches.
+- **Automatic tags** such as `code`, `email` or `url`, worked out locally
+  from the clip's content.
+- **Field suggestions** (if enabled): when you paste a saved clip into a
+  form field, the site's host name, a key describing that field (built
+  from attributes like its `id`, `name` or `autocomplete`), which clip you
+  pasted and a short preview, so the same clip can be offered next time.
+- **Recent searches** you typed in the popup.
+- **A privacy audit log** of actions like redacting, scrubbing, forgetting
+  a site or trashing clips (the last 10–100 entries, your choice).
+- **Trash:** deleted clips are kept for 7 days so you can restore them,
+  then removed automatically.
+- **Settings**, including your allow and block lists and site rules.
 
-You can wipe everything from the popup at any time
-("Settings → Clear all clips") or by removing the extension.
+Nothing is stored in a cloud account, and the extension has no sync.
 
-## What we do NOT do
+## How the extension reads pages
 
-- We do not upload or sync your clips. Export to JSON is a manual, local
-  download under your control.
-- We do not read pages you have not actively copied from. The content
-  script only activates when you copy, when you open the in-page palette
-  with Cmd/Ctrl+Shift+V, or when you use the right-click "Capture" menu.
-- We do not run any AI or OCR call against a remote service. Optional OCR
-  (when implemented in a future version) will run fully offline via
-  WebAssembly.
-- We do not show ads.
+To capture context, the extension's content script runs on the pages you
+visit. On each page it:
 
-## Permissions, and why each one exists
+- reacts when you **copy**, to save the clip with its source details;
+- reacts when you **paste** a saved clip into a field, to remember that
+  field for suggestions (if enabled);
+- notices when you **focus or leave a form field**, to check whether it
+  has a suggestion to offer. This reads the field's attributes, not what
+  you type, and stores nothing unless you paste;
+- shows the search box when you press `Ctrl/⌘+Shift+V`.
+
+It does not record your browsing history, keystrokes or page content you
+don't copy. The block list and site rules can stop it from capturing on
+any site.
+
+## When data leaves your device
+
+Only when you take one of these actions:
+
+| Action | What is sent, and to whom |
+|---|---|
+| "Search Google" / "Search this site" on a clip | Opens a new tab to Google with the clip text in the search query ("Search this site" adds a `site:` filter for the clip's source). |
+| "Email" on a clip | Opens your mail app with the clip in a new message. Nothing is sent until you send it. |
+| "Open source page" / opening a link clip | Your browser visits that page as normal. |
+| Capturing an image by right-click, or "Re-fetch image" | The image is downloaded from the site that hosts it. |
+| Export | A file is saved where you choose. What happens to it after that is up to you. An encrypted export can only be read with your passphrase. |
+| "Copy" and its variants | Puts the clip on your system clipboard, where other apps can read it. |
+
+Previews in the extension use letters drawn from the site name, not
+downloaded icons, so browsing your history doesn't contact those sites.
+
+## Permissions and why they're needed
 
 | Permission | Why |
 |---|---|
-| `contextMenus` | Adds the right-click "Capture selection / image / link" menu. |
-| `storage` | Used only for a tiny key holding the in-page palette toggle. All clip content lives in IndexedDB. |
-| `clipboardWrite` | Lets the popup paste a saved clip back to your system clipboard with one click. |
-| `tabs` | Reads the active tab's title/URL/favicon to attach context to a captured clip. No browsing history is recorded. |
-| `sidePanel` | Optional always-on side panel UI (Chrome only). Off by default. |
-| `<all_urls>` host permission | Required so the content script can capture copy events and run the in-page palette on any site you actively use. Pages you never copy on are not read. Use the per-host block list to exclude sites you don't want capturing. |
+| Access to all sites (content script) | To capture the page title, URL and nearby text when you copy, show the in-page search box, and offer field suggestions. |
+| `clipboardWrite` | To put a saved clip back on your clipboard. |
+| `clipboardRead` | Only when you click quick-capture or the link composer in the popup, to read what's on your clipboard. Never in the background. |
+| `tabs` | To read the current tab's title and URL when you capture something. |
+| `contextMenus` | For the right-click "Capture" menu. |
+| `sidePanel` (Chrome) | For the optional side-panel view. |
 
-## Per-site control
+## Your controls
 
-Open the popup → Settings to add hosts to the allow or block list. The
-block list overrides everything. If the allow list is non-empty, only
-those hosts will capture.
+- **Stop capturing on a site:** add it to the block list, or use an allow
+  list so only listed sites are captured.
+- **Redact:** mask emails, phone numbers, card numbers, ID numbers and API
+  keys in a clip, or turn on auto-redact so originals are never stored.
+- **Forget a site:** delete every clip captured from one host.
+- **Delete:** delete a clip (it goes to the 7-day trash), empty the trash
+  to remove it immediately, or use Settings → "Delete everything".
+- **Uninstall:** removing the extension deletes all of its stored data
+  from that browser profile.
 
-## Data export and deletion
+## Children
 
-- **Export:** popup → Settings → "Export JSON". Saved locally.
-- **Import:** popup → Settings → "Import JSON".
-- **Delete one clip:** Del key or trash icon.
-- **Delete all unpinned:** popup → Settings.
-- **Delete everything:** popup → Settings → "Clear all".
-- **Uninstall:** removes IndexedDB and all settings.
+The extension isn't directed at children and doesn't knowingly collect
+anything from anyone; it has no way to send data to the developer.
+
+## Changes
+
+If this policy changes, the new version is published in this file with a
+new "Last updated" date. The history of every change is visible in the
+project's Git history.
 
 ## Contact
 
-Issues and questions: https://github.com/Sanjays2402/context-clipboard/issues
+Questions or concerns: open an issue at
+https://github.com/Sanjays2402/context-clipboard/issues

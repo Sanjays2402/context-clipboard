@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Context Clipboard</title>
-  <meta name="description" content="A clipboard history for Chrome and Firefox that saves the page URL, title and surrounding paragraph with everything you copy. Free, open source, and nothing leaves your browser." />
+  <meta name="description" content="A clipboard history for Chrome and Firefox that saves the page URL, title and surrounding paragraph with everything you copy. Free, open source, and stored only in your browser." />
   <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme: light)" />
   <meta name="color-scheme" content="dark light" />
@@ -165,9 +165,10 @@
         <div class="two">
           <p class="para">
             Clips are stored in your browser's IndexedDB and nowhere else. There's no account, no sync
-            server and no analytics, and the extension doesn't send your clips anywhere. The site
-            letters in the list are drawn from the domain name instead of downloading each site's
-            icon, so opening the popup doesn't contact the sites you copied from either.
+            server and no analytics, and nothing is ever sent to the developer. A clip only leaves your
+            device if you choose an action that does that, like searching Google for it or exporting a
+            backup. The site letters in the list are drawn from the domain name instead of downloading
+            each site's icon, so opening the popup doesn't contact the sites you copied from.
           </p>
           <p class="para">
             If you copy sensitive things, you can block sites from being captured, redact emails, card
