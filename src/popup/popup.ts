@@ -1021,6 +1021,7 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
       <div class="body">
         <div class="preview"${previewTitle}>${previewHtml}${archivedBadge}${lockedBadge}</div>
         <div class="meta">
+          ${c.pinned ? `<span class="pinned-mark" title="Pinned">${icons.pinFilled()}</span>` : ""}
           <span class="src" title="${escapeHtml(c.source.url || "")}">${escapeHtml(src || "Added manually")}</span>
           <span class="when">· ${timeAgo(c.lastSeenAt)}${hits}${expiry}</span>
         </div>

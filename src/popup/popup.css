@@ -1182,23 +1182,26 @@ main:focus {
    under. Painted only for recent/oldest sorts (see render()). */
 .day-header {
   position: sticky;
-  top: 0;
+  top: -6px;
   z-index: 3;
   display: block;
-  width: calc(100% - 4px);
+  width: 100%;
   text-align: left;
-  margin: 6px 2px 4px;
-  padding: 3px 8px;
+  margin: 4px 0 2px;
+  padding: 8px 10px 4px;
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 650;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--muted);
-  background: var(--glass-strong);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-inner);
+  /* Near-opaque blurred backing so rows sliding under it blur out
+     instead of overlapping the label, without a hard band. */
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: none;
+  border-radius: 0;
+  font-family: inherit;
   user-select: none;
   /* The divider is a real button (click selects the day's run), so it
      IS interactive now — cursor + a subtle hover tell the user the
@@ -1209,8 +1212,6 @@ main:focus {
 
 .day-header:hover {
   color: var(--text-secondary);
-  background: var(--glass-elevated);
-  border-color: var(--border-strong);
 }
 
 .day-header:focus-visible {
@@ -1236,8 +1237,8 @@ main:focus {
 
 /* Compact mode tightens the dividers to match the denser rows. */
 body.compact-rows .day-header {
-  margin: 3px 2px 2px;
-  padding: 2px 7px;
+  margin: 2px 0 1px;
+  padding: 5px 8px 2px;
   font-size: 9px;
 }
 
@@ -1503,12 +1504,15 @@ body[data-theme="light"] .clip .thumb-mono {
   height: 9px;
 }
 
-.clip.pinned {
-  background: linear-gradient(
-    100deg,
-    var(--accent-soft) 0%,
-    transparent 50%
-  );
+.pinned-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.pinned-mark svg {
+  width: 11px;
+  height: 11px;
 }
 
 .clip.pinned .actions .pin {
