@@ -146,6 +146,17 @@ await page.click("#settings-btn");
 await page.waitForTimeout(400);
 await shot("settings.png");
 
+// README hero: dark list · light list · settings, side by side at 1800x857.
+const asDataUrl = async (f) => "data:image/png;base64," + (await fs.readFile(path.join(OUT, f))).toString("base64");
+const heroPage = await browser.newPage({ viewport: { width: 1800, height: 857 } });
+await heroPage.setContent(`<body style="margin:0;background:#0b0b0e;display:flex;justify-content:space-between;align-items:flex-start;width:1800px;height:857px;overflow:hidden">
+  ${(await Promise.all(["popup-dark.png", "popup-light.png", "settings.png"].map(asDataUrl)))
+    .map((src) => `<img src="${src}" style="height:857px;width:auto;display:block">`).join("")}
+</body>`);
+await heroPage.waitForTimeout(200);
+await heroPage.screenshot({ path: path.join(OUT, "hero-v2.png") });
+console.log("✓ hero-v2.png");
+
 await browser.close();
 server.close();
 
