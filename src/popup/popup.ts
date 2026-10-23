@@ -2305,8 +2305,22 @@ async function render(): Promise<void> {
           `</div>`;
       } else {
         hint = searchEl.value.trim()
-        ? `<div class="empty">No clips match.<br/><small>Try plain text, or <code>kind:image</code> / <code>host:github.com</code> / <code>tag:code</code> / <code>is:pinned</code> / <code>is:link</code> / <code>is:code</code> / <code>is:prose</code> / <code>is:csv</code> / <code>is:tsv</code> / <code>is:tabular</code> / <code>is:locked</code> / <code>is:unlocked</code> / <code>is:hostlocked</code> / <code>is:hostpinned</code> / <code>is:hostredacted</code> / <code>is:hostscrubbed</code> / <code>is:noted</code> / <code>is:nonoted</code> / <code>is:hashtags</code> / <code>is:nohashtags</code> / <code>is:wrapoverride</code> / <code>is:wrapoverride:off</code> / <code>is:langoverride</code> / <code>is:langoverride:off</code> / <code>is:notelonger:50</code> / <code>is:noteshorter:30</code> / <code>is:notenewer:7d</code> / <code>is:noteolder:30d</code> / <code>is:template</code> / <code>is:notemplate</code> / <code>is:expiring</code> / <code>is:expired</code> / <code>is:archived</code> / <code>is:today</code> / <code>is:yesterday</code> / <code>is:thisweek</code> / <code>is:lastweek</code> / <code>is:thismonth</code> / <code>is:lastmonth</code> / <code>before:7d</code> / <code>before:2026-09-01</code></small></div>`
-        : `<div class="empty">No clips yet.<br/>Copy anything, right-click → "Capture", or drop an image here.</div>`;
+        // A few starter operators instead of all ~40; the cheatsheet
+        // (filterable) holds the full list one tap away.
+        ? `<div class="empty">` +
+          `<div class="empty-glyph">${icons.search()}</div>` +
+          `<div class="empty-title">No clips match</div>` +
+          `<small>Try plain text, or one of these:</small>` +
+          `<div class="empty-ops">${["is:code", "is:today", "kind:image", "is:pinned"]
+            .map((op) => `<button type="button" class="empty-op" data-act="try-operator" data-query="${op}"><code>${op}</code></button>`)
+            .join("")}</div>` +
+          `<button type="button" class="empty-action" data-act="open-cheatsheet">All search operators</button>` +
+          `</div>`
+        : `<div class="empty">` +
+          `<div class="empty-glyph">${icons.clipboard()}</div>` +
+          `<div class="empty-title">No clips yet</div>` +
+          `<small>Copy anything on a page, right-click → Capture, or drop an image here.</small>` +
+          `</div>`;
       }
     }
     listEl.innerHTML = hint;
@@ -5953,6 +5967,19 @@ listEl.addEventListener("click", async (e) => {
   // complementSuggestion helper already validated the swap at render time
   // (it only offered the button when the complement is non-empty), so we
   // just adopt the operator verbatim — same pattern as widen-bucket.
+  // Empty-state starter operator chips + "All search operators".
+  const tryOp = target.closest("button.empty-op[data-act=try-operator]") as HTMLElement | null;
+  if (tryOp) {
+    searchEl.value = tryOp.dataset.query || "";
+    activeIndex = 0;
+    await render();
+    searchEl.focus();
+    return;
+  }
+  if (target.closest("button.empty-action[data-act=open-cheatsheet]")) {
+    openCheatsheet();
+    return;
+  }
   const swapAct = target.closest("button.empty-action[data-act=swap-complement]") as HTMLElement | null;
   if (swapAct) {
     const next = swapAct.dataset.query || "";

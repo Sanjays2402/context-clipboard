@@ -1524,11 +1524,62 @@ body[data-theme="light"] .clip .thumb-mono {
 }
 
 .empty {
-  padding: 70px 24px;
+  padding: 56px 24px;
   text-align: center;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.7;
+}
+
+.empty-glyph {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: var(--text-secondary);
+  background: var(--glass);
+  border: 1px solid var(--border);
+}
+
+.empty-glyph svg {
+  width: 20px;
+  height: 20px;
+}
+
+.empty-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.empty-ops {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+
+.empty-op {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.empty-op code {
+  display: inline-block;
+  padding: 3px 8px;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.empty-op:hover code,
+.empty-op:focus-visible code {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .empty small {
