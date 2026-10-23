@@ -2824,10 +2824,12 @@ footer button {
   text-align: center;
 }
 
+/* One column: two columns at 400px squeezed every row into a key line
+   plus a wrapped description line. */
 .cheatsheet-body {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
   padding: 14px;
 }
 
@@ -2838,9 +2840,11 @@ footer button {
 }
 
 .cheatsheet-group h4 {
-  margin: 0 0 2px 0;
+  margin: 0 0 4px 0;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--accent);
@@ -2849,20 +2853,26 @@ footer button {
 .cheatsheet-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--text-secondary);
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
   line-height: 1.45;
-  flex-wrap: wrap;
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+
+.cheatsheet-row:hover {
+  background: var(--glass-hover);
 }
 
 .cheatsheet-row span {
-  color: var(--text);
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-weight: 450;
   margin-left: auto;
-  padding-left: 6px;
+  padding-left: 12px;
   text-align: right;
   flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Roving-focus highlight — ArrowDown from the filter input steps focus
