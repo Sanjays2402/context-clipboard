@@ -4947,6 +4947,17 @@ kbd {
   border-color: var(--danger);
 }
 
+.settings-legal {
+  display: block;
+  margin-top: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.settings-legal a {
+  color: inherit;
+}
+
 .settings-foot {
   margin-top: 18px;
   text-align: center;

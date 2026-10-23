@@ -15,7 +15,7 @@ Copy anything in Chrome, Brave, Edge or Firefox and Context Clipboard saves it w
 </p>
 <p align="center"><sub>Dark popup · Light popup · Settings, captured from the production build</sub></p>
 
-**Website:** https://sanjays2402.github.io/context-clipboard/ · **Changelog:** [CHANGELOG.md](CHANGELOG.md) · **Privacy:** [PRIVACY.md](PRIVACY.md)
+**Website:** https://sanjays2402.github.io/context-clipboard/ · **Changelog:** [CHANGELOG.md](CHANGELOG.md) · **Privacy:** [PRIVACY.md](PRIVACY.md) · **Terms:** [TERMS.md](TERMS.md)
 
 ---
 
@@ -228,13 +228,11 @@ screenshots/, icons/
 
 ## Terms & Disclaimer
 
-By using this project you agree to the following.
+Use of Context Clipboard is governed by the [Terms of Use](TERMS.md) and the [Privacy Policy](PRIVACY.md). The key points:
 
-- **No warranty.** This software is provided "as is", without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose, and non-infringement.
-- **No liability.** To the maximum extent permitted by law, the author and contributors are not liable for any claim, loss, or damage (direct, indirect, incidental, or consequential, including lost data or profits) arising from its use.
-- **Your responsibility.** You use it at your own risk and are responsible for complying with the laws that apply to you.
-- **Your data.** Keep backups; data loss is possible. If you process other people's personal information, you are responsible for complying with privacy laws such as US state privacy laws (e.g. CCPA), PIPEDA and Quebec's Law 25 (Canada), and the Digital Personal Data Protection Act, 2023 (India).
-- **Third-party sites.** This tool runs on websites you visit; use it in line with their terms.
-- **Third parties.** Names, logos, APIs, and services of others belong to their owners and are used for identification only; no affiliation or endorsement is implied.
-- **Your statutory rights.** Nothing here limits rights that cannot be waived by agreement, including under consumer-protection laws in the USA, Canada (including Quebec), and India (Consumer Protection Act, 2019).
-- **License.** Use, copying, and distribution are governed by the [LICENSE](LICENSE) file; if anything here conflicts with it, the license controls.
+- **Free and as is.** No warranty of any kind, and to the maximum extent permitted by law the author and contributors aren't liable for any loss, including lost data.
+- **Local data, your backups.** Clips stay in your browser, unencrypted. Don't use it as a password manager, and export backups if your clips matter.
+- **Your responsibility.** You're responsible for what you copy, for other people's personal data you store, for respecting copyright and site terms, and for following the laws that apply to you.
+- **Not affiliated** with Google, Mozilla, Microsoft or Brave; their names identify browsers only.
+- **Statutory rights** that can't be waived by agreement are not affected.
+- **License.** The code is [MIT licensed](LICENSE); on code rights, the license controls.

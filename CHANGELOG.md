@@ -4,6 +4,10 @@ All notable changes to Context Clipboard. The version lives in `package.json`; t
 
 ## Unreleased
 
+- Added [Terms of Use](TERMS.md), linked from the README, the website and Settings.
+- The [Privacy Policy](PRIVACY.md) now describes exactly what is stored, how pages are read for field suggestions, the 7-day trash, and which actions you trigger can send a clip off your device.
+- Removed the unused `storage` permission.
+
 ## 0.7.0 — 2026-10-23
 
 ### Security
