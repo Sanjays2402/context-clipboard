@@ -1092,33 +1092,34 @@ main:focus {
 }
 
 .clip {
-  padding: 11px 12px;
+  padding: 8px 10px;
   border-radius: var(--radius);
   cursor: pointer;
   display: flex;
-  gap: 11px;
+  gap: 10px;
   align-items: flex-start;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  margin-bottom: 3px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  margin-bottom: 2px;
   position: relative;
   border: 1px solid transparent;
 }
 
 .clip:hover {
   background: var(--glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border-color: var(--border);
 }
 
+/* Keyboard focus: a calm lifted card with an accent hairline rather
+   than a thick glowing frame, so it reads as "here" without shouting. */
 .clip.active {
   background: var(--glass-elevated);
-  backdrop-filter: blur(30px) saturate(150%);
-  -webkit-backdrop-filter: blur(30px) saturate(150%);
-  border-color: var(--accent);
+  border-color: var(--accent-glow);
   box-shadow:
-    0 0 0 3px var(--accent-glow),
-    var(--shadow-md);
+    inset 2px 0 0 var(--accent),
+    var(--shadow-sm);
 }
 
 /* Code clips get a faint mono left-stripe so the eye can skim the daily
@@ -1241,10 +1242,10 @@ body.compact-rows .day-header {
 }
 
 .clip .thumb {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 9px;
   background: var(--glass);
   display: flex;
   align-items: center;
@@ -1320,12 +1321,19 @@ body.compact-rows .day-header {
 }
 
 .clip .meta {
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--muted);
   font-size: 11px;
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+}
+
+/* Time / hit count / TTL never wrap; the source title truncates first. */
+.clip .meta .when {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .clip .meta .src {
@@ -1366,7 +1374,7 @@ body.compact-rows .day-header {
 }
 
 .clip .tags {
-  margin-top: 7px;
+  margin-top: 5px;
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
@@ -1374,33 +1382,47 @@ body.compact-rows .day-header {
 
 .clip .tag {
   font-size: 10px;
+  line-height: 1.5;
   background: var(--glass);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  padding: 2px 7px;
-  border-radius: 6px;
+  padding: 0 6px;
+  border-radius: 5px;
   font-weight: 500;
 }
 
+/* Row actions float over the right edge on hover/focus instead of
+   reserving a column, so previews get the full row width. */
 .clip .actions {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  gap: 1px;
+  padding: 2px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow-md);
   opacity: 0;
-  transition: opacity 0.15s;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
 }
 
 .clip:hover .actions,
-.clip.active .actions {
+.clip:focus-within .actions {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .clip .actions button {
   background: transparent;
   border: none;
-  color: var(--muted);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 5px;
   font-size: 13px;
@@ -1409,8 +1431,76 @@ body.compact-rows .day-header {
 }
 
 .clip .actions button:hover {
-  color: var(--accent);
-  background: var(--glass);
+  color: var(--text);
+  background: var(--glass-hover);
+}
+
+.clip .actions button.del:hover {
+  color: var(--danger);
+}
+
+/* Code previews read as code: monospace, a hair smaller. */
+.clip.is-code .preview {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* The 34px list thumb is too small for a legible "1920x1080"; the detail
+   view and lightbox still show dimensions. */
+.clip .thumb .thumb-dims {
+  display: none;
+}
+
+/* Host monogram tile. --hue comes from the site name (lib/row-identity),
+   so every github.com row shares a color. */
+.clip .thumb-mono {
+  overflow: visible;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: hsl(var(--hue) 85% 78%);
+  background: hsl(var(--hue) 45% 18% / 0.9);
+  border-color: hsl(var(--hue) 55% 45% / 0.35);
+  box-shadow: none;
+}
+
+body[data-theme="light"] .clip .thumb-mono {
+  color: hsl(var(--hue) 60% 34%);
+  background: hsl(var(--hue) 85% 94%);
+  border-color: hsl(var(--hue) 60% 80%);
+}
+
+@media (prefers-color-scheme: light) {
+  body[data-theme="auto"] .clip .thumb-mono {
+    color: hsl(var(--hue) 60% 34%);
+    background: hsl(var(--hue) 85% 94%);
+    border-color: hsl(var(--hue) 60% 80%);
+  }
+}
+
+/* Kind badge on the monogram (code / link): neutral, bottom-right. */
+.clip .thumb .thumb-badge.thumb-badge-kind {
+  top: auto;
+  bottom: -4px;
+  right: -4px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 2px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  box-shadow: none;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.clip .thumb .thumb-badge.thumb-badge-kind svg {
+  width: 9px;
+  height: 9px;
 }
 
 .clip.pinned {

@@ -57,6 +57,7 @@ import {
 import type { ClipItem, ClipKind, Settings, SavedSearch, SiteRule, SortMode } from "../lib/types";
 import { timeAgo, hostFrom, escapeHtml, highlightHtml, isValidPattern, findCustomPatternHits, redactPii, detectCodeLang } from "../lib/util";
 import { icons, clipKindIcon } from "../lib/icons";
+import { hostMonogram, isRedundantRowTag } from "../lib/row-identity";
 import {
   stringifyRules,
   parseRulesJson,
@@ -920,11 +921,25 @@ async function trashWithLockGuard(ids: string[], label?: string): Promise<void> 
 
 // Rendering -------------------------------------------------------------
 function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string): string {
+  const host = hostFrom(c.source.url);
+  const isCode = codeMatches(c);
+  const templateBadge = c.template
+    ? `<span class="thumb-badge" title="Template — tokens fill in at copy time">T</span>`
+    : "";
+  // Text/link clips with a source get a host monogram (local, no favicon
+  // fetch) so rows from different sites are tellable apart at a glance;
+  // the corner badge carries the kind. No source falls back to the glyph.
+  const mono = host ? hostMonogram(host) : null;
+  const kindBadge = templateBadge
+    || (isCode ? `<span class="thumb-badge thumb-badge-kind" title="Code">{}</span>` : "")
+    || (c.kind === "link" ? `<span class="thumb-badge thumb-badge-kind" title="Link">${icons.link()}</span>` : "");
   const thumb =
     c.kind === "image"
       ? `<div class="thumb thumb-zoomable" title="Click to zoom" aria-label="Open image at full size"><img src="${c.content}" alt="" />${c.width && c.height ? `<span class="thumb-dims">${c.width}×${c.height}</span>` : ""}</div>`
-      : `<div class="thumb thumb-icon">${clipKindIcon(c.kind)}${c.template ? `<span class="thumb-badge" title="Template — tokens fill in at copy time">T</span>` : ""}</div>`;
-  const src = [hostFrom(c.source.url), c.source.title]
+      : mono
+        ? `<div class="thumb thumb-mono" style="--hue:${mono.hue}" aria-hidden="true">${escapeHtml(mono.letter)}${kindBadge}</div>`
+        : `<div class="thumb thumb-icon">${clipKindIcon(c.kind)}${templateBadge}</div>`;
+  const src = [host, c.source.title]
     .filter(Boolean)
     .join(" · ");
   const previewText =
@@ -934,8 +949,12 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
     !c.pinned && typeof c.expiresAt === "number"
       ? ` · <span class="meta-ttl${c.expiresAt <= Date.now() ? " due" : ""}" title="Expires ${new Date(c.expiresAt).toLocaleString()}">${icons.clock()}${formatRemaining(c.expiresAt)}</span>`
       : "";
+  // The source host and kind already show in the monogram + meta line, so
+  // auto-tags that only repeat them ("stackoverflow.com", "url", "image")
+  // are dropped here; they stay on the clip and in the tag filter strip.
   const tags = c.tags
-    .slice(0, 4)
+    .filter((t) => !isRedundantRowTag(t, host))
+    .slice(0, 3)
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join("");
   const archivedBadge = c.archived
@@ -990,7 +1009,7 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
   // keep at most one stripe per row (a clip painted as code shouldn't also
   // claim to be a spreadsheet row). Computed once so codeMatches isn't
   // double-called.
-  const kindStripe = codeMatches(c)
+  const kindStripe = isCode
     ? " is-code"
     : tabularMatches(c)
       ? " is-tabular"
@@ -1002,8 +1021,8 @@ function renderClip(c: ClipItem, idx: number, active: boolean, needle?: string):
       <div class="body">
         <div class="preview"${previewTitle}>${previewHtml}${archivedBadge}${lockedBadge}</div>
         <div class="meta">
-          <span class="src" title="${escapeHtml(c.source.url || "")}">${escapeHtml(src || "—")}</span>
-          <span>· ${timeAgo(c.lastSeenAt)}${hits}${expiry}</span>
+          <span class="src" title="${escapeHtml(c.source.url || "")}">${escapeHtml(src || "Added manually")}</span>
+          <span class="when">· ${timeAgo(c.lastSeenAt)}${hits}${expiry}</span>
         </div>
         ${tags ? `<div class="tags">${tags}</div>` : ""}
       </div>
