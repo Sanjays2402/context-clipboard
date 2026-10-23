@@ -3,6 +3,16 @@
 // that the popup keyboard shortcut can summon via the background.
 
 import { paletteNoteTail, paletteNoteTailAvailable } from "./lib/palette-note-tail";
+import { hostMonogram } from "./lib/row-identity";
+
+// Two glyphs inlined from lib/icons: importing that module would ship the
+// whole icon set (~10 KB) in a script that runs on every page.
+const GLYPH = (d: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const TEXT_GLYPH = GLYPH(`<path d="M4 6h16M4 12h12M4 18h8"/>`);
+const LINK_GLYPH = GLYPH(
+  `<path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 1 0-5-5l-1.5 1.5"/><path d="M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 1 0 5 5l1.5-1.5"/>`,
+);
 import { hasNoteWarning, formatNoteWarningTooltip } from "./lib/note-warning";
 
 const api: typeof chrome =
@@ -543,7 +553,9 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
     .row.dim .preview { font-style: italic; }
     .row.pinned-divider { border-top: 1px dashed rgba(245,180,0,0.22); }
     .row.host-divider { border-top: 1px solid rgba(120, 200, 255, 0.18); }
-    .thumb { width: 36px; height: 36px; flex:0 0 36px; border-radius:4px; background:#0f1115; display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; position:relative; }
+    .thumb { width: 34px; height: 34px; flex:0 0 34px; border-radius:9px; background:#0f1115; border:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:14px; position:relative; color:#b8b8c2; }
+    .thumb svg { width:16px; height:16px; }
+    .thumb.mono { overflow:visible; font-weight:650; color: hsl(var(--hue) 85% 78%); background: hsl(var(--hue) 45% 18%); border-color: hsl(var(--hue) 55% 45% / 0.35); }
     .thumb img { width:100%; height:100%; object-fit:cover; }
     .pin-dot { position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:#f5b400; box-shadow: 0 0 6px rgba(245,180,0,0.7); }
     .body { flex:1; min-width:0; }
@@ -752,10 +764,15 @@ function openPalette(clips: PaletteClip[], initialQuery = "", tabHost = "") {
     list.innerHTML = filtered
       .map((c, i) => {
         const pinDot = c.pinned ? `<span class="pin-dot" title="Pinned"></span>` : "";
+        // Same host monogram as the popup list (lib/row-identity): no
+        // favicon fetch, no emoji. Clips without a source get a glyph.
+        const mono = c.kind === "image" ? null : hostMonogram(host(c.source?.url));
         const thumb =
           c.kind === "image"
             ? `<div class="thumb"><img src="${c.content}" />${pinDot}</div>`
-            : `<div class="thumb">${c.kind === "link" ? "🔗" : "📝"}${pinDot}</div>`;
+            : mono
+              ? `<div class="thumb mono" style="--hue:${mono.hue}">${mono.letter}${pinDot}</div>`
+              : `<div class="thumb">${c.kind === "link" ? LINK_GLYPH : TEXT_GLYPH}${pinDot}</div>`;
         const preview = c.kind === "image" ? c.preview || "Image" : c.preview || c.content;
         const hostMatch = !!activeHost && host(c.source?.url) === activeHost;
         const metaParts = [host(c.source?.url), c.source?.title].filter(Boolean);
