@@ -1698,6 +1698,23 @@ button.small {
   border-radius: 8px;
 }
 
+/* Give non-danger small buttons the app's look instead of the browser's
+   default bevelled button. */
+button.small:not(.danger) {
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--glass-elevated);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+button.small:not(.danger):hover:not(:disabled) {
+  background: var(--glass-hover);
+  border-color: var(--accent);
+}
+
 button.small:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -4249,29 +4266,76 @@ kbd {
 .settings-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
+/* Grouped list: each run of adjacent .setting rows renders as one card
+   with hairline separators (rounded only at the run's ends), instead of
+   a separate floating card per option. */
 .setting {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px;
+  padding: 11px 14px;
   background: var(--glass);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: all 0.18s;
-  box-shadow: var(--shadow-inset);
+  border-radius: 0;
+  transition: background 0.15s ease;
+}
+
+.setting + .setting {
+  border-top-color: var(--border-inner);
+  margin-top: -1px;
+}
+
+.setting:not(.setting + .setting) {
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+}
+
+.setting:not(:has(+ .setting)) {
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+.settings-body > :not(.setting) {
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .setting:hover {
-  border-color: var(--border-strong);
   background: var(--glass-strong);
+}
+
+/* Number fields sit inline on the right like a native settings row. */
+.setting:has(> input[type="number"]) {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.setting > input[type="number"] {
+  width: 92px;
+  text-align: right;
+}
+
+.setting-note {
+  display: block;
+  margin-top: 1px;
+  font-size: 10.5px;
+  font-weight: 450;
+  color: var(--muted);
+}
+
+.setting.toggle:has(input:disabled) {
+  opacity: 0.6;
+}
+
+.setting.toggle input[type="checkbox"]:disabled {
+  cursor: not-allowed;
 }
 
 /* Live preview swatch — renders a miniature of a choice (e.g. the bulk
@@ -4639,9 +4703,9 @@ kbd {
 }
 
 .setting > span {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
-  font-size: 13px;
+  font-size: 12.5px;
   letter-spacing: -0.01em;
 }
 
@@ -4652,10 +4716,10 @@ kbd {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   font-size: 12px;
   font-family: inherit;
-  transition: all 0.18s;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .setting input[type="number"]:focus,
@@ -4663,7 +4727,7 @@ kbd {
 .setting textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-glow);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .setting textarea {
@@ -4679,7 +4743,8 @@ kbd {
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 10px 14px;
 }
 
 .setting.toggle > span {
