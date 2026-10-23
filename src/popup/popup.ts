@@ -7191,6 +7191,7 @@ function toggleCheatsheet(): void {
 }
 
 cheatsheetClose.addEventListener("click", () => closeCheatsheet());
+$("shortcuts-btn").addEventListener("click", () => toggleCheatsheet());
 cheatsheetFilterInput.addEventListener("input", () => applyCheatsheetFilter());
 // ArrowDown from the filter input drops focus into the first surviving
 // row so a keyboard user can traverse the filtered results instead of

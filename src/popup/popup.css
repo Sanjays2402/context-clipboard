@@ -2506,7 +2506,7 @@ button.small:disabled {
 
 /* Footer */
 footer {
-  padding: 10px 12px;
+  padding: 7px 10px;
   background: var(--glass-strong);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
@@ -2522,13 +2522,24 @@ footer {
   box-shadow: var(--shadow-inset);
 }
 
-footer .hint {
+footer .footer-spacer {
   flex: 1;
-  text-align: center;
-  font-size: 10px;
-  opacity: 0.6;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+}
+
+/* "?" opens the cheatsheet; replaces a run-on line of shortcut hints. */
+footer .shortcuts-btn {
+  padding: 3px 6px;
+  line-height: 1;
+}
+
+footer .shortcuts-btn kbd {
+  font: 600 11px/1 ui-monospace, "SF Mono", Consolas, monospace;
+}
+
+footer .shortcuts-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--glass-elevated);
 }
 
 /* Keyboard-focus position breadcrumb ("row 3 of 28"). Only painted
@@ -2563,7 +2574,7 @@ footer button {
   transition: all 0.15s;
 }
 
-footer button:hover {
+#clear:hover {
   color: var(--danger);
   border-color: var(--danger);
   background: rgba(255, 107, 120, 0.08);
