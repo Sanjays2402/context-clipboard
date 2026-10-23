@@ -33,7 +33,7 @@ Copy anything in Chrome, Brave, Edge or Firefox and Context Clipboard saves it w
 
 ## Install
 
-Context Clipboard isn't in the Chrome Web Store or on addons.mozilla.org yet, so install it from source. You need Node.js 22 or newer.
+Context Clipboard isn't in the Chrome Web Store or on addons.mozilla.org yet. Either download `context-clipboard-chrome-<version>.zip` or `context-clipboard-firefox-<version>.zip` from the [latest release](https://github.com/Sanjays2402/context-clipboard/releases/latest) and unzip it, or build from source with Node.js 22 or newer:
 
 ```bash
 git clone https://github.com/Sanjays2402/context-clipboard.git
@@ -44,11 +44,11 @@ npm run build         # writes dist/chrome and dist/firefox
 
 **Chrome, Brave, Edge**
 1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and choose `dist/chrome/`.
+2. Click **Load unpacked** and choose `dist/chrome/` (or the unzipped Chrome release folder).
 
 **Firefox 121+**
 1. Open `about:debugging#/runtime/this-firefox`.
-2. Click **Load Temporary Add-on** and choose `dist/firefox/manifest.json`.
+2. Click **Load Temporary Add-on** and choose `dist/firefox/manifest.json` (or the Firefox release zip itself).
 
 Then copy something on any page and press `Ctrl+Shift+V` (`⌘+Shift+V` on macOS).
 

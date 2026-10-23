@@ -4,6 +4,11 @@ All notable changes to Context Clipboard. The version lives in `package.json`; t
 
 ## Unreleased
 
+## 0.7.0 — 2026-10-23
+
+### Security
+- **CSV export can no longer carry spreadsheet formulas.** Clip text, page titles and nearby text come from arbitrary web pages. Exported cells that start with `=`, `+`, `-`, `@`, tab or CR now get a leading `'`, so a planted `=HYPERLINK(...)` doesn't run when the file is opened in Excel or Sheets (CWE-1236).
+
 ### Changed
 - **Redesigned popup.** A compact header leaves twice as many clips in view. Each row gets a colored monogram for its source site (no favicons are fetched) and stays on one line of metadata. Row actions float in on hover, and code previews render in monospace.
 - Quieter pinned rows and day headers, a one-line footer with a `?` shortcuts button, and a selection bar that fits the popup.
@@ -17,14 +22,13 @@ All notable changes to Context Clipboard. The version lives in `package.json`; t
 - The settings footer showed a hard-coded old version.
 - The Auto-OCR toggle is disabled with a note while OCR is unavailable.
 - **"Copy as CSV row" kept quoted cells intact.** A row like `"Smith, John",42` used to split into three broken cells and re-escape them as `"""Smith","John""",42`. Comma rows now follow RFC 4180 quoting. The TSV row, the Markdown table row and bulk "Copy selected as CSV" are fixed the same way.
-- **CSV export can no longer carry spreadsheet formulas.** Clip text, page titles and nearby text come from arbitrary web pages. Exported cells that start with `=`, `+`, `-`, `@`, tab or CR now get a leading `'`, so a planted `=HYPERLINK(...)` doesn't run when the file is opened in Excel or Sheets (CWE-1236).
 - The extension manifests reported `0.6.2` while the release was `0.6.3`.
 
 ### Added
 - `npm run package` builds store-ready zips without sourcemaps.
 - `npm test` / `npm run check` run the whole test suite, and CI runs it on Linux and Windows for every push and pull request.
 
-## 0.6.3
+## 0.6.3 (not tagged; shipped in 0.7.0)
 
 - **ISO dates in search.** `before:` / `after:` accept calendar dates as well as relative durations: `before:2026-09-01`, `after:2026-01-01T00:00`. Invalid dates (e.g. `2026-02-30`) fall back to free text instead of matching the wrong clips.
 
