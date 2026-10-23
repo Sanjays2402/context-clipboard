@@ -9,7 +9,8 @@ import fsSync from "node:fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const SERVE = path.join(ROOT, "dist/chrome");
-const OUT = path.join(ROOT, "screenshots");
+// SHOT_OUT redirects output (e.g. to a temp dir while iterating on CSS).
+const OUT = process.env.SHOT_OUT ? path.resolve(process.env.SHOT_OUT) : path.join(ROOT, "screenshots");
 await fs.mkdir(OUT, { recursive: true });
 
 const MIME = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json", ".svg": "image/svg+xml" };

@@ -3412,6 +3412,10 @@ async function runOcr(_c: ClipItem): Promise<string> {
 // Settings --------------------------------------------------------------
 async function openSettings() {
   const s = await getSettings();
+  // Read the version from the live manifest (stamped from package.json at
+  // build time) rather than hard-coding it in the HTML, where it went stale.
+  const version = api.runtime?.getManifest?.().version;
+  $("settings-version").textContent = version ? ` · v${version}` : "";
   sMax.value = String(s.maxUnpinned);
   sDedup.value = String(Math.round(s.dedupWindowMs / 1000));
   sCapture.checked = s.captureCopyEvents;
