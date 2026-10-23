@@ -13,7 +13,8 @@
     "test": "node scripts/run-tests.mjs",
     "test:e2e": "node scripts/run-tests.mjs --e2e-only",
     "check": "npm run typecheck && npm run build && npm test",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "build:site": "node scripts/build-site.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
