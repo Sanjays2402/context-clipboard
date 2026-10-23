@@ -2613,6 +2613,8 @@ async function openDetail(id: string) {
       }
     }
     detailBody.innerHTML = `<pre>${bodyHtml}</pre>`;
+    // Prose reads in the UI face; only code keeps the monospace <pre> look.
+    detailBody.classList.toggle("is-prose", !codeMatches(c));
     detailOcr.hidden = true;
     detailRefetch.hidden = true;
   }

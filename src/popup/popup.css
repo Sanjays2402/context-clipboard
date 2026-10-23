@@ -409,8 +409,11 @@ header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: var(--shadow-inset);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
 }
 
 .icon-btn:hover {
@@ -3258,6 +3261,7 @@ kbd {
 }
 
 .detail-nav-pos {
+  white-space: nowrap;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -3267,6 +3271,44 @@ kbd {
   border: 1px solid var(--border);
   border-radius: 999px;
   font-variant-numeric: tabular-nums;
+}
+
+/* The clip detail header carries up to ~13 tools, more than fit beside
+   the title at 400px. Row 1 keeps navigation (back / title / position /
+   prev / next); a zero-height full-width ::before breaks the line and the
+   clip tools sit on row 2, with Delete pushed to the far right. */
+#detail .detail-header {
+  flex-wrap: wrap;
+  row-gap: 4px;
+  column-gap: 2px;
+  padding: 8px 10px 6px;
+}
+
+#detail .detail-header::before {
+  content: "";
+  order: 1;
+  flex-basis: 100%;
+  height: 0;
+}
+
+#detail .detail-header > .icon-btn:not(#detail-back):not(#detail-prev):not(#detail-next) {
+  order: 2;
+}
+
+#detail .detail-title {
+  padding-left: 4px;
+}
+
+#detail .detail-nav-pos {
+  margin-right: 4px;
+}
+
+#detail-delete {
+  margin-left: auto;
+}
+
+#detail-delete:hover {
+  color: var(--danger);
 }
 
 .detail-header .icon-btn:disabled {
@@ -3293,6 +3335,13 @@ kbd {
   font-size: 12px;
   line-height: 1.65;
   color: var(--text);
+}
+
+.detail-body.is-prose pre {
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+  letter-spacing: -0.005em;
 }
 
 /* Soft syntax tinting for detected code clips (lib/code-highlight).
@@ -3441,8 +3490,9 @@ kbd {
    breadcrumb; lowercase + mono to match the extension's quiet chrome. */
 .detail-kind-badge {
   display: inline-flex;
+  align-self: flex-start;
   align-items: center;
-  margin: 8px 0 0 18px;
+  margin: 8px 0 0 14px;
   padding: 2px 9px;
   font-size: 10px;
   font-weight: 600;
@@ -3494,12 +3544,21 @@ kbd {
   gap: 12px;
 }
 
+/* Label | value grid: short facts (source, captured, copies) take one
+   line each instead of a stacked label + value pair. */
 .meta-row {
   font-size: 12px;
   color: var(--text-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 3px;
+  align-items: baseline;
+}
+
+.meta-row > :not(strong) {
+  grid-column: 2;
+  min-width: 0;
 }
 
 .meta-row strong {
