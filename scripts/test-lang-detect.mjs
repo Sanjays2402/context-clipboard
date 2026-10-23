@@ -77,6 +77,11 @@ try {
   // Shell (no shebang) — common command preface
   eq(det("$ npm run build\n$ git status"), "bash", "shell prompt");
   eq(det("export PATH=/usr/local/bin:$PATH"), "bash", "shell export");
+  eq(
+    det("export async function listClips(limit = 50) {\n  const tx = db.transaction('clips');\n  return tx;\n}"),
+    "javascript",
+    "JS export function is not shell",
+  );
 
   // YAML
   eq(

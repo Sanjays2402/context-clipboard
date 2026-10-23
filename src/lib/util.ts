@@ -412,10 +412,12 @@ export function detectCodeLang(content: string): string | undefined {
   ) {
     return "python";
   }
-  // Shell — common command prefixes + flag patterns.
+  // Shell — common command prefixes + flag patterns. `export` only counts
+  // as shell in its NAME=value form; JS/TS `export function` must fall
+  // through to the JavaScript branches below.
   if (
     /^\s*(?:\$|#)\s*\w/.test(head) ||
-    /^\s*(?:export |alias |if \[|fi\b|then\b|done\b|case \$\w|for \w+ in )/m.test(
+    /^\s*(?:export [A-Za-z_]\w*=|alias |if \[|fi\b|then\b|done\b|case \$\w|for \w+ in )/m.test(
       head,
     ) ||
     /^\s*(?:sudo |curl |git |npm |yarn |pnpm |brew |apt(?:-get)? )/m.test(head)
