@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Context Clipboard — a clipboard that remembers where it came from</title>
-  <meta name="description" content="A free, open-source clipboard history for Chrome, Brave, Edge and Firefox. Every copy keeps its source URL, page title and surrounding paragraph. 100% local: no account, no server, no telemetry." />
-  <meta name="theme-color" content="#0b0b0f" media="(prefers-color-scheme: dark)" />
-  <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)" />
+  <title>Context Clipboard</title>
+  <meta name="description" content="A clipboard history for Chrome and Firefox that saves the page URL, title and surrounding paragraph with everything you copy. Free, open source, and nothing leaves your browser." />
+  <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme: light)" />
   <meta name="color-scheme" content="dark light" />
   <link rel="canonical" href="https://sanjays2402.github.io/context-clipboard/" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://sanjays2402.github.io/context-clipboard/" />
-  <meta property="og:title" content="Context Clipboard — every copy remembers where it came from" />
-  <meta property="og:description" content="Clipboard history with source URL, page title and context for every copy. Local-only, open source, keyboard-first." />
+  <meta property="og:title" content="Context Clipboard" />
+  <meta property="og:description" content="A clipboard history for your browser that remembers which page each thing came from." />
   <meta property="og:image" content="https://sanjays2402.github.io/context-clipboard/hero.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="favicon.png" />
@@ -22,68 +22,49 @@
 <body>
   <a class="skip" href="#main">Skip to content</a>
 
-  <header class="nav">
-    <div class="wrap nav-inner">
-      <a class="brand" href="#top" aria-label="Context Clipboard home">
-        <img src="favicon.png" alt="" width="26" height="26" />
-        <span>Context Clipboard</span>
-      </a>
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="name" href="#main"><img src="favicon.png" alt="" width="22" height="22" />Context Clipboard</a>
       <nav aria-label="Primary">
-        <a href="#demo">Demo</a>
-        <a href="#features">Features</a>
-        <a href="#search">Search</a>
-        <a href="#privacy">Privacy</a>
+        <a href="#what">What it does</a>
         <a href="#install">Install</a>
-      </nav>
-      <div class="nav-actions">
-        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle light and dark theme">
+        <a href="https://github.com/Sanjays2402/context-clipboard">GitHub</a>
+        <button id="theme-toggle" class="theme" type="button" aria-label="Switch between light and dark">
           <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
           <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         </button>
-        <a class="btn ghost small" href="https://github.com/Sanjays2402/context-clipboard">
-          <svg viewBox="0 0 24 24" aria-hidden="true" class="gh"><path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></svg>
-          GitHub
-        </a>
-      </div>
+      </nav>
     </div>
   </header>
 
   <main id="main">
-    <!-- Hero + live demo -->
-    <section class="hero" id="top">
-      <div class="wrap hero-grid">
-        <div class="hero-copy">
-          <a class="pill" href="https://github.com/Sanjays2402/context-clipboard/releases/latest">
-            <span class="dot" aria-hidden="true"></span>
-            <span>v<span data-version>0.7.0</span> is out · redesigned popup</span>
-            <span aria-hidden="true">→</span>
-          </a>
-          <h1>Your clipboard,<br /><span class="grad">with a memory.</span></h1>
+    <section class="intro">
+      <div class="wrap intro-grid">
+        <div>
+          <h1>Context Clipboard</h1>
           <p class="lede">
-            Every copy keeps its source URL, page title and the paragraph around it.
-            A week later you can find it, trust it, and cite it. Everything stays in your browser.
+            A clipboard history for your browser that keeps track of where things came from.
+            When you copy something, it saves the page's URL, its title and the paragraph around
+            your selection along with the text. All of it stays in your browser.
           </p>
-          <div class="cta">
-            <a class="btn primary" href="#install">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>
-              Install free
-            </a>
-            <a class="btn" href="#demo">Try the live demo</a>
+          <div class="actions">
+            <a class="btn primary" href="https://github.com/Sanjays2402/context-clipboard/releases/download/v0.7.0/context-clipboard-chrome-0.7.0.zip">Download for Chrome</a>
+            <a class="btn" href="https://github.com/Sanjays2402/context-clipboard/releases/download/v0.7.0/context-clipboard-firefox-0.7.0.zip">Firefox</a>
           </div>
-          <ul class="hero-meta" aria-label="Highlights">
-            <li>Chrome · Brave · Edge · Firefox</li>
-            <li>No account</li>
-            <li>No telemetry</li>
-            <li>MIT licensed</li>
-          </ul>
+          <p class="small">
+            Version <span data-version>0.7.0</span> ·
+            <a href="https://github.com/Sanjays2402/context-clipboard/blob/main/CHANGELOG.md">what's new</a> ·
+            <a href="#install">install steps</a><br />
+            Free and open source (MIT). Works in Chrome, Brave, Edge and Firefox 121+.
+          </p>
         </div>
 
-        <div class="demo-wrap" id="demo">
+        <figure class="demo-wrap" id="demo">
           <div class="demo" role="application" aria-label="Interactive demo of the Context Clipboard popup">
             <div class="demo-head">
               <div class="demo-search">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                <input id="demo-search" type="search" placeholder="Search clips… try is:code" autocomplete="off" spellcheck="false" aria-label="Search the demo clips" aria-controls="demo-list" />
+                <input id="demo-search" type="search" placeholder="Search clips…" autocomplete="off" spellcheck="false" aria-label="Search the demo clips" aria-controls="demo-list" />
               </div>
               <div class="demo-kinds" id="demo-kinds" role="group" aria-label="Filter by kind">
                 <button type="button" data-kind="all" aria-pressed="true">All</button>
@@ -93,218 +74,156 @@
               </div>
             </div>
             <ul class="demo-list" id="demo-list" role="listbox" aria-label="Clips">
-              <li class="empty"><strong>Loading demo…</strong></li>
+              <li class="empty"><strong>Loading…</strong></li>
             </ul>
             <div class="demo-foot">
               <span id="demo-status" aria-live="polite"></span>
-              <span class="keys"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>⏎</kbd> copy · <kbd>⇧⏎</kbd> Markdown</span>
+              <span class="keys"><kbd>↑</kbd><kbd>↓</kbd> move, <kbd>⏎</kbd> copy</span>
             </div>
             <section class="demo-detail" id="demo-detail" hidden aria-label="Clip detail"></section>
             <div class="demo-toast" id="demo-toast" role="status" aria-live="polite"></div>
           </div>
-          <div class="try">
-            <span>Try:</span>
-            <button type="button" data-try="is:code">is:code</button>
-            <button type="button" data-try="host:github.com">host:github.com</button>
-            <button type="button" data-try="after:1h">after:1h</button>
-            <button type="button" data-try="kind:link">kind:link</button>
-            <button type="button" data-try="is:noted">is:noted</button>
-          </div>
-          <p class="demo-note">This is the real search engine from the extension, running on sample clips. Click a clip to see where it came from.</p>
-        </div>
+          <figcaption>
+            The popup, with a few made-up clips. It runs the extension's own search code, so you can try
+            <button type="button" data-try="is:code">is:code</button>,
+            <button type="button" data-try="host:github.com">host:github.com</button> or
+            <button type="button" data-try="after:1h">after:1h</button>.
+            Click a clip to see where it came from.
+          </figcaption>
+        </figure>
       </div>
     </section>
 
-    <!-- How it works -->
-    <section class="section" aria-labelledby="how-title">
+    <section class="block" id="what" aria-labelledby="what-h">
       <div class="wrap">
-        <p class="eyebrow">How it works</p>
-        <h2 id="how-title">Copy like you always do.<br />Find it like you never could.</h2>
-        <ol class="steps">
-          <li>
-            <span class="step-n">1</span>
-            <h3>Copy anything</h3>
-            <p>Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>C</kbd> on any page, or right-click → Capture. Text, links and images all work.</p>
-          </li>
-          <li>
-            <span class="step-n">2</span>
-            <h3>It remembers the source</h3>
-            <p>The URL, page title and the paragraph around your selection are saved with the clip, locally, in IndexedDB.</p>
-          </li>
-          <li>
-            <span class="step-n">3</span>
-            <h3>Paste it back, anywhere</h3>
-            <p>Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>V</kbd> on any page, type a few letters, hit Enter. Or paste it as Markdown with the citation attached.</p>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section class="section" id="features" aria-labelledby="features-title">
-      <div class="wrap">
-        <p class="eyebrow">Features</p>
-        <h2 id="features-title">Small tool. Lots of thought.</h2>
-        <div class="bento">
-          <article class="card wide">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h10M7 13h6"/></svg>
-            <h3>In-page palette</h3>
-            <p><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>V</kbd> opens a Spotlight-style overlay on whatever site you're on. Search, then paste straight into the field you were typing in. Clips with a warning note ("prod only") are flagged before you paste.</p>
-          </article>
-          <article class="card">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 1 0-5-5l-1.5 1.5"/><path d="M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 1 0 5 5l1.5-1.5"/></svg>
-            <h3>Source on every clip</h3>
-            <p>URL, title and nearby paragraph, so you always know where something came from.</p>
-          </article>
-          <article class="card">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6 3 12l5 6M16 6l5 6-5 6"/></svg>
-            <h3>Paste as Markdown</h3>
-            <p>Quotes get a <code>&gt;</code> blockquote with citation, code gets a fenced block, images get <code>![alt](url)</code>.</p>
-          </article>
-          <article class="card">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg>
-            <h3>"Send to" anything</h3>
-            <p>Copy a clip as a CSV, TSV or table row, JSON, a curl command, a bullet list, or just its first sentence or domain.</p>
-          </article>
-          <article class="card">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10M7 20h10M9 4c0 6 6 6 6 16M15 4c0 6-6 6-6 16"/></svg>
-            <h3>Templates</h3>
-            <p>Clips with <code>{{date}}</code>, <code>{{url}}</code>, <code>{{title}}</code> or <code>{{clipboard}}</code> fill themselves in when you paste.</p>
-          </article>
-          <article class="card">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>
-            <h3>Site rules</h3>
-            <p>Per-site rules: never capture on your bank, auto-tag work tools, auto-pin or lock, or keep the text but strip the URL.</p>
-          </article>
-          <article class="card wide">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/><path d="m17 16 2 2 3-4"/></svg>
-            <h3>Organize without thinking</h3>
-            <p>Auto-tags for code, emails, URLs, JWTs and secrets. Pin what matters, lock what you can't lose, add notes with <code>#hashtags</code>, set clips to expire, bulk-select to tag, export or copy many at once, and undo from a 7-day trash.</p>
-          </article>
-          <article class="card wide">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>
-            <h3>Images, too</h3>
-            <p>Copy an image, right-click → Capture, or drag one into the popup. Images keep their source page like any other clip, open in a zoomable viewer, and paste back as Markdown <code>![alt](url)</code>.</p>
-          </article>
-          <article class="card">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
-            <h3>Field suggestions</h3>
-            <p>Focus an input you've pasted into before and the clip you used last time is offered as a chip.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Search operators -->
-    <section class="section" id="search" aria-labelledby="search-title">
-      <div class="wrap">
-        <p class="eyebrow">Search</p>
-        <h2 id="search-title">Search that speaks your history.</h2>
-        <p class="sub">Combine operators with plain text. Click any of these to run it in the demo above.</p>
-        <div class="ops">
-          <button type="button" class="op" data-try="host:stackoverflow.com"><code>host:stackoverflow.com</code><span>Clips from one site</span></button>
-          <button type="button" class="op" data-try="is:code"><code>is:code</code><span>Detected code (or <code>is:prose</code>)</span></button>
-          <button type="button" class="op" data-try="after:1h"><code>after:1h</code><span>Copied in the last hour</span></button>
-          <button type="button" class="op" data-try="is:yesterday"><code>is:yesterday</code><span>Calendar days, weeks, months</span></button>
-          <button type="button" class="op" data-try="kind:link"><code>kind:link</code><span>Text, links or images</span></button>
-          <button type="button" class="op" data-try="is:pinned"><code>is:pinned</code><span>Pinned, locked, archived…</span></button>
-          <button type="button" class="op" data-try="is:tabular"><code>is:tabular</code><span>Spreadsheet rows (CSV / TSV)</span></button>
-          <button type="button" class="op" data-try="is:template"><code>is:template</code><span>Clips with <code>{{tokens}}</code></span></button>
-          <button type="button" class="op" data-try="is:noted"><code>is:noted</code><span>Clips with a note</span></button>
-          <button type="button" class="op" data-try="tag:code is:code sql"><code>tag:code sql</code><span>Mix tags and free text</span></button>
-        </div>
-        <p class="more"><a href="https://github.com/Sanjays2402/context-clipboard#search-syntax">All ~40 operators →</a></p>
-      </div>
-    </section>
-
-    <!-- Privacy -->
-    <section class="section privacy" id="privacy" aria-labelledby="privacy-title">
-      <div class="wrap">
-        <p class="eyebrow">Privacy</p>
-        <h2 id="privacy-title">Yours. Only on your machine.</h2>
-        <div class="stats">
-          <div><strong>0</strong><span>servers</span></div>
-          <div><strong>0</strong><span>accounts</span></div>
-          <div><strong>0</strong><span>trackers</span></div>
-          <div><strong>100%</strong><span>open source</span></div>
-        </div>
-        <div class="privacy-grid">
+        <h2 id="what-h">What it does</h2>
+        <p class="para">
+          Most clipboard managers keep the text and drop everything else. A week later you have a
+          snippet and no idea whether it came from the docs, a forum answer or someone's notes.
+          This one keeps the source next to the text, and lets you search both.
+        </p>
+        <dl class="features">
           <div>
-            <h3>Local by design</h3>
-            <p>Clips live in your browser's IndexedDB. There's no sync service and no analytics; nothing you copy is sent anywhere. Even site icons are drawn locally instead of fetched.</p>
+            <dt>Search everything you've copied</dt>
+            <dd>Search the text, the page title and the URL. Narrow it down with operators like <code>host:github.com</code> or <code>after:1h</code>.</dd>
           </div>
           <div>
-            <h3>Redaction built in</h3>
-            <p>Mask emails, phone numbers, card numbers, SSNs, JWTs and API keys on any clip, or turn on auto-redact so the original is never stored.</p>
+            <dt>Paste from any page</dt>
+            <dd><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (<kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd> on a Mac) opens a small search box on the page you're on. Pick a clip and it goes into the field you were typing in.</dd>
           </div>
           <div>
-            <h3>You decide where it captures</h3>
-            <p>Block lists, allow lists, per-site rules, and "Forget host" to wipe everything from one site. A privacy audit log shows what changed.</p>
+            <dt>Paste with a citation</dt>
+            <dd><kbd>Shift</kbd>+<kbd>Enter</kbd> pastes as Markdown. Quotes come with a link back to the page, code comes fenced, images come as <code>![alt](url)</code>.</dd>
           </div>
           <div>
-            <h3>Safe backups</h3>
-            <p>Export to JSON, Markdown or CSV, optionally encrypted with your passphrase (AES-GCM-256). CSV exports neutralize spreadsheet formulas.</p>
+            <dt>Images too</dt>
+            <dd>Copied images are saved with the page they came from. You can also right-click an image to capture it, or drag one into the popup.</dd>
           </div>
-        </div>
-        <p class="more"><a href="https://github.com/Sanjays2402/context-clipboard/blob/main/PRIVACY.md">Read the privacy policy →</a></p>
+          <div>
+            <dt>Notes, pins and tags</dt>
+            <dd>Pin the clips you reuse. Add a note like "staging only", and the paste box shows it before you paste. Code, emails and URLs get tagged automatically.</dd>
+          </div>
+          <div>
+            <dt>Templates</dt>
+            <dd>Save a clip like <code>Meeting notes {{date}}</code> and the date is filled in each time you paste it. <code>{{url}}</code>, <code>{{title}}</code> and a few others work too.</dd>
+          </div>
+          <div>
+            <dt>Rules per site</dt>
+            <dd>Turn capture off for your bank, tag everything from a work tool, or keep the text from an internal site but drop its URL.</dd>
+          </div>
+          <div>
+            <dt>Lots of ways to copy back out</dt>
+            <dd>A clip can go out as a CSV or table row, JSON, a curl command or a list, or just its first sentence. Select several to tag, export or copy them together.</dd>
+          </div>
+        </dl>
       </div>
     </section>
 
-    <!-- Keyboard -->
-    <section class="section" aria-labelledby="keys-title">
+    <section class="block" id="search" aria-labelledby="search-h">
       <div class="wrap">
-        <p class="eyebrow">Keyboard-first</p>
-        <h2 id="keys-title">Faster than reaching for the mouse.</h2>
-        <div class="keys-grid">
-          <div><span><kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>V</kbd></span>In-page palette</div>
-          <div><span><kbd>/</kbd></span>Focus search</div>
-          <div><span><kbd>↑</kbd> <kbd>↓</kbd></span>Move through clips</div>
-          <div><span><kbd>⏎</kbd></span>Copy</div>
-          <div><span><kbd>⇧</kbd> <kbd>⏎</kbd></span>Copy as Markdown</div>
-          <div><span><kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>K</kbd></span>Command palette</div>
-          <div><span><kbd>P</kbd></span>Pin / unpin</div>
-          <div><span><kbd>X</kbd></span>Select for bulk actions</div>
-          <div><span><kbd>[</kbd> <kbd>]</kbd></span>Previous / next clip</div>
-          <div><span><kbd>?</kbd></span>Every shortcut</div>
+        <h2 id="search-h">Search operators</h2>
+        <p class="para">Mix them with plain words. Click one to run it in the demo above.</p>
+        <table class="ops">
+          <tbody>
+            <tr><td><button type="button" data-try="host:stackoverflow.com">host:stackoverflow.com</button></td><td>clips copied from one site</td></tr>
+            <tr><td><button type="button" data-try="is:code">is:code</button></td><td>clips that look like code (<code>is:prose</code> for the rest)</td></tr>
+            <tr><td><button type="button" data-try="after:1h">after:1h</button></td><td>copied in the last hour; also <code>before:7d</code> or a date like <code>after:2026-09-01</code></td></tr>
+            <tr><td><button type="button" data-try="is:yesterday">is:yesterday</button></td><td>also <code>is:today</code>, <code>is:thisweek</code>, <code>is:lastmonth</code></td></tr>
+            <tr><td><button type="button" data-try="kind:link">kind:link</button></td><td><code>kind:text</code>, <code>kind:link</code> or <code>kind:image</code></td></tr>
+            <tr><td><button type="button" data-try="is:pinned">is:pinned</button></td><td>pinned clips; also <code>is:locked</code>, <code>is:archived</code></td></tr>
+            <tr><td><button type="button" data-try="is:noted">is:noted</button></td><td>clips you've written a note on</td></tr>
+            <tr><td><button type="button" data-try="is:tabular">is:tabular</button></td><td>single spreadsheet rows (comma or tab separated)</td></tr>
+          </tbody>
+        </table>
+        <p class="para small">There are about 40 in total. <a href="https://github.com/Sanjays2402/context-clipboard#search-syntax">The README has the full list.</a></p>
+      </div>
+    </section>
+
+    <section class="block" id="privacy" aria-labelledby="privacy-h">
+      <div class="wrap">
+        <h2 id="privacy-h">Privacy</h2>
+        <div class="two">
+          <p class="para">
+            Clips are stored in your browser's IndexedDB and nowhere else. There's no account, no sync
+            server and no analytics, and the extension doesn't send your clips anywhere. The site
+            letters in the list are drawn from the domain name instead of downloading each site's
+            icon, so opening the popup doesn't contact the sites you copied from either.
+          </p>
+          <p class="para">
+            If you copy sensitive things, you can block sites from being captured, redact emails, card
+            numbers and API keys in a clip (or have that done as you copy), and export backups
+            encrypted with a passphrase. The <a href="https://github.com/Sanjays2402/context-clipboard/blob/main/PRIVACY.md">privacy policy</a>
+            has the details.
+          </p>
         </div>
       </div>
     </section>
 
-    <!-- Install -->
-    <section class="section" id="install" aria-labelledby="install-title">
-      <div class="wrap narrow">
-        <p class="eyebrow">Install</p>
-        <h2 id="install-title">Up and running in a minute.</h2>
-        <p class="sub">Not in the Chrome Web Store or on addons.mozilla.org yet, so load the release zip. Your clips stay put across updates.</p>
-        <div class="tabs" role="tablist" aria-label="Choose your browser">
-          <button type="button" role="tab" id="tab-chrome" aria-controls="panel-chrome" aria-selected="true">Chrome · Brave · Edge</button>
+    <section class="block" aria-labelledby="keys-h">
+      <div class="wrap">
+        <h2 id="keys-h">Keyboard shortcuts</h2>
+        <table class="keys">
+          <tbody>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>Shift</kbd> <kbd>V</kbd></td><td>search box on the current page</td></tr>
+            <tr><td><kbd>/</kbd></td><td>focus search in the popup</td></tr>
+            <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd></td><td>pick a clip and copy it</td></tr>
+            <tr><td><kbd>Shift</kbd> <kbd>Enter</kbd></td><td>copy as Markdown</td></tr>
+            <tr><td><kbd>P</kbd></td><td>pin or unpin</td></tr>
+            <tr><td><kbd>X</kbd></td><td>select for bulk actions</td></tr>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>K</kbd></td><td>command palette</td></tr>
+            <tr><td><kbd>?</kbd></td><td>every shortcut</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block" id="install" aria-labelledby="install-h">
+      <div class="wrap">
+        <h2 id="install-h">Install</h2>
+        <p class="para">
+          It isn't in the Chrome Web Store or on addons.mozilla.org yet, so for now you load it
+          yourself. Your clips are kept when you update.
+        </p>
+        <div class="tabs" role="tablist" aria-label="Browser">
+          <button type="button" role="tab" id="tab-chrome" aria-controls="panel-chrome" aria-selected="true">Chrome, Brave, Edge</button>
           <button type="button" role="tab" id="tab-firefox" aria-controls="panel-firefox" aria-selected="false">Firefox</button>
           <button type="button" role="tab" id="tab-source" aria-controls="panel-source" aria-selected="false">From source</button>
         </div>
         <div class="tab-panel" id="panel-chrome" role="tabpanel" aria-labelledby="tab-chrome">
-          <a class="btn primary" href="https://github.com/Sanjays2402/context-clipboard/releases/download/v0.7.0/context-clipboard-chrome-0.7.0.zip">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>
-            Download for Chrome · v<span data-version>0.7.0</span>
-          </a>
-          <ol class="install-steps">
-            <li>Unzip the download somewhere permanent.</li>
-            <li>Open <code>chrome://extensions</code> and turn on <strong>Developer mode</strong>.</li>
+          <ol>
+            <li>Download <a href="https://github.com/Sanjays2402/context-clipboard/releases/download/v0.7.0/context-clipboard-chrome-0.7.0.zip">context-clipboard-chrome-<span data-version>0.7.0</span>.zip</a> and unzip it somewhere you'll keep it.</li>
+            <li>Open <code>chrome://extensions</code> and switch on <strong>Developer mode</strong> (top right).</li>
             <li>Click <strong>Load unpacked</strong> and choose the unzipped folder.</li>
-            <li>Pin the icon, copy something, then press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>V</kbd>.</li>
           </ol>
-          <p class="hint">Updating: replace the files in the same folder and click reload. Keeping the folder keeps your history.</p>
+          <p class="small">To update, replace the files in that same folder and press the reload icon on the extension. Loading it from a different folder starts with an empty history.</p>
         </div>
         <div class="tab-panel" id="panel-firefox" role="tabpanel" aria-labelledby="tab-firefox" hidden>
-          <a class="btn primary" href="https://github.com/Sanjays2402/context-clipboard/releases/download/v0.7.0/context-clipboard-firefox-0.7.0.zip">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>
-            Download for Firefox · v<span data-version>0.7.0</span>
-          </a>
-          <ol class="install-steps">
+          <ol>
+            <li>Download <a href="https://github.com/Sanjays2402/context-clipboard/releases/download/v0.7.0/context-clipboard-firefox-0.7.0.zip">context-clipboard-firefox-<span data-version>0.7.0</span>.zip</a>.</li>
             <li>Open <code>about:debugging#/runtime/this-firefox</code>.</li>
-            <li>Click <strong>Load Temporary Add-on</strong> and choose the downloaded zip.</li>
-            <li>Copy something, then press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>V</kbd>.</li>
+            <li>Click <strong>Load Temporary Add-on</strong> and choose the zip.</li>
           </ol>
-          <p class="hint">Requires Firefox 121+. Temporary add-ons are removed when Firefox restarts, until the addons.mozilla.org listing is live.</p>
+          <p class="small">Firefox removes temporary add-ons when it restarts, so you'll need to load it again after that.</p>
         </div>
         <div class="tab-panel" id="panel-source" role="tabpanel" aria-labelledby="tab-source" hidden>
           <div class="code-block">
@@ -314,61 +233,32 @@ npm install
 npm run build</code></pre>
             <button type="button" class="copy-btn" data-copy-text="git clone https://github.com/Sanjays2402/context-clipboard.git &amp;&amp; cd context-clipboard &amp;&amp; npm install &amp;&amp; npm run build" aria-label="Copy commands">Copy</button>
           </div>
-          <p class="hint">Needs Node.js 22+. Then load <code>dist/chrome</code> or <code>dist/firefox</code> as above.</p>
+          <p class="small">Needs Node.js 22 or newer. Then load <code>dist/chrome</code> or <code>dist/firefox</code> as in the other tabs.</p>
         </div>
       </div>
     </section>
 
-    <!-- FAQ -->
-    <section class="section" aria-labelledby="faq-title">
-      <div class="wrap narrow">
-        <p class="eyebrow">FAQ</p>
-        <h2 id="faq-title">Questions, answered.</h2>
-        <div class="faq">
-          <details>
-            <summary>Does it sync between devices?</summary>
-            <p>Not automatically, on purpose: there's no server. Export a backup (optionally encrypted) and import it in another browser.</p>
-          </details>
-          <details>
-            <summary>Will it capture my passwords?</summary>
-            <p>It captures what you copy. Block your password manager and banking sites in Settings, turn on auto-redact, and likely secrets are masked in previews anyway.</p>
-          </details>
-          <details>
-            <summary>Can it read text in images?</summary>
-            <p>Image OCR is temporarily switched off while it's reworked. Images are still captured, previewed and searchable by their page.</p>
-          </details>
-          <details>
-            <summary>Why does it need access to all sites?</summary>
-            <p>To read the page title, URL and nearby text at the moment you copy. It only saves something when you copy (or paste into a field, for suggestions), and block lists or site rules can exclude any site.</p>
-          </details>
-          <details>
-            <summary>Is it really free?</summary>
-            <p>Yes. MIT licensed, no paid tier, no ads. Issues and pull requests are welcome.</p>
-          </details>
-        </div>
-      </div>
-    </section>
-
-    <section class="section final">
-      <div class="wrap narrow center">
-        <h2>Never lose a copy again.</h2>
-        <div class="cta center">
-          <a class="btn primary" href="#install">Install free</a>
-          <a class="btn" href="https://github.com/Sanjays2402/context-clipboard">Star on GitHub</a>
-        </div>
+    <section class="block" aria-labelledby="notes-h">
+      <div class="wrap">
+        <h2 id="notes-h">Good to know</h2>
+        <ul class="notes">
+          <li>Reading text out of images (OCR) is switched off in this version while it gets reworked.</li>
+          <li>There's no sync. To move your clips to another browser, export a backup in Settings and import it there.</li>
+          <li>It asks for access to all sites so it can read the page title and nearby text when you copy. Put anything you'd rather it never saw on the block list.</li>
+          <li>Found a bug or want something? <a href="https://github.com/Sanjays2402/context-clipboard/issues">Open an issue on GitHub.</a></li>
+        </ul>
       </div>
     </section>
   </main>
 
-  <footer class="footer">
-    <div class="wrap footer-inner">
-      <span>© 2026 Sanjay Santhanam · MIT licensed</span>
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <span>Made by Sanjay Santhanam. MIT license.</span>
       <nav aria-label="Footer">
-        <a href="https://github.com/Sanjays2402/context-clipboard">GitHub</a>
+        <a href="https://github.com/Sanjays2402/context-clipboard">Source</a>
         <a href="https://github.com/Sanjays2402/context-clipboard/releases">Releases</a>
         <a href="https://github.com/Sanjays2402/context-clipboard/blob/main/CHANGELOG.md">Changelog</a>
         <a href="https://github.com/Sanjays2402/context-clipboard/blob/main/PRIVACY.md">Privacy</a>
-        <a href="https://github.com/Sanjays2402/context-clipboard/issues">Report an issue</a>
       </nav>
     </div>
   </footer>
