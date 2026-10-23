@@ -23,6 +23,12 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run package
+      # The Pages site in docs/ is generated; fail if it's stale.
+      - name: Website is up to date
+        if: runner.os == 'Linux'
+        run: |
+          npm run build:site
+          git diff --exit-code -- docs/
 
   e2e:
     runs-on: ubuntu-latest

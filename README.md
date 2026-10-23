@@ -176,12 +176,14 @@ npm run check         # typecheck + build + every unit/sanity test
 npm test              # tests only; filter by name: npm test -- send-to
 npm run test:e2e      # Playwright popup tests against dist/chrome
 npm run package       # store-ready zips in dist/ (no sourcemaps)
+npm run build:site    # rebuild the website in docs/ (demo + version stamp)
 ```
 
 - `npm test` runs `scripts/test-*.mjs` and `.cron-state/sanity-*.mjs` in parallel.
 - The e2e tests use Playwright's Chromium (`npx playwright install chromium`). Set `CHROME_PATH` to use a local Chrome or Edge instead.
 - CI runs the checks on Linux and Windows, plus e2e on Linux, for every push and pull request.
-- Bump the version in `package.json` only. The build stamps it into both manifests.
+- Bump the version in `package.json` only. The build stamps it into both manifests, and `npm run build:site` stamps it into the website.
+- The website ([docs/](docs/), served by GitHub Pages) has a live demo built from `src/site/demo.ts` using the real search parser. CI fails if `docs/` is out of date.
 
 ### How it fits together
 
